@@ -150,10 +150,7 @@ impl ToplevelInfoHandler for AppData {
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(&toplevel).unwrap();
-        self.send_event(Event::NewToplevel(
-            toplevel.clone(),
-            info.clone(),
-        ));
+        self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
 
         let frame = self.screencopy_state.screencopy_manager.capture_toplevel(
             toplevel,

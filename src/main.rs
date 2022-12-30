@@ -52,9 +52,9 @@ struct Toplevel {
 struct LayerSurface {
     output: wl_output::WlOutput,
     output_name: Option<String>,
-    // Active workspace
-    // windows in workspace
-    // - for transitions, would need windows in more than one workspace
+    active_workspace: Option<zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
+    // for transitions, would need windows in more than one workspace? But don't capture all of
+    // them all the time every frame.
 }
 
 #[derive(Default)]
@@ -99,6 +99,7 @@ impl Application for App {
                                 LayerSurface {
                                     output: output.clone(),
                                     output_name: info.name,
+                                    active_workspace: None,
                                 },
                             );
                             return get_layer_surface(SctkLayerSurfaceSettings {
@@ -172,8 +173,19 @@ impl Application for App {
                 std::process::exit(0);
             }
             Msg::Closed(_) => {}
-            Msg::ActivateWorkspace(workspace) => {
-                // TODO
+            Msg::ActivateWorkspace(workspace_handle) => {
+                // XXX
+                for workspace in &self.workspaces {
+                    if &workspace.handle == &workspace_handle {
+                        for surface in self.layer_surfaces.values_mut() {
+                            if &surface.output_name == &workspace.output_name {
+                                surface.active_workspace = Some(workspace_handle);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
             }
         }
 

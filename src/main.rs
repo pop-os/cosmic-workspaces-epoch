@@ -34,11 +34,12 @@ struct Workspace {
     name: String,
     img: Option<iced::widget::image::Handle>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    output: wl_output::WlOutput,
+    output_name: Option<String>,
 }
 
 struct LayerSurface {
     output: wl_output::WlOutput,
+    output_name: Option<String>,
     // Active workspace
     // windows in workspace
     // - for transitions, would need windows in more than one workspace
@@ -84,6 +85,7 @@ impl Application for App {
                                 id.clone(),
                                 LayerSurface {
                                     output: output.clone(),
+                                    output_name: info.name,
                                 },
                             );
                             return get_layer_surface(SctkLayerSurfaceSettings {
@@ -119,11 +121,11 @@ impl Application for App {
                         // XXX efficiency
                         // XXX removal
                         self.workspaces = Vec::new();
-                        for (output, workspace) in workspaces {
+                        for (output_name, workspace) in workspaces {
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
                                 handle: workspace.handle,
-                                output,
+                                output_name,
                                 img: None,
                             });
                             println!("add workspace");
@@ -183,8 +185,11 @@ impl Application for App {
 }
 
 fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element<'a, Msg> {
-    //workspaces_sidebar(app.workspaces.iter().filter(|i| &i.output == &surface.output))
-    workspaces_sidebar(app.workspaces.iter())
+    workspaces_sidebar(
+        app.workspaces
+            .iter()
+            .filter(|i| &i.output_name == &surface.output_name),
+    )
 }
 
 fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {

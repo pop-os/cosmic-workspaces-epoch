@@ -37,7 +37,8 @@ use std::{collections::HashMap, thread};
 
 #[derive(Debug)]
 pub enum Event {
-    Workspaces(Vec<(wl_output::WlOutput, cctk::workspace::Workspace)>),
+    // XXX Output name rather than `WlOutput`
+    Workspaces(Vec<(Option<String>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
         image::Handle,
@@ -68,6 +69,7 @@ struct AppData {
     shm_state: ShmState,
     sender: mpsc::Sender<Event>,
     frames: HashMap<ObjectId, Frame>,
+    output_names: HashMap<ObjectId, Option<String>>,
 }
 
 impl ProvidesRegistryState for AppData {
@@ -94,8 +96,10 @@ impl OutputHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _output: wl_output::WlOutput,
+        output: wl_output::WlOutput,
     ) {
+        let name = self.output_state.info(&output).unwrap().name;
+        self.output_names.insert(output.id(), name);
     }
 
     fn update_output(
@@ -110,8 +114,9 @@ impl OutputHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _output: wl_output::WlOutput,
+        output: wl_output::WlOutput,
     ) {
+        self.output_names.remove(&output.id());
     }
 }
 
@@ -157,7 +162,8 @@ impl WorkspaceHandler for AppData {
         for group in self.workspace_state.workspace_groups() {
             for workspace in &group.workspaces {
                 if let Some(output) = group.output.as_ref() {
-                    workspaces.push((output.clone(), workspace.clone()));
+                    let output_name = self.output_names.get(&output.id()).unwrap().clone();
+                    workspaces.push((output_name, workspace.clone()));
 
                     //println!("capture workspace");
                     let frame = self.screencopy_state.screencopy_manager.capture_workspace(
@@ -294,6 +300,7 @@ fn start() -> mpsc::Receiver<Event> {
         shm_state: ShmState::bind(&globals, &qh).unwrap(),
         sender,
         frames: HashMap::new(),
+        output_names: HashMap::new(),
     };
 
     thread::spawn(move || loop {

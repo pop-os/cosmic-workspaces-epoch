@@ -1,0 +1,13 @@
+[package]
+name = "cosmic-workspaces"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
+futures-channel = "0.3.25"
+iced = { git = "https://github.com/pop-os/libcosmic", features = ["tokio"] }
+iced_native = { git = "https://github.com/pop-os/libcosmic" }
+iced_sctk = { git = "https://github.com/pop-os/libcosmic" }
+libcosmic = { git = "https://github.com/pop-os/libcosmic" }
+tokio = "1.23.0"

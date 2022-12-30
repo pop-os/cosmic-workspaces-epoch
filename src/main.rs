@@ -1,13 +1,17 @@
 use cctk::{
-    cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1,
+    cosmic_protocols::{
+        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        workspace::v1::client::zcosmic_workspace_handle_v1,
+    },
     sctk::shell::layer::{Anchor, KeyboardInteractivity, Layer},
+    toplevel_info::ToplevelInfo,
     wayland_client::protocol::wl_output,
 };
 use iced::{
     event::wayland::{Event as WaylandEvent, OutputEvent},
     keyboard::KeyCode,
     sctk_settings::InitialSurface,
-    Application, Command, Element, Subscription,
+    widget, Application, Command, Element, Subscription,
 };
 use iced_native::{
     command::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
@@ -21,12 +25,13 @@ use std::{collections::HashMap, process};
 
 mod wayland;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Msg {
     WaylandEvent(WaylandEvent),
     Wayland(wayland::Event),
     Close,
     Closed(SurfaceIdWrapper),
+    ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
 }
 
 #[derive(Debug)]
@@ -35,6 +40,13 @@ struct Workspace {
     img: Option<iced::widget::image::Handle>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
     output_name: Option<String>,
+}
+
+#[derive(Debug)]
+struct Toplevel {
+    handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+    info: ToplevelInfo,
+    img: Option<iced::widget::image::Handle>,
 }
 
 struct LayerSurface {
@@ -50,6 +62,7 @@ struct App {
     max_surface_id: usize,
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     workspaces: Vec<Workspace>,
+    toplevels: Vec<Toplevel>,
 }
 
 impl App {
@@ -115,7 +128,6 @@ impl Application for App {
                 _ => {}
             },
             Msg::Wayland(evt) => {
-                println!("{:?}", evt);
                 match evt {
                     wayland::Event::Workspaces(workspaces) => {
                         // XXX efficiency
@@ -128,13 +140,28 @@ impl Application for App {
                                 output_name,
                                 img: None,
                             });
-                            println!("add workspace");
                         }
+                    }
+                    wayland::Event::NewToplevel(handle, info) => {
+                        println!("New toplevel");
+                        self.toplevels.push(Toplevel {
+                            handle,
+                            info,
+                            img: None,
+                        });
                     }
                     wayland::Event::WorkspaceCapture(workspace, image) => {
                         // XXX performance
                         for i in &mut self.workspaces {
                             if &i.handle == &workspace {
+                                i.img = Some(image.clone());
+                            }
+                        }
+                    }
+                    wayland::Event::ToplevelCapture(toplevel, image) => {
+                        println!("Toplevel capture");
+                        for i in &mut self.toplevels {
+                            if &i.handle == &toplevel {
                                 i.img = Some(image.clone());
                             }
                         }
@@ -145,6 +172,9 @@ impl Application for App {
                 std::process::exit(0);
             }
             Msg::Closed(_) => {}
+            Msg::ActivateWorkspace(workspace) => {
+                // TODO
+            }
         }
 
         Command::none()
@@ -152,7 +182,6 @@ impl Application for App {
 
     fn subscription(&self) -> Subscription<Msg> {
         let events = iced::subscription::events_with(|evt, _| {
-            //println!("{:?}", evt);
             if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
             {
                 Some(Msg::WaylandEvent(evt))
@@ -185,30 +214,28 @@ impl Application for App {
 }
 
 fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element<'a, Msg> {
-    workspaces_sidebar(
-        app.workspaces
-            .iter()
-            .filter(|i| &i.output_name == &surface.output_name),
-    )
+    widget::column![
+        workspaces_sidebar(
+            app.workspaces
+                .iter()
+                .filter(|i| &i.output_name == &surface.output_name),
+        ),
+        toplevel_previews(app.toplevels.iter()) // XXX
+    ]
+    .height(iced::Length::Fill)
+    .width(iced::Length::Fill)
+    .into()
 }
 
 fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
-    // x to close
-    // captured preview
-    // number      name
-    // - selectable
-    iced::widget::column![
-        iced::widget::Image::new(
-            workspace
-                .img
-                .clone()
-                .unwrap_or_else(|| iced::widget::image::Handle::from_pixels(
-                    0,
-                    0,
-                    vec![0, 0, 0, 255]
-                ))
-        ),
-        iced::widget::text(&workspace.name)
+    // Indicate active workspace?
+    widget::column![
+        widget::button(widget::text("X")), // TODO close button
+        widget::button(widget::Image::new(workspace.img.clone().unwrap_or_else(
+            || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255])
+        )))
+        .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
+        widget::text(&workspace.name)
     ]
     .height(iced::Length::Fill)
     .width(iced::Length::Fill)
@@ -218,21 +245,25 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
 ) -> cosmic::Element<'a, Msg> {
-    iced::widget::column(workspaces.map(workspace_sidebar_entry).collect()).into()
+    widget::column(workspaces.map(workspace_sidebar_entry).collect()).into()
     // New workspace
 }
 
-/*
-fn window_preview(&Window) -> cosmic::Element<Msg> {
-   // capture of window
-   // - selectable
-   // name of window
+fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
+    // capture of window
+    // - selectable
+    // name of window
+    widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
+        || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
+    )))
+    .into()
 }
 
-fn window_previews(windows: &[Window]) -> cosmic::Element<Msg> {
-    iced::widgets::row(windows.iter().map(window_preview).collect())
+fn toplevel_previews<'a>(
+    toplevels: impl Iterator<Item = &'a Toplevel>,
+) -> cosmic::Element<'a, Msg> {
+    widget::row(toplevels.map(toplevel_preview).collect()).into()
 }
-*/
 
 pub fn main() -> iced::Result {
     App::run(iced::Settings {

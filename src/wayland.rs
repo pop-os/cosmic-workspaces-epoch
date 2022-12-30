@@ -4,6 +4,8 @@
 // shown on one.
 //   * Need output name to compare?
 
+// TODO: Way to activate workspace, toplevel? Close? Move?
+
 use cctk::{
     cosmic_protocols::{
         screencopy::v1::client::{zcosmic_screencopy_manager_v1, zcosmic_screencopy_session_v1},
@@ -17,7 +19,7 @@ use cctk::{
         registry::{ProvidesRegistryState, RegistryState},
         shm::{raw::RawPool, ShmHandler, ShmState},
     },
-    toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
+    toplevel_info::{ToplevelInfo, ToplevelInfoHandler, ToplevelInfoState},
     wayland_client::{
         backend::ObjectId,
         globals::registry_queue_init,
@@ -35,12 +37,20 @@ use std::{collections::HashMap, thread};
 
 // TODO define subscription for a particular output/workspace/toplevel (but we want to rate limit?)
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Event {
     // XXX Output name rather than `WlOutput`
     Workspaces(Vec<(Option<String>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        image::Handle,
+    ),
+    NewToplevel(
+        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        ToplevelInfo,
+    ),
+    ToplevelCapture(
+        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         image::Handle,
     ),
 }
@@ -50,6 +60,7 @@ pub fn subscription() -> iced::Subscription<Event> {
 }
 
 enum CaptureSource {
+    Toplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     Workspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
 }
 
@@ -70,6 +81,12 @@ struct AppData {
     sender: mpsc::Sender<Event>,
     frames: HashMap<ObjectId, Frame>,
     output_names: HashMap<ObjectId, Option<String>>,
+}
+
+impl AppData {
+    fn send_event(&mut self, event: Event) {
+        let _ = block_on(self.sender.send(event));
+    }
 }
 
 impl ProvidesRegistryState for AppData {
@@ -132,6 +149,27 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
+        let info = self.toplevel_info_state.info(&toplevel).unwrap();
+        self.send_event(Event::NewToplevel(
+            toplevel.clone(),
+            info.clone(),
+        ));
+
+        let frame = self.screencopy_state.screencopy_manager.capture_toplevel(
+            toplevel,
+            zcosmic_screencopy_manager_v1::CursorMode::Hidden,
+            &self.qh,
+            Default::default(), // TODO
+        );
+        // XXX first_frame
+        self.frames.insert(
+            frame.id(),
+            Frame {
+                buffer: None,
+                source: CaptureSource::Toplevel(toplevel.clone()),
+                first_frame: true,
+            },
+        );
     }
 
     fn update_toplevel(
@@ -140,6 +178,7 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
+        // TODO
     }
 
     fn toplevel_closed(
@@ -148,6 +187,7 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
+        // TODO
     }
 }
 
@@ -165,7 +205,6 @@ impl WorkspaceHandler for AppData {
                     let output_name = self.output_names.get(&output.id()).unwrap().clone();
                     workspaces.push((output_name, workspace.clone()));
 
-                    //println!("capture workspace");
                     let frame = self.screencopy_state.screencopy_manager.capture_workspace(
                         &workspace.handle,
                         output,
@@ -179,14 +218,14 @@ impl WorkspaceHandler for AppData {
                         Frame {
                             buffer: None,
                             source: CaptureSource::Workspace(workspace.handle.clone()),
-                            first_frame: false,
+                            first_frame: true,
                         },
                     );
                 }
             }
         }
 
-        let _ = block_on(self.sender.send(Event::Workspaces(workspaces)));
+        self.send_event(Event::Workspaces(workspaces));
     }
 }
 
@@ -243,19 +282,15 @@ impl ScreencopyHandler for AppData {
     ) {
         let frame = self.frames.get_mut(&session.id()).unwrap();
         let (mut pool, buffer, buffer_info) = frame.buffer.take().unwrap();
-        match &frame.source {
+        let image =
+            image::Handle::from_pixels(buffer_info.width, buffer_info.height, pool.mmap().to_vec());
+        let event = match &frame.source {
+            CaptureSource::Toplevel(toplevel) => Event::ToplevelCapture(toplevel.clone(), image),
             CaptureSource::Workspace(workspace) => {
-                let image = image::Handle::from_pixels(
-                    buffer_info.width,
-                    buffer_info.height,
-                    pool.mmap().to_vec(),
-                ); // XXX
-                let _ = block_on(
-                    self.sender
-                        .send(Event::WorkspaceCapture(workspace.clone(), image)),
-                );
+                Event::WorkspaceCapture(workspace.clone(), image)
             }
-        }
+        };
+        self.send_event(event);
     }
 
     fn failed(
@@ -266,6 +301,7 @@ impl ScreencopyHandler for AppData {
         reason: WEnum<zcosmic_screencopy_session_v1::FailureReason>,
     ) {
         // TODO
+        println!("Failed");
     }
 }
 

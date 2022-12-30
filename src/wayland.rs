@@ -127,12 +127,6 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        /*
-        println!(
-            "New toplevel: {:?}",
-            self.toplevel_info_state.info(toplevel).unwrap()
-        );
-        */
     }
 
     fn update_toplevel(
@@ -141,12 +135,6 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        /*
-        println!(
-            "Update toplevel: {:?}",
-            self.toplevel_info_state.info(toplevel).unwrap()
-        );
-        */
     }
 
     fn toplevel_closed(
@@ -155,12 +143,6 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        /*
-        println!(
-            "Closed toplevel: {:?}",
-            self.toplevel_info_state.info(toplevel).unwrap()
-        );
-        */
     }
 }
 
@@ -173,15 +155,7 @@ impl WorkspaceHandler for AppData {
         let mut workspaces = Vec::new();
 
         for group in self.workspace_state.workspace_groups() {
-            /*
-            println!(
-                "Group: capabilities: {:?}, output: {:?}",
-                &group.capabilities, &group.output
-            );
-            */
             for workspace in &group.workspaces {
-                //println!("{:?}", &workspace);
-
                 if let Some(output) = group.output.as_ref() {
                     workspaces.push((output.clone(), workspace.clone()));
 
@@ -222,10 +196,6 @@ impl ScreencopyHandler for AppData {
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
         buffer_infos: &[BufferInfo],
     ) {
-        //println!("init_done");
-        // TODO BIND
-
-        // XXX
         let buffer_info = buffer_infos
             .iter()
             .find(|x| {
@@ -280,8 +250,6 @@ impl ScreencopyHandler for AppData {
                 );
             }
         }
-        //println!("ready");
-        // TODO
     }
 
     fn failed(
@@ -291,7 +259,6 @@ impl ScreencopyHandler for AppData {
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
         reason: WEnum<zcosmic_screencopy_session_v1::FailureReason>,
     ) {
-        //println!("failed");
         // TODO
     }
 }

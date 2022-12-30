@@ -39,7 +39,6 @@ struct Workspace {
 
 struct LayerSurface {
     output: wl_output::WlOutput,
-    //workspaces: Vec<Workspace>,
     // Active workspace
     // windows in workspace
     // - for transitions, would need windows in more than one workspace
@@ -79,28 +78,23 @@ impl Application for App {
             Msg::WaylandEvent(evt) => match evt {
                 WaylandEvent::Output(evt, output) => match evt {
                     OutputEvent::Created(Some(info)) => {
-                        //println!("Create: {:?}", output);
                         if let Some((width, height)) = info.logical_size {
                             let id = self.next_surface_id();
                             self.layer_surfaces.insert(
                                 id.clone(),
                                 LayerSurface {
                                     output: output.clone(),
-                                    //workspaces: Vec::new(),
                                 },
                             );
-                            // /*
                             return get_layer_surface(SctkLayerSurfaceSettings {
                                 id,
                                 keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                                //keyboard_interactivity: KeyboardInteractivity::None,
                                 namespace: "workspaces".into(),
                                 layer: Layer::Overlay,
                                 size: Some((Some(width as _), Some(height as _))),
                                 output: IcedOutput::Output(output),
                                 ..Default::default()
                             });
-                            // */
                         }
                     }
                     OutputEvent::Removed => {
@@ -126,11 +120,6 @@ impl Application for App {
                         // XXX removal
                         self.workspaces = Vec::new();
                         for (output, workspace) in workspaces {
-                            /*
-                            if output != &surface.output {
-                                continue;
-                            }
-                            */
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
                                 handle: workspace.handle,
@@ -138,11 +127,10 @@ impl Application for App {
                                 img: None,
                             });
                             println!("add workspace");
-                            // Oh, set workspaces before surfaces created?
                         }
                     }
                     wayland::Event::WorkspaceCapture(workspace, image) => {
-                        // XXX performanc
+                        // XXX performance
                         for i in &mut self.workspaces {
                             if &i.handle == &workspace {
                                 i.img = Some(image.clone());
@@ -152,7 +140,6 @@ impl Application for App {
                 }
             }
             Msg::Close => {
-                //println!("Close");
                 std::process::exit(0);
             }
             Msg::Closed(_) => {}
@@ -226,7 +213,6 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
 ) -> cosmic::Element<'a, Msg> {
-    //println!("{:?}", workspaces);
     iced::widget::column(workspaces.map(workspace_sidebar_entry).collect()).into()
     // New workspace
 }
@@ -243,8 +229,6 @@ fn window_previews(windows: &[Window]) -> cosmic::Element<Msg> {
 }
 */
 
-// TODO create one surface per monitor?
-// TODO how to get monitor size?
 pub fn main() -> iced::Result {
     App::run(iced::Settings {
         antialiasing: true,

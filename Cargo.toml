@@ -6,8 +6,12 @@ edition = "2021"
 [dependencies]
 cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
 futures-channel = "0.3.25"
-iced = { git = "https://github.com/pop-os/libcosmic", features = ["tokio"] }
-iced_native = { git = "https://github.com/pop-os/libcosmic" }
-iced_sctk = { git = "https://github.com/pop-os/libcosmic" }
-libcosmic = { git = "https://github.com/pop-os/libcosmic" }
+# iced = { git = "https://github.com/pop-os/libcosmic", features = ["tokio"] }
+# iced_native = { git = "https://github.com/pop-os/libcosmic" }
+# iced_sctk = { git = "https://github.com/pop-os/libcosmic" }
+# libcosmic = { git = "https://github.com/pop-os/libcosmic" }
+iced = { path = "/home/ian/src/pop/libcosmic/iced", features = ["tokio"] }
+iced_native = { path = "/home/ian/src/pop/libcosmic/iced/native" }
+iced_sctk = { path = "/home/ian/src/pop/libcosmic/iced/sctk" }
+libcosmic = { path = "/home/ian/src/pop/libcosmic" }
 tokio = "1.23.0"

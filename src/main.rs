@@ -249,7 +249,7 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
             app.toplevels
                 .iter()
                 .filter(|i| i.info.workspace == surface.active_workspace)
-        ), // XXX
+        ),
     ]
     .height(iced::Length::Fill)
     .width(iced::Length::Fill)
@@ -266,15 +266,17 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
         .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
         widget::text(&workspace.name)
     ]
-    .height(iced::Length::Fill)
-    //.width(iced::Length::Fill)
     .into()
 }
 
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
 ) -> cosmic::Element<'a, Msg> {
-    widget::column(workspaces.map(workspace_sidebar_entry).collect()).into()
+    widget::column(workspaces.map(workspace_sidebar_entry).collect())
+        .width(iced::Length::Fill)
+        .height(iced::Length::Fill)
+        .into()
+
     // New workspace
 }
 
@@ -285,15 +287,16 @@ fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
     widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
         || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
     )))
-    .height(iced::Length::Fill)
-    //.width(iced::Length::Fill)
     .into()
 }
 
 fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
 ) -> cosmic::Element<'a, Msg> {
-    widget::row(toplevels.map(toplevel_preview).collect()).into()
+    widget::row(toplevels.map(toplevel_preview).collect())
+        .width(iced::Length::FillPortion(4))
+        .height(iced::Length::Fill)
+        .into()
 }
 
 pub fn main() -> iced::Result {

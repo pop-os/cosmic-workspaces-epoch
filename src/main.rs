@@ -70,6 +70,20 @@ impl App {
         self.max_surface_id += 1;
         SurfaceId::new(self.max_surface_id)
     }
+
+    fn workspace_for_handle_mut(
+        &mut self,
+        handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+    ) -> Option<&mut Workspace> {
+        self.workspaces.iter_mut().find(|i| &i.handle == handle)
+    }
+
+    fn toplevel_for_handle_mut(
+        &mut self,
+        handle: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+    ) -> Option<&mut Toplevel> {
+        self.toplevels.iter_mut().find(|i| &i.handle == handle)
+    }
 }
 
 impl Application for App {
@@ -86,6 +100,10 @@ impl Application for App {
     fn title(&self) -> String {
         String::from("cosmic-workspaces")
     }
+
+    // TODO transparent style?
+    // TODO: show panel and dock? Drag?
+    // TODO way to activate w/ keybind, button
 
     fn update(&mut self, message: Msg) -> Command<Msg> {
         match message {
@@ -144,27 +162,22 @@ impl Application for App {
                         }
                     }
                     wayland::Event::NewToplevel(handle, info) => {
-                        println!("New toplevel");
+                        println!("New toplevel: {:?}", info);
                         self.toplevels.push(Toplevel {
                             handle,
                             info,
                             img: None,
                         });
                     }
-                    wayland::Event::WorkspaceCapture(workspace, image) => {
-                        // XXX performance
-                        for i in &mut self.workspaces {
-                            if &i.handle == &workspace {
-                                i.img = Some(image.clone());
-                            }
+                    wayland::Event::WorkspaceCapture(handle, image) => {
+                        if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
+                            workspace.img = Some(image.clone());
                         }
                     }
-                    wayland::Event::ToplevelCapture(toplevel, image) => {
-                        println!("Toplevel capture");
-                        for i in &mut self.toplevels {
-                            if &i.handle == &toplevel {
-                                i.img = Some(image.clone());
-                            }
+                    wayland::Event::ToplevelCapture(handle, image) => {
+                        if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
+                            println!("Got toplevel image!");
+                            toplevel.img = Some(image.clone());
                         }
                     }
                 }
@@ -226,13 +239,17 @@ impl Application for App {
 }
 
 fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element<'a, Msg> {
-    widget::column![
+    widget::row![
         workspaces_sidebar(
             app.workspaces
                 .iter()
                 .filter(|i| &i.output_name == &surface.output_name),
         ),
-        toplevel_previews(app.toplevels.iter()) // XXX
+        toplevel_previews(
+            app.toplevels
+                .iter()
+                .filter(|i| i.info.workspace == surface.active_workspace)
+        ), // XXX
     ]
     .height(iced::Length::Fill)
     .width(iced::Length::Fill)
@@ -250,7 +267,7 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
         widget::text(&workspace.name)
     ]
     .height(iced::Length::Fill)
-    .width(iced::Length::Fill)
+    //.width(iced::Length::Fill)
     .into()
 }
 
@@ -268,6 +285,8 @@ fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
     widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
         || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
     )))
+    .height(iced::Length::Fill)
+    //.width(iced::Length::Fill)
     .into()
 }
 

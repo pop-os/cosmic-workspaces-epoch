@@ -1,16 +1,15 @@
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        workspace::v1::client::zcosmic_workspace_handle_v1,
+        workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
     sctk::shell::layer::{Anchor, KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
-    wayland_client::protocol::wl_output,
+    wayland_client::{protocol::wl_output, Connection, QueueHandle, WEnum},
 };
 use iced::{
     event::wayland::{Event as WaylandEvent, OutputEvent},
     keyboard::KeyCode,
-    sctk_settings::InitialSurface,
     widget, Application, Command, Element, Subscription,
 };
 use iced_native::{
@@ -20,8 +19,9 @@ use iced_native::{
 use iced_sctk::{
     application::SurfaceIdWrapper,
     commands::layer_surface::{destroy_layer_surface, get_layer_surface},
+    settings::InitialSurface,
 };
-use std::{collections::HashMap, process};
+use std::{collections::HashMap, mem, process};
 
 mod wayland;
 
@@ -63,6 +63,10 @@ struct App {
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     workspaces: Vec<Workspace>,
     toplevels: Vec<Toplevel>,
+    workspace_manager: Option<(
+        Connection,
+        zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1,
+    )>,
 }
 
 impl App {
@@ -83,6 +87,18 @@ impl App {
         handle: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) -> Option<&mut Toplevel> {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
+    }
+
+    fn layer_surface_for_output_name(
+        &mut self,
+        output_name: Option<&str>,
+    ) -> Option<&mut LayerSurface> {
+        for surface in self.layer_surfaces.values_mut() {
+            if surface.output_name.as_deref() == output_name {
+                return Some(surface);
+            }
+        }
+        None
     }
 }
 
@@ -148,16 +164,36 @@ impl Application for App {
             },
             Msg::Wayland(evt) => {
                 match evt {
+                    wayland::Event::WorkspaceManager(conn, manager) => {
+                        self.workspace_manager = Some((conn, manager));
+                    }
                     wayland::Event::Workspaces(workspaces) => {
-                        // XXX efficiency
-                        // XXX removal
+                        let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
                         for (output_name, workspace) in workspaces {
+                            let is_active = workspace.state.contains(&WEnum::Value(
+                                zcosmic_workspace_handle_v1::State::Active,
+                            ));
+                            if is_active {
+                                // XXX
+                                if let Some(surface) =
+                                    self.layer_surface_for_output_name(output_name.as_deref())
+                                {
+                                    surface.active_workspace = Some(workspace.handle.clone());
+                                }
+                            }
+
+                            // XXX efficiency
+                            let img = old_workspaces
+                                .iter()
+                                .find(|i| &i.handle == &workspace.handle)
+                                .and_then(|i| i.img.clone());
+
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
                                 handle: workspace.handle,
                                 output_name,
-                                img: None,
+                                img,
                             });
                         }
                     }
@@ -187,18 +223,11 @@ impl Application for App {
             }
             Msg::Closed(_) => {}
             Msg::ActivateWorkspace(workspace_handle) => {
-                // XXX
-                for workspace in &self.workspaces {
-                    if &workspace.handle == &workspace_handle {
-                        for surface in self.layer_surfaces.values_mut() {
-                            if &surface.output_name == &workspace.output_name {
-                                surface.active_workspace = Some(workspace_handle);
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
+                println!("Activate: {:?}", workspace_handle);
+                let (conn, workspace_manager) = self.workspace_manager.as_ref().unwrap();
+                workspace_handle.activate();
+                workspace_manager.commit();
+                conn.flush();
             }
         }
 

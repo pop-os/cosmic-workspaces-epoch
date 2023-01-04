@@ -10,7 +10,7 @@ use cctk::{
     cosmic_protocols::{
         screencopy::v1::client::{zcosmic_screencopy_manager_v1, zcosmic_screencopy_session_v1},
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        workspace::v1::client::zcosmic_workspace_handle_v1,
+        workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
     screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
     sctk::{
@@ -39,6 +39,10 @@ use std::{collections::HashMap, thread};
 
 #[derive(Clone, Debug)]
 pub enum Event {
+    WorkspaceManager(
+        Connection,
+        zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1,
+    ),
     // XXX Output name rather than `WlOutput`
     Workspaces(Vec<(Option<String>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
@@ -70,7 +74,7 @@ struct Frame {
     first_frame: bool,
 }
 
-struct AppData {
+pub struct AppData {
     qh: QueueHandle<Self>,
     output_state: OutputState,
     registry_state: RegistryState,
@@ -265,6 +269,7 @@ impl ScreencopyHandler for AppData {
             session.commit(zcosmic_screencopy_session_v1::Options::empty());
         } else {
             session.commit(zcosmic_screencopy_session_v1::Options::OnDamage);
+            // TODO
         }
         conn.flush().unwrap();
 
@@ -335,6 +340,10 @@ fn start() -> mpsc::Receiver<Event> {
         frames: HashMap::new(),
         output_names: HashMap::new(),
     };
+
+    if let Ok(manager) = app_data.workspace_state.workspace_manager().get() {
+        app_data.send_event(Event::WorkspaceManager(conn, manager.clone()));
+    }
 
     thread::spawn(move || loop {
         event_queue.blocking_dispatch(&mut app_data).unwrap();

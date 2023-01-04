@@ -6,7 +6,10 @@ use cctk::{
     },
     sctk::shell::layer::{Anchor, KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
-    wayland_client::{protocol::wl_output, Connection, QueueHandle, WEnum},
+    wayland_client::{
+        protocol::{wl_output, wl_seat},
+        Connection, QueueHandle, WEnum,
+    },
 };
 use iced::{
     event::wayland::{Event as WaylandEvent, OutputEvent},
@@ -68,6 +71,7 @@ struct App {
     conn: Option<Connection>,
     workspace_manager: Option<zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1>,
     toplevel_manager: Option<zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1>,
+    seats: Vec<wl_seat::WlSeat>,
 }
 
 impl App {
@@ -223,6 +227,9 @@ impl Application for App {
                             toplevel.img = Some(image.clone());
                         }
                     }
+                    wayland::Event::Seats(seats) => {
+                        self.seats = seats;
+                    }
                 }
             }
             Msg::Close => {
@@ -236,13 +243,15 @@ impl Application for App {
                 self.conn.as_ref().unwrap().flush();
             }
             Msg::ActivateToplevel(toplevel_handle) => {
-                /*
                 if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
-                    toplevel_manager.activate(&toplevel_handle, todo!());
-                    self.conn.as_ref().unwrap().flush();
-                    std::process::exit(0); // Can we assume flush is suficient to ensure this takes effect?
+                    if !self.seats.is_empty() {
+                        for seat in &self.seats {
+                            toplevel_manager.activate(&toplevel_handle, todo!());
+                            self.conn.as_ref().unwrap().flush();
+                        }
+                        std::process::exit(0); // Can we assume flush is suficient to ensure this takes effect?
+                    }
                 }
-                */
             }
         }
 

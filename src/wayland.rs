@@ -18,6 +18,7 @@ use cctk::{
         self,
         output::{OutputHandler, OutputState},
         registry::{ProvidesRegistryState, RegistryState},
+        seat::{SeatHandler, SeatState},
         shm::{raw::RawPool, ShmHandler, ShmState},
     },
     toplevel_info::{ToplevelInfo, ToplevelInfoHandler, ToplevelInfoState},
@@ -25,7 +26,7 @@ use cctk::{
     wayland_client::{
         backend::ObjectId,
         globals::registry_queue_init,
-        protocol::{wl_buffer, wl_output, wl_shm},
+        protocol::{wl_buffer, wl_output, wl_seat, wl_shm},
         Connection, Dispatch, Proxy, QueueHandle, WEnum,
     },
     workspace::{WorkspaceHandler, WorkspaceState},
@@ -58,6 +59,7 @@ pub enum Event {
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         image::Handle,
     ),
+    Seats(Vec<wl_seat::WlSeat>),
 }
 
 pub fn subscription() -> iced::Subscription<Event> {
@@ -82,11 +84,13 @@ pub struct AppData {
     toplevel_info_state: ToplevelInfoState,
     workspace_state: WorkspaceState,
     screencopy_state: ScreencopyState,
+    seat_state: SeatState,
     shm_state: ShmState,
     toplevel_manager_state: ToplevelManagerState,
     sender: mpsc::Sender<Event>,
     frames: HashMap<ObjectId, Frame>,
     output_names: HashMap<ObjectId, Option<String>>,
+    seats: Vec<wl_seat::WlSeat>,
 }
 
 impl AppData {
@@ -100,7 +104,42 @@ impl ProvidesRegistryState for AppData {
         &mut self.registry_state
     }
 
-    sctk::registry_handlers!(OutputState,);
+    sctk::registry_handlers!(OutputState, SeatState);
+}
+
+impl SeatHandler for AppData {
+    fn seat_state(&mut self) -> &mut SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        self.seats.push(seat);
+        self.send_event(Event::Seats(self.seats.clone()));
+    }
+
+    fn remove_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        if let Some(idx) = self.seats.iter().position(|i| i == &seat) {
+            self.seats.remove(idx);
+        }
+        self.send_event(Event::Seats(self.seats.clone()));
+    }
+
+    fn new_capability(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: wl_seat::WlSeat,
+        _: sctk::seat::Capability,
+    ) {
+    }
+    fn remove_capability(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: wl_seat::WlSeat,
+        _: sctk::seat::Capability,
+    ) {
+    }
 }
 
 impl ShmHandler for AppData {
@@ -354,10 +393,12 @@ fn start() -> mpsc::Receiver<Event> {
         toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
         screencopy_state: ScreencopyState::new(&globals, &qh),
         registry_state,
+        seat_state: SeatState::new(&globals, &qh),
         shm_state: ShmState::bind(&globals, &qh).unwrap(),
         sender,
         frames: HashMap::new(),
         output_names: HashMap::new(),
+        seats: Vec::new(),
     };
 
     app_data.send_event(Event::Connection(conn));
@@ -377,6 +418,7 @@ fn start() -> mpsc::Receiver<Event> {
 
 sctk::delegate_output!(AppData);
 sctk::delegate_registry!(AppData);
+sctk::delegate_seat!(AppData);
 sctk::delegate_shm!(AppData);
 cctk::delegate_toplevel_info!(AppData);
 cctk::delegate_toplevel_manager!(AppData);

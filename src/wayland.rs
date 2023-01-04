@@ -10,6 +10,7 @@ use cctk::{
     cosmic_protocols::{
         screencopy::v1::client::{zcosmic_screencopy_manager_v1, zcosmic_screencopy_session_v1},
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
     screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
@@ -20,6 +21,7 @@ use cctk::{
         shm::{raw::RawPool, ShmHandler, ShmState},
     },
     toplevel_info::{ToplevelInfo, ToplevelInfoHandler, ToplevelInfoState},
+    toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
     wayland_client::{
         backend::ObjectId,
         globals::registry_queue_init,
@@ -39,10 +41,9 @@ use std::{collections::HashMap, thread};
 
 #[derive(Clone, Debug)]
 pub enum Event {
-    WorkspaceManager(
-        Connection,
-        zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1,
-    ),
+    Connection(Connection),
+    ToplevelManager(zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1),
+    WorkspaceManager(zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1),
     // XXX Output name rather than `WlOutput`
     Workspaces(Vec<(Option<String>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
@@ -82,6 +83,7 @@ pub struct AppData {
     workspace_state: WorkspaceState,
     screencopy_state: ScreencopyState,
     shm_state: ShmState,
+    toplevel_manager_state: ToplevelManagerState,
     sender: mpsc::Sender<Event>,
     frames: HashMap<ObjectId, Frame>,
     output_names: HashMap<ObjectId, Option<String>>,
@@ -307,6 +309,22 @@ impl ScreencopyHandler for AppData {
     }
 }
 
+impl ToplevelManagerHandler for AppData {
+    fn toplevel_manager_state(&mut self) -> &mut ToplevelManagerState {
+        &mut self.toplevel_manager_state
+    }
+
+    fn capabilities(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        capabilities: Vec<
+            WEnum<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
+        >,
+    ) {
+    }
+}
+
 impl Dispatch<wl_buffer::WlBuffer, ()> for AppData {
     fn event(
         _app_data: &mut Self,
@@ -333,6 +351,7 @@ fn start() -> mpsc::Receiver<Event> {
         output_state: OutputState::new(&globals, &qh),
         workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
         toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
+        toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
         screencopy_state: ScreencopyState::new(&globals, &qh),
         registry_state,
         shm_state: ShmState::bind(&globals, &qh).unwrap(),
@@ -341,8 +360,12 @@ fn start() -> mpsc::Receiver<Event> {
         output_names: HashMap::new(),
     };
 
+    app_data.send_event(Event::Connection(conn));
+    app_data.send_event(Event::ToplevelManager(
+        app_data.toplevel_manager_state.manager.clone(),
+    ));
     if let Ok(manager) = app_data.workspace_state.workspace_manager().get() {
-        app_data.send_event(Event::WorkspaceManager(conn, manager.clone()));
+        app_data.send_event(Event::WorkspaceManager(manager.clone()));
     }
 
     thread::spawn(move || loop {
@@ -356,5 +379,6 @@ sctk::delegate_output!(AppData);
 sctk::delegate_registry!(AppData);
 sctk::delegate_shm!(AppData);
 cctk::delegate_toplevel_info!(AppData);
+cctk::delegate_toplevel_manager!(AppData);
 cctk::delegate_workspace!(AppData);
 cctk::delegate_screencopy!(AppData);

@@ -1,6 +1,7 @@
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
     sctk::shell::layer::{Anchor, KeyboardInteractivity, Layer},
@@ -32,6 +33,7 @@ enum Msg {
     Close,
     Closed(SurfaceIdWrapper),
     ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
+    ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
 }
 
 #[derive(Debug)]
@@ -63,10 +65,9 @@ struct App {
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     workspaces: Vec<Workspace>,
     toplevels: Vec<Toplevel>,
-    workspace_manager: Option<(
-        Connection,
-        zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1,
-    )>,
+    conn: Option<Connection>,
+    workspace_manager: Option<zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1>,
+    toplevel_manager: Option<zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1>,
 }
 
 impl App {
@@ -164,8 +165,14 @@ impl Application for App {
             },
             Msg::Wayland(evt) => {
                 match evt {
-                    wayland::Event::WorkspaceManager(conn, manager) => {
-                        self.workspace_manager = Some((conn, manager));
+                    wayland::Event::Connection(conn) => {
+                        self.conn = Some(conn);
+                    }
+                    wayland::Event::ToplevelManager(manager) => {
+                        self.toplevel_manager = Some(manager);
+                    }
+                    wayland::Event::WorkspaceManager(manager) => {
+                        self.workspace_manager = Some(manager);
                     }
                     wayland::Event::Workspaces(workspaces) => {
                         let old_workspaces = mem::take(&mut self.workspaces);
@@ -223,11 +230,19 @@ impl Application for App {
             }
             Msg::Closed(_) => {}
             Msg::ActivateWorkspace(workspace_handle) => {
-                println!("Activate: {:?}", workspace_handle);
-                let (conn, workspace_manager) = self.workspace_manager.as_ref().unwrap();
+                let workspace_manager = self.workspace_manager.as_ref().unwrap();
                 workspace_handle.activate();
                 workspace_manager.commit();
-                conn.flush();
+                self.conn.as_ref().unwrap().flush();
+            }
+            Msg::ActivateToplevel(toplevel_handle) => {
+                /*
+                if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
+                    toplevel_manager.activate(&toplevel_handle, todo!());
+                    self.conn.as_ref().unwrap().flush();
+                    std::process::exit(0); // Can we assume flush is suficient to ensure this takes effect?
+                }
+                */
             }
         }
 
@@ -316,6 +331,7 @@ fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
     widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
         || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
     )))
+    .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
     .into()
 }
 

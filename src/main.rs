@@ -299,8 +299,9 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
         ),
         toplevel_previews(app.toplevels.iter().filter(|i| {
             if let Some(workspace) = &i.info.workspace {
-                app.workspace_for_handle(workspace)
-                    .map_or(false, |x| x.is_active)
+                app.workspace_for_handle(workspace).map_or(false, |x| {
+                    x.is_active && x.output_name == surface.output_name
+                })
             } else {
                 false
             }
@@ -339,10 +340,14 @@ fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
     // capture of window
     // - selectable
     // name of window
-    widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
-        || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
-    )))
-    .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+    widget::column![
+        widget::button(widget::text("X")), // TODO close button
+        widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
+            || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
+        )))
+        .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
+        widget::text(&toplevel.info.title)
+    ]
     .into()
 }
 

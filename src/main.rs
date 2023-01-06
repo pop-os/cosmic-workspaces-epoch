@@ -45,6 +45,7 @@ struct Workspace {
     img: Option<iced::widget::image::Handle>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
     output_name: Option<String>,
+    is_active: bool,
 }
 
 #[derive(Debug)]
@@ -57,7 +58,6 @@ struct Toplevel {
 struct LayerSurface {
     output: wl_output::WlOutput,
     output_name: Option<String>,
-    active_workspace: Option<zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
     // for transitions, would need windows in more than one workspace? But don't capture all of
     // them all the time every frame.
 }
@@ -78,6 +78,13 @@ impl App {
     fn next_surface_id(&mut self) -> SurfaceId {
         self.max_surface_id += 1;
         SurfaceId::new(self.max_surface_id)
+    }
+
+    fn workspace_for_handle(
+        &self,
+        handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+    ) -> Option<&Workspace> {
+        self.workspaces.iter().find(|i| &i.handle == handle)
     }
 
     fn workspace_for_handle_mut(
@@ -138,7 +145,6 @@ impl Application for App {
                                 LayerSurface {
                                     output: output.clone(),
                                     output_name: info.name,
-                                    active_workspace: None,
                                 },
                             );
                             return get_layer_surface(SctkLayerSurfaceSettings {
@@ -185,15 +191,6 @@ impl Application for App {
                             let is_active = workspace.state.contains(&WEnum::Value(
                                 zcosmic_workspace_handle_v1::State::Active,
                             ));
-                            if is_active {
-                                // XXX
-                                if let Some(surface) =
-                                    self.layer_surface_for_output_name(output_name.as_deref())
-                                {
-                                    surface.active_workspace = Some(workspace.handle.clone());
-                                    // XXX
-                                }
-                            }
 
                             // XXX efficiency
                             let img = old_workspaces
@@ -206,6 +203,7 @@ impl Application for App {
                                 handle: workspace.handle,
                                 output_name,
                                 img,
+                                is_active,
                             });
                         }
                     }
@@ -299,11 +297,14 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
                 .iter()
                 .filter(|i| &i.output_name == &surface.output_name),
         ),
-        toplevel_previews(
-            app.toplevels
-                .iter()
-                .filter(|i| i.info.workspace == surface.active_workspace)
-        ),
+        toplevel_previews(app.toplevels.iter().filter(|i| {
+            if let Some(workspace) = &i.info.workspace {
+                app.workspace_for_handle(workspace)
+                    .map_or(false, |x| x.is_active)
+            } else {
+                false
+            }
+        })),
     ]
     .height(iced::Length::Fill)
     .width(iced::Length::Fill)

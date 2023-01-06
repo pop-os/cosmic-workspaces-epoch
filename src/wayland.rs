@@ -402,6 +402,7 @@ fn start() -> mpsc::Receiver<Event> {
     };
 
     app_data.send_event(Event::Connection(conn));
+    app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
     app_data.send_event(Event::ToplevelManager(
         app_data.toplevel_manager_state.manager.clone(),
     ));

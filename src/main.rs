@@ -191,6 +191,7 @@ impl Application for App {
                                     self.layer_surface_for_output_name(output_name.as_deref())
                                 {
                                     surface.active_workspace = Some(workspace.handle.clone());
+                                    // XXX
                                 }
                             }
 
@@ -246,7 +247,7 @@ impl Application for App {
                 if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
                     if !self.seats.is_empty() {
                         for seat in &self.seats {
-                            toplevel_manager.activate(&toplevel_handle, todo!());
+                            toplevel_manager.activate(&toplevel_handle, &seat);
                             self.conn.as_ref().unwrap().flush();
                         }
                         std::process::exit(0); // Can we assume flush is suficient to ensure this takes effect?

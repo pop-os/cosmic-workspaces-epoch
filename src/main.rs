@@ -300,6 +300,12 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
     .into()
 }
 
+fn close_button() -> cosmic::Element<'static, Msg> {
+    iced::widget::button(cosmic::widget::icon("window-close-symbolic", 16))
+        .style(cosmic::theme::Button::Destructive)
+        .into()
+}
+
 fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
     // TODO style
     let theme = if workspace.is_active {
@@ -308,7 +314,7 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
         cosmic::theme::Button::Secondary
     };
     widget::column![
-        widget::button(widget::text("X")), // TODO close button
+        close_button(), // TODO close button
         widget::button(widget::Image::new(workspace.img.clone().unwrap_or_else(
             || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255])
         )))
@@ -335,7 +341,7 @@ fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
     // - selectable
     // name of window
     widget::column![
-        widget::button(widget::text("X")), // TODO close button
+        close_button(), // TODO close button
         widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
             || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
         )))

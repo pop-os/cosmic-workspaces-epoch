@@ -100,18 +100,6 @@ impl App {
     ) -> Option<&mut Toplevel> {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
-
-    fn layer_surface_for_output_name(
-        &mut self,
-        output_name: Option<&str>,
-    ) -> Option<&mut LayerSurface> {
-        for surface in self.layer_surfaces.values_mut() {
-            if surface.output_name.as_deref() == output_name {
-                return Some(surface);
-            }
-        }
-        None
-    }
 }
 
 impl Application for App {
@@ -313,12 +301,18 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
 }
 
 fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
-    // Indicate active workspace?
+    // TODO style
+    let theme = if workspace.is_active {
+        cosmic::theme::Button::Primary
+    } else {
+        cosmic::theme::Button::Secondary
+    };
     widget::column![
         widget::button(widget::text("X")), // TODO close button
         widget::button(widget::Image::new(workspace.img.clone().unwrap_or_else(
             || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255])
         )))
+        .style(theme)
         .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
         widget::text(&workspace.name)
     ]

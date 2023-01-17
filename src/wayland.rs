@@ -31,11 +31,12 @@ use cctk::{
     },
     workspace::{WorkspaceHandler, WorkspaceState},
 };
-use futures_channel::mpsc;
-use iced::{
+use cosmic::iced::{
+    self,
     futures::{executor::block_on, FutureExt, SinkExt},
     widget::image,
 };
+use futures_channel::mpsc;
 use std::{collections::HashMap, thread};
 
 // TODO define subscription for a particular output/workspace/toplevel (but we want to rate limit?)
@@ -292,6 +293,7 @@ impl ScreencopyHandler for AppData {
             .unwrap();
         let buf_len = buffer_info.stride * buffer_info.height;
 
+        // TODO: reuse pool? swapping?
         let mut pool = RawPool::new(buf_len as usize, &self.shm_state).unwrap();
         let buffer = pool.create_buffer(
             0,
@@ -325,6 +327,7 @@ impl ScreencopyHandler for AppData {
     ) {
         let frame = self.frames.get_mut(&session.id()).unwrap();
         let (mut pool, buffer, buffer_info) = frame.buffer.take().unwrap();
+        // XXX is this at all a performance issue?
         let image =
             image::Handle::from_pixels(buffer_info.width, buffer_info.height, pool.mmap().to_vec());
         let event = match &frame.source {

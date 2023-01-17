@@ -11,14 +11,19 @@ use cctk::{
         Connection, QueueHandle, WEnum,
     },
 };
-use iced::{
-    event::wayland::{Event as WaylandEvent, OutputEvent},
-    keyboard::KeyCode,
-    widget, Application, Command, Element, Subscription,
-};
-use iced_native::{
-    command::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
-    window::Id as SurfaceId,
+use cosmic::{
+    iced::{
+        self,
+        event::wayland::{Event as WaylandEvent, OutputEvent},
+        keyboard::KeyCode,
+        widget, Application, Command, Element, Subscription,
+    },
+    iced_native::{
+        command::platform_specific::wayland::layer_surface::{
+            IcedOutput, SctkLayerSurfaceSettings,
+        },
+        window::Id as SurfaceId,
+    },
 };
 use iced_sctk::{
     application::SurfaceIdWrapper,

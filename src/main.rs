@@ -210,6 +210,11 @@ impl Application for App {
                             img: None,
                         });
                     }
+                    wayland::Event::CloseToplevel(handle) => {
+                        if let Some(idx) = self.toplevels.iter().position(|x| x.handle == handle) {
+                            self.toplevels.remove(idx);
+                        }
+                    }
                     wayland::Event::WorkspaceCapture(handle, image) => {
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
                             workspace.img = Some(image.clone());

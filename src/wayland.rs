@@ -56,6 +56,7 @@ pub enum Event {
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         ToplevelInfo,
     ),
+    CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     ToplevelCapture(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         image::Handle,
@@ -230,7 +231,7 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        // TODO
+        self.send_event(Event::CloseToplevel(toplevel.clone()));
     }
 }
 

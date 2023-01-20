@@ -239,6 +239,18 @@ impl Application for App {
                             }
                         }
                     }
+                    OutputEvent::Created(None) => {} // XXX?
+                    OutputEvent::InfoUpdate(info) => {
+                        if let Some(output) = self.outputs.iter_mut().find(|x| &x.handle == &output)
+                        {
+                            if let Some((width, height)) = info.logical_size {
+                                output.width = width;
+                                output.height = height;
+                            }
+                            output.name = info.name;
+                            // XXX re-create surface?
+                        }
+                    }
                     OutputEvent::Removed => {
                         if let Some(idx) = self.outputs.iter().position(|x| &x.handle == &output) {
                             self.outputs.remove(idx);
@@ -247,8 +259,6 @@ impl Application for App {
                             return self.destroy_surface(&output);
                         }
                     }
-                    // TODO handle update/remove
-                    _ => {}
                 },
                 _ => {}
             },

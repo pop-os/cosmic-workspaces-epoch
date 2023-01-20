@@ -32,6 +32,7 @@ use iced_sctk::{
 };
 use std::{collections::HashMap, mem, process};
 
+mod toggle_dbus;
 mod wayland;
 
 #[derive(Clone, Debug)]
@@ -44,6 +45,7 @@ enum Msg {
     CloseWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
+    DBus(toggle_dbus::Event),
 }
 
 #[derive(Debug)]
@@ -62,7 +64,17 @@ struct Toplevel {
     img: Option<iced::widget::image::Handle>,
 }
 
+#[derive(Clone)]
+struct Output {
+    // Output, on the `iced_sctk` Wayland connection
+    handle: wl_output::WlOutput,
+    name: Option<String>,
+    width: i32,
+    height: i32,
+}
+
 struct LayerSurface {
+    // Output, on the `iced_sctk` Wayland connection
     output: wl_output::WlOutput,
     output_name: Option<String>,
     // for transitions, would need windows in more than one workspace? But don't capture all of
@@ -73,12 +85,14 @@ struct LayerSurface {
 struct App {
     max_surface_id: usize,
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
+    outputs: Vec<Output>,
     workspaces: Vec<Workspace>,
     toplevels: Vec<Toplevel>,
     conn: Option<Connection>,
     workspace_manager: Option<zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1>,
     toplevel_manager: Option<zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1>,
     seats: Vec<wl_seat::WlSeat>,
+    visible: bool,
 }
 
 impl App {
@@ -107,6 +121,82 @@ impl App {
     ) -> Option<&mut Toplevel> {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
+
+    fn create_surface(
+        &mut self,
+        output: wl_output::WlOutput,
+        output_name: Option<String>,
+        width: i32,
+        height: i32,
+    ) -> Command<Msg> {
+        let id = self.next_surface_id();
+        self.layer_surfaces.insert(
+            id.clone(),
+            LayerSurface {
+                output: output.clone(),
+                output_name,
+            },
+        );
+        get_layer_surface(SctkLayerSurfaceSettings {
+            id,
+            keyboard_interactivity: KeyboardInteractivity::Exclusive,
+            namespace: "workspaces".into(),
+            layer: Layer::Overlay,
+            size: Some((Some(width as _), Some(height as _))),
+            output: IcedOutput::Output(output),
+            ..Default::default()
+        })
+    }
+
+    fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Command<Msg> {
+        if let Some((id, _)) = self
+            .layer_surfaces
+            .iter()
+            .find(|(_id, surface)| &surface.output == output)
+        {
+            let id = *id;
+            self.layer_surfaces.remove(&id).unwrap();
+            destroy_layer_surface(id)
+        } else {
+            Command::none()
+        }
+    }
+
+    fn toggle(&mut self) -> Command<Msg> {
+        if self.visible {
+            self.hide()
+        } else {
+            self.show()
+        }
+    }
+
+    fn show(&mut self) -> Command<Msg> {
+        if !self.visible {
+            self.visible = true;
+            let outputs = self.outputs.clone();
+            Command::batch(
+                outputs
+                    .into_iter()
+                    .map(|output| {
+                        self.create_surface(output.handle, output.name, output.width, output.height)
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            Command::none()
+        }
+    }
+
+    // Close all shell surfaces
+    fn hide(&mut self) -> Command<Msg> {
+        self.visible = false;
+        Command::batch(
+            mem::take(&mut self.layer_surfaces)
+                .into_keys()
+                .map(destroy_layer_surface)
+                .collect::<Vec<_>>(),
+        )
+    }
 }
 
 impl Application for App {
@@ -126,7 +216,6 @@ impl Application for App {
 
     // TODO transparent style?
     // TODO: show panel and dock? Drag?
-    // TODO way to activate w/ keybind, button
 
     fn update(&mut self, message: Msg) -> Command<Msg> {
         match message {
@@ -134,33 +223,28 @@ impl Application for App {
                 WaylandEvent::Output(evt, output) => match evt {
                     OutputEvent::Created(Some(info)) => {
                         if let Some((width, height)) = info.logical_size {
-                            let id = self.next_surface_id();
-                            self.layer_surfaces.insert(
-                                id.clone(),
-                                LayerSurface {
-                                    output: output.clone(),
-                                    output_name: info.name,
-                                },
-                            );
-                            return get_layer_surface(SctkLayerSurfaceSettings {
-                                id,
-                                keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                                namespace: "workspaces".into(),
-                                layer: Layer::Overlay,
-                                size: Some((Some(width as _), Some(height as _))),
-                                output: IcedOutput::Output(output),
-                                ..Default::default()
+                            self.outputs.push(Output {
+                                handle: output.clone(),
+                                name: info.name.clone(),
+                                width,
+                                height,
                             });
+                            if self.visible {
+                                return self.create_surface(
+                                    output.clone(),
+                                    info.name,
+                                    width,
+                                    height,
+                                );
+                            }
                         }
                     }
                     OutputEvent::Removed => {
-                        if let Some((id, _)) = self
-                            .layer_surfaces
-                            .iter()
-                            .find(|(_id, surface)| &surface.output == &output)
-                        {
-                            let id = *id;
-                            self.layer_surfaces.remove(&id).unwrap();
+                        if let Some(idx) = self.outputs.iter().position(|x| &x.handle == &output) {
+                            self.outputs.remove(idx);
+                        }
+                        if self.visible {
+                            return self.destroy_surface(&output);
                         }
                     }
                     // TODO handle update/remove
@@ -232,7 +316,7 @@ impl Application for App {
                 }
             }
             Msg::Close => {
-                std::process::exit(0);
+                self.hide();
             }
             Msg::Closed(_) => {}
             Msg::ActivateWorkspace(workspace_handle) => {
@@ -248,7 +332,7 @@ impl Application for App {
                             toplevel_manager.activate(&toplevel_handle, &seat);
                             self.conn.as_ref().unwrap().flush();
                         }
-                        std::process::exit(0); // Can we assume flush is suficient to ensure this takes effect?
+                        self.hide();
                     }
                 }
             }
@@ -258,6 +342,9 @@ impl Application for App {
                 if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
                     toplevel_manager.close(&toplevel_handle);
                 }
+            }
+            Msg::DBus(toggle_dbus::Event::Toggle) => {
+                return self.toggle();
             }
         }
 
@@ -279,7 +366,11 @@ impl Application for App {
                 None
             }
         });
-        iced::Subscription::batch(vec![events, wayland::subscription().map(Msg::Wayland)])
+        iced::Subscription::batch(vec![
+            events,
+            toggle_dbus::subscription().map(Msg::DBus),
+            wayland::subscription().map(Msg::Wayland),
+        ])
     }
 
     fn view(&self, id: SurfaceIdWrapper) -> cosmic::Element<Msg> {

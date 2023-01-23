@@ -397,7 +397,7 @@ dependencies = [
 [[package]]
 name = "cosmic-client-toolkit"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols#1615d9048198d3beac93184259046cf546d63657"
+source = "git+https://github.com/pop-os/cosmic-protocols#1ebab50966cfa91afc988f6d8cf83307cbe30446"
 dependencies = [
  "cosmic-protocols",
  "gl_generator",
@@ -409,7 +409,7 @@ dependencies = [
 [[package]]
 name = "cosmic-protocols"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols#1615d9048198d3beac93184259046cf546d63657"
+source = "git+https://github.com/pop-os/cosmic-protocols#1ebab50966cfa91afc988f6d8cf83307cbe30446"
 dependencies = [
  "bitflags",
  "wayland-backend",

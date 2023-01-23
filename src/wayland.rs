@@ -13,7 +13,10 @@ use cctk::{
         toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
-    screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
+    screencopy::{
+        BufferInfo, ScreencopyHandler, ScreencopySessionData, ScreencopySessionDataExt,
+        ScreencopyState,
+    },
     sctk::{
         self,
         output::{OutputHandler, OutputState},
@@ -37,7 +40,7 @@ use cosmic::iced::{
     widget::image,
 };
 use futures_channel::mpsc;
-use std::{collections::HashMap, thread};
+use std::{collections::HashMap, sync::Mutex, thread};
 
 // TODO define subscription for a particular output/workspace/toplevel (but we want to rate limit?)
 
@@ -74,9 +77,16 @@ enum CaptureSource {
 }
 
 struct Frame {
-    buffer: Option<(RawPool, wl_buffer::WlBuffer, BufferInfo)>,
+    session_data: ScreencopySessionData,
+    buffer: Mutex<Option<(RawPool, wl_buffer::WlBuffer, BufferInfo)>>,
     source: CaptureSource,
     first_frame: bool,
+}
+
+impl ScreencopySessionDataExt for Frame {
+    fn screencopy_session_data(&self) -> &ScreencopySessionData {
+        &self.session_data
+    }
 }
 
 pub struct AppData {
@@ -90,7 +100,6 @@ pub struct AppData {
     shm_state: ShmState,
     toplevel_manager_state: ToplevelManagerState,
     sender: mpsc::Sender<Event>,
-    frames: HashMap<ObjectId, Frame>,
     output_names: HashMap<ObjectId, Option<String>>,
     seats: Vec<wl_seat::WlSeat>,
 }
@@ -199,20 +208,18 @@ impl ToplevelInfoHandler for AppData {
         let info = self.toplevel_info_state.info(&toplevel).unwrap();
         self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
 
+        // XXX first_frame
+        let udata = Frame {
+            session_data: Default::default(),
+            buffer: Mutex::new(None),
+            source: CaptureSource::Toplevel(toplevel.clone()),
+            first_frame: true,
+        };
         let frame = self.screencopy_state.screencopy_manager.capture_toplevel(
             toplevel,
             zcosmic_screencopy_manager_v1::CursorMode::Hidden,
             &self.qh,
-            Default::default(), // TODO
-        );
-        // XXX first_frame
-        self.frames.insert(
-            frame.id(),
-            Frame {
-                buffer: None,
-                source: CaptureSource::Toplevel(toplevel.clone()),
-                first_frame: true,
-            },
+            udata,
         );
     }
 
@@ -249,21 +256,19 @@ impl WorkspaceHandler for AppData {
                     let output_name = self.output_names.get(&output.id()).unwrap().clone();
                     workspaces.push((output_name, workspace.clone()));
 
+                    // XXX first_frame
+                    let udata = Frame {
+                        session_data: Default::default(),
+                        buffer: Mutex::new(None),
+                        source: CaptureSource::Workspace(workspace.handle.clone()),
+                        first_frame: true,
+                    };
                     let frame = self.screencopy_state.screencopy_manager.capture_workspace(
                         &workspace.handle,
                         output,
                         zcosmic_screencopy_manager_v1::CursorMode::Hidden,
                         &self.qh,
-                        Default::default(), // TODO
-                    );
-                    // XXX first_frame
-                    self.frames.insert(
-                        frame.id(),
-                        Frame {
-                            buffer: None,
-                            source: CaptureSource::Workspace(workspace.handle.clone()),
-                            first_frame: true,
-                        },
+                        udata,
                     );
                 }
             }
@@ -306,7 +311,7 @@ impl ScreencopyHandler for AppData {
             qh,
         );
 
-        let mut frame = self.frames.get_mut(&session.id()).unwrap();
+        let frame = session.data::<Frame>().unwrap();
 
         session.attach_buffer(&buffer, None, 0); // XXX age?
         if frame.first_frame {
@@ -317,7 +322,7 @@ impl ScreencopyHandler for AppData {
         }
         conn.flush().unwrap();
 
-        frame.buffer = Some((pool, buffer, buffer_info.clone()));
+        *frame.buffer.lock().unwrap() = Some((pool, buffer, buffer_info.clone()));
     }
 
     fn ready(
@@ -326,8 +331,8 @@ impl ScreencopyHandler for AppData {
         qh: &QueueHandle<Self>,
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     ) {
-        let frame = self.frames.get_mut(&session.id()).unwrap();
-        let (mut pool, buffer, buffer_info) = frame.buffer.take().unwrap();
+        let frame = session.data::<Frame>().unwrap();
+        let (mut pool, buffer, buffer_info) = frame.buffer.lock().unwrap().take().unwrap();
         // XXX is this at all a performance issue?
         let image =
             image::Handle::from_pixels(buffer_info.width, buffer_info.height, pool.mmap().to_vec());
@@ -400,7 +405,6 @@ fn start() -> mpsc::Receiver<Event> {
         seat_state: SeatState::new(&globals, &qh),
         shm_state: ShmState::bind(&globals, &qh).unwrap(),
         sender,
-        frames: HashMap::new(),
         output_names: HashMap::new(),
         seats: Vec::new(),
     };
@@ -428,4 +432,4 @@ sctk::delegate_shm!(AppData);
 cctk::delegate_toplevel_info!(AppData);
 cctk::delegate_toplevel_manager!(AppData);
 cctk::delegate_workspace!(AppData);
-cctk::delegate_screencopy!(AppData);
+cctk::delegate_screencopy!(AppData, session: [Frame]);

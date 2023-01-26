@@ -299,6 +299,12 @@ impl ScreencopyHandler for AppData {
             .unwrap();
         let buf_len = buffer_info.stride * buffer_info.height;
 
+        // XXX fix in compositor
+        if buffer_info.width == 0 || buffer_info.height == 0 {
+            session.destroy();
+            return;
+        }
+
         // TODO: reuse pool? swapping?
         let mut pool = RawPool::new(buf_len as usize, &self.shm_state).unwrap();
         let buffer = pool.create_buffer(
@@ -343,6 +349,7 @@ impl ScreencopyHandler for AppData {
             }
         };
         self.send_event(event);
+        session.destroy();
     }
 
     fn failed(
@@ -354,6 +361,7 @@ impl ScreencopyHandler for AppData {
     ) {
         // TODO
         println!("Failed");
+        session.destroy();
     }
 }
 

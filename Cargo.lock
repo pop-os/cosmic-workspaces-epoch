@@ -158,9 +158,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.62"
+version = "0.1.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "689894c2db1ea643a50834b999abf1c110887402542955ff5451dab8f861f9ed"
+checksum = "eff18d764974428cf3a9328e23fc5c986f5fbed46e6cd4cdf42544df5d297ec1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -867,6 +867,9 @@ name = "float-cmp"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "flume"
@@ -1260,7 +1263,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "iced"
 version = "0.6.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "iced_core",
  "iced_dyrend",
@@ -1278,7 +1281,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.6.2"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "bitflags",
  "palette",
@@ -1288,7 +1291,7 @@ dependencies = [
 [[package]]
 name = "iced_dyrend"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "iced_glow",
  "iced_graphics",
@@ -1302,7 +1305,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.5.1"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "futures",
  "log",
@@ -1314,7 +1317,7 @@ dependencies = [
 [[package]]
 name = "iced_glow"
 version = "0.5.1"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -1329,7 +1332,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.5.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -1349,7 +1352,7 @@ dependencies = [
 [[package]]
 name = "iced_lazy"
 version = "0.3.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "iced_native",
  "ouroboros 0.13.0",
@@ -1358,7 +1361,7 @@ dependencies = [
 [[package]]
 name = "iced_native"
 version = "0.7.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1372,9 +1375,10 @@ dependencies = [
 [[package]]
 name = "iced_sctk"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "enum-repr",
+ "float-cmp",
  "futures",
  "iced_futures",
  "iced_graphics",
@@ -1389,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "iced_softbuffer"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "cosmic-text",
  "iced_graphics",
@@ -1404,7 +1408,7 @@ dependencies = [
 [[package]]
 name = "iced_style"
 version = "0.5.1"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "iced_core",
  "once_cell",
@@ -1414,7 +1418,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.7.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -1565,7 +1569,7 @@ checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 [[package]]
 name = "libcosmic"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#4733069988e784ef390c72eaad46cde74c2559f5"
+source = "git+https://github.com/pop-os/libcosmic#771ddff482de79264ce50191517715d09988924f"
 dependencies = [
  "apply",
  "cosmic-theme",
@@ -1647,9 +1651,9 @@ dependencies = [
 
 [[package]]
 name = "matches"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3e378b66a060d48947b590737b30a1be76706c8dd7b8ba0f2fe3989c68a853f"
+checksum = "2532096657941c2fea9c289d370a250971c689d4f143798ff67113ec042024a5"
 
 [[package]]
 name = "memchr"
@@ -1817,6 +1821,15 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "nom8"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae01545c9c7fc4486ab7debaf2aad7003ac19431791868fb2e8066df97fad2f8"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -2194,13 +2207,12 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro-crate"
-version = "1.2.1"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eda0fc3b0fb7c975631757e14d9049da17374063edb6ebbcbc54d880d4fe94e9"
+checksum = "66618389e4ec1c7afe67d51a9bf34ff9236480f8d51e7489b7d5ab0303c13f34"
 dependencies = [
  "once_cell",
- "thiserror",
- "toml",
+ "toml_edit",
 ]
 
 [[package]]
@@ -2335,9 +2347,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.10.1"
+version = "1.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cac410af5d00ab6884528b4ab69d1e8e146e8d471201800fa1b4524126de6ad3"
+checksum = "356a0625f1954f730c0201cdab48611198dc6ce21f4acff55089b5a78e6e835b"
 dependencies = [
  "crossbeam-channel",
  "crossbeam-deque",
@@ -2714,7 +2726,7 @@ dependencies = [
 [[package]]
 name = "softbuffer"
 version = "0.2.0"
-source = "git+https://github.com/pop-os/softbuffer?rev=68240f56b#68240f56b6e837b9c4f43438bce866a0e1b1ab61"
+source = "git+https://github.com/pop-os/softbuffer?rev=8dcb6438b#8dcb6438b6c1688a0015b477dfa76c6c0bee3318"
 dependencies = [
  "bytemuck",
  "cfg_aliases",
@@ -2942,6 +2954,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4553f467ac8e3d374bc9a177a26801e5d0f9b211aa1673fb137a403afd1c9cf5"
+
+[[package]]
+name = "toml_edit"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "729bfd096e40da9c001f778f5cdecbd2957929a24e10e5883d9392220a751581"
+dependencies = [
+ "indexmap",
+ "nom8",
+ "toml_datetime",
 ]
 
 [[package]]

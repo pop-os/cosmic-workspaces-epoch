@@ -24,11 +24,11 @@ use cosmic::{
         },
         window::Id as SurfaceId,
     },
-};
-use iced_sctk::{
-    application::SurfaceIdWrapper,
-    commands::layer_surface::{destroy_layer_surface, get_layer_surface},
-    settings::InitialSurface,
+    iced_sctk::{
+        application::SurfaceIdWrapper,
+        commands::layer_surface::{destroy_layer_surface, get_layer_surface},
+        settings::InitialSurface,
+    },
 };
 use std::{collections::HashMap, mem, process};
 

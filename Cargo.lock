@@ -459,7 +459,6 @@ version = "0.1.0"
 dependencies = [
  "cosmic-client-toolkit",
  "futures-channel",
- "iced_sctk",
  "libcosmic",
  "tokio",
  "zbus",

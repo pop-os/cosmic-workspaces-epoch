@@ -326,7 +326,7 @@ impl Application for App {
                 }
             }
             Msg::Close => {
-                self.hide();
+                return self.hide();
             }
             Msg::Closed(_) => {}
             Msg::ActivateWorkspace(workspace_handle) => {
@@ -342,7 +342,7 @@ impl Application for App {
                             toplevel_manager.activate(&toplevel_handle, &seat);
                             self.conn.as_ref().unwrap().flush();
                         }
-                        self.hide();
+                        return self.hide();
                     }
                 }
             }

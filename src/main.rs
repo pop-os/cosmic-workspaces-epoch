@@ -93,6 +93,7 @@ struct App {
     toplevel_manager: Option<zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1>,
     seats: Vec<wl_seat::WlSeat>,
     visible: bool,
+    wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
 }
 
 impl App {
@@ -140,7 +141,7 @@ impl App {
         get_layer_surface(SctkLayerSurfaceSettings {
             id,
             keyboard_interactivity: KeyboardInteractivity::Exclusive,
-            namespace: "workspaces".into(),
+            namespace: "workspace-overview".into(),
             layer: Layer::Overlay,
             size: Some((Some(width as _), Some(height as _))),
             output: IcedOutput::Output(output),
@@ -266,6 +267,9 @@ impl Application for App {
                 match evt {
                     wayland::Event::Connection(conn) => {
                         self.conn = Some(conn);
+                    }
+                    wayland::Event::CmdSender(sender) => {
+                        self.wayland_cmd_sender = Some(sender);
                     }
                     wayland::Event::ToplevelManager(manager) => {
                         self.toplevel_manager = Some(manager);
@@ -437,7 +441,7 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
     widget::column![
         close_button(Msg::CloseWorkspace(workspace.handle.clone())),
         widget::button(widget::Image::new(workspace.img.clone().unwrap_or_else(
-            || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255])
+            || widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])
         )))
         .style(theme)
         .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
@@ -464,7 +468,7 @@ fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
     widget::column![
         close_button(Msg::CloseToplevel(toplevel.handle.clone())),
         widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
-            || widget::image::Handle::from_pixels(0, 0, vec![0, 0, 0, 255]),
+            || widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255]),
         )))
         .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
         widget::text(&toplevel.info.title)

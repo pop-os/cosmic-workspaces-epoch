@@ -397,7 +397,7 @@ dependencies = [
 [[package]]
 name = "cosmic-client-toolkit"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols#1ebab50966cfa91afc988f6d8cf83307cbe30446"
+source = "git+https://github.com/pop-os/cosmic-protocols#7eac0d9e15b9dc4269ceb1ab7dd027b8589c601d"
 dependencies = [
  "cosmic-protocols",
  "gl_generator",
@@ -409,7 +409,7 @@ dependencies = [
 [[package]]
 name = "cosmic-protocols"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols#1ebab50966cfa91afc988f6d8cf83307cbe30446"
+source = "git+https://github.com/pop-os/cosmic-protocols#7eac0d9e15b9dc4269ceb1ab7dd027b8589c601d"
 dependencies = [
  "bitflags",
  "wayland-backend",
@@ -457,6 +457,7 @@ dependencies = [
 name = "cosmic-workspaces"
 version = "0.1.0"
 dependencies = [
+ "calloop",
  "cosmic-client-toolkit",
  "futures-channel",
  "libcosmic",

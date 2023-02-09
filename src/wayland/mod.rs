@@ -93,6 +93,7 @@ enum CaptureSource {
     ),
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for CaptureSource {
     fn hash<H>(&self, state: &mut H)
     where
@@ -100,7 +101,7 @@ impl std::hash::Hash for CaptureSource {
     {
         match self {
             Self::Toplevel(handle) => handle.id(),
-            Self::Workspace(handle, output) => handle.id(),
+            Self::Workspace(handle, _output) => handle.id(),
         }
         .hash(state)
     }
@@ -152,7 +153,7 @@ impl Capture {
                 manager.capture_toplevel(
                     toplevel,
                     zcosmic_screencopy_manager_v1::CursorMode::Hidden,
-                    &qh,
+                    qh,
                     udata,
                 );
             }
@@ -161,7 +162,7 @@ impl Capture {
                     workspace,
                     output,
                     zcosmic_screencopy_manager_v1::CursorMode::Hidden,
-                    &qh,
+                    qh,
                     udata,
                 );
             }
@@ -319,7 +320,7 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        let info = self.toplevel_info_state.info(&toplevel).unwrap();
+        let info = self.toplevel_info_state.info(toplevel).unwrap();
         self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
 
         self.add_capture_source(CaptureSource::Toplevel(toplevel.clone()));
@@ -329,7 +330,7 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        _toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
         // TODO
     }
@@ -423,8 +424,8 @@ impl ScreencopyHandler for AppData {
 
     fn ready(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     ) {
         let capture = &session.data::<SessionData>().unwrap().capture;
@@ -451,10 +452,10 @@ impl ScreencopyHandler for AppData {
 
     fn failed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
-        reason: WEnum<zcosmic_screencopy_session_v1::FailureReason>,
+        _reason: WEnum<zcosmic_screencopy_session_v1::FailureReason>,
     ) {
         // TODO
         println!("Failed");
@@ -469,9 +470,9 @@ impl ToplevelManagerHandler for AppData {
 
     fn capabilities(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        capabilities: Vec<
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _capabilities: Vec<
             WEnum<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
         >,
     ) {
@@ -481,7 +482,7 @@ impl ToplevelManagerHandler for AppData {
 impl Dispatch<wl_buffer::WlBuffer, ()> for AppData {
     fn event(
         _app_data: &mut Self,
-        buffer: &wl_buffer::WlBuffer,
+        _buffer: &wl_buffer::WlBuffer,
         event: wl_buffer::Event,
         _: &(),
         _: &Connection,
@@ -499,7 +500,7 @@ fn start() -> mpsc::Receiver<Event> {
 
     // TODO share connection? Can't use same `WlOutput` with seperate connection
     let conn = Connection::connect_to_env().unwrap();
-    let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
+    let (globals, event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 
     let registry_state = RegistryState::new(&globals);

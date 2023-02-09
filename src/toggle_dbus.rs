@@ -1,6 +1,6 @@
 use cosmic::iced::{self, futures::StreamExt, subscription};
 use futures_channel::mpsc;
-use std::{fmt::Debug, hash::Hash};
+use std::fmt::Debug;
 use zbus::{dbus_interface, Connection, ConnectionBuilder};
 
 pub fn subscription() -> iced::Subscription<Event> {
@@ -36,7 +36,7 @@ async fn start_listening(state: State) -> (Option<Event>, State) {
                     return (None, State::Waiting(conn, rx));
                 }
             }
-            return (None, State::Finished);
+            (None, State::Finished)
         }
         State::Waiting(conn, mut rx) => {
             if let Some(Event::Toggle) = rx.next().await {

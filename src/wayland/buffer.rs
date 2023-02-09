@@ -41,6 +41,7 @@ impl Buffer {
     }
 
     // Buffer must be released by server for safety
+    #[allow(clippy::wrong_self_convention)]
     pub unsafe fn to_image(&mut self) -> image::Handle {
         // XXX is this at all a performance issue?
         image::Handle::from_pixels(

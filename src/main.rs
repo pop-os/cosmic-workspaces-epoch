@@ -1,14 +1,16 @@
+#![allow(clippy::single_match)]
+
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
-    sctk::shell::layer::{Anchor, KeyboardInteractivity, Layer},
+    sctk::shell::layer::{KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
     wayland_client::{
         protocol::{wl_output, wl_seat},
-        Connection, QueueHandle, WEnum,
+        Connection, WEnum,
     },
 };
 use cosmic::{
@@ -16,7 +18,7 @@ use cosmic::{
         self,
         event::wayland::{Event as WaylandEvent, OutputEvent},
         keyboard::KeyCode,
-        widget, Application, Command, Element, Subscription,
+        widget, Application, Command, Subscription,
     },
     iced_native::{
         command::platform_specific::wayland::layer_surface::{
@@ -30,7 +32,7 @@ use cosmic::{
         settings::InitialSurface,
     },
 };
-use std::{collections::HashMap, mem, process};
+use std::{collections::HashMap, mem};
 
 mod toggle_dbus;
 mod wayland;
@@ -132,7 +134,7 @@ impl App {
     ) -> Command<Msg> {
         let id = self.next_surface_id();
         self.layer_surfaces.insert(
-            id.clone(),
+            id,
             LayerSurface {
                 output: output.clone(),
                 output_name,
@@ -242,8 +244,7 @@ impl Application for App {
                     }
                     OutputEvent::Created(None) => {} // XXX?
                     OutputEvent::InfoUpdate(info) => {
-                        if let Some(output) = self.outputs.iter_mut().find(|x| &x.handle == &output)
-                        {
+                        if let Some(output) = self.outputs.iter_mut().find(|x| x.handle == output) {
                             if let Some((width, height)) = info.logical_size {
                                 output.width = width;
                                 output.height = height;
@@ -253,7 +254,7 @@ impl Application for App {
                         }
                     }
                     OutputEvent::Removed => {
-                        if let Some(idx) = self.outputs.iter().position(|x| &x.handle == &output) {
+                        if let Some(idx) = self.outputs.iter().position(|x| x.handle == output) {
                             self.outputs.remove(idx);
                         }
                         if self.visible {
@@ -288,7 +289,7 @@ impl Application for App {
                             // XXX efficiency
                             let img = old_workspaces
                                 .iter()
-                                .find(|i| &i.handle == &workspace.handle)
+                                .find(|i| i.handle == workspace.handle)
                                 .and_then(|i| i.img.clone());
 
                             self.workspaces.push(Workspace {
@@ -301,7 +302,7 @@ impl Application for App {
                         }
                     }
                     wayland::Event::NewToplevel(handle, info) => {
-                        println!("New toplevel: {:?}", info);
+                        println!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
                             handle,
                             info,
@@ -315,13 +316,13 @@ impl Application for App {
                     }
                     wayland::Event::WorkspaceCapture(handle, image) => {
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
-                            workspace.img = Some(image.clone());
+                            workspace.img = Some(image);
                         }
                     }
                     wayland::Event::ToplevelCapture(handle, image) => {
                         if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
                             println!("Got toplevel image!");
-                            toplevel.img = Some(image.clone());
+                            toplevel.img = Some(image);
                         }
                     }
                     wayland::Event::Seats(seats) => {
@@ -337,20 +338,20 @@ impl Application for App {
                 let workspace_manager = self.workspace_manager.as_ref().unwrap();
                 workspace_handle.activate();
                 workspace_manager.commit();
-                self.conn.as_ref().unwrap().flush();
+                let _ = self.conn.as_ref().unwrap().flush();
             }
             Msg::ActivateToplevel(toplevel_handle) => {
                 if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
                     if !self.seats.is_empty() {
                         for seat in &self.seats {
-                            toplevel_manager.activate(&toplevel_handle, &seat);
-                            self.conn.as_ref().unwrap().flush();
+                            toplevel_manager.activate(&toplevel_handle, seat);
                         }
+                        let _ = self.conn.as_ref().unwrap().flush();
                         return self.hide();
                     }
                 }
             }
-            Msg::CloseWorkspace(workspace_handle) => {}
+            Msg::CloseWorkspace(_workspace_handle) => {}
             Msg::CloseToplevel(toplevel_handle) => {
                 // TODO confirmation?
                 if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
@@ -407,7 +408,7 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
         workspaces_sidebar(
             app.workspaces
                 .iter()
-                .filter(|i| &i.output_name == &surface.output_name),
+                .filter(|i| i.output_name == surface.output_name),
         ),
         toplevel_previews(app.toplevels.iter().filter(|i| {
             if let Some(workspace) = &i.info.workspace {
@@ -461,7 +462,7 @@ fn workspaces_sidebar<'a>(
     // New workspace
 }
 
-fn toplevel_preview<'a>(toplevel: &'a Toplevel) -> cosmic::Element<'a, Msg> {
+fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
     // capture of window
     // - selectable
     // name of window

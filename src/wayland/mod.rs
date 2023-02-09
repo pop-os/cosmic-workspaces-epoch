@@ -20,11 +20,10 @@ use cctk::{
     sctk::{
         self,
         event_loop::WaylandSource,
-        globals::ProvidesBoundGlobal,
         output::{OutputHandler, OutputState},
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
-        shm::{raw::RawPool, ShmHandler, ShmState},
+        shm::{ShmHandler, ShmState},
     },
     toplevel_info::{ToplevelInfo, ToplevelInfoHandler, ToplevelInfoState},
     toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
@@ -51,6 +50,9 @@ use std::{
     },
     thread,
 };
+
+mod buffer;
+use buffer::Buffer;
 
 // TODO define subscription for a particular output/workspace/toplevel (but we want to rate limit?)
 
@@ -113,45 +115,6 @@ pub struct CaptureFilter {
 #[derive(Debug)]
 pub enum Cmd {
     CaptureFilter(CaptureFilter),
-}
-
-struct Buffer {
-    pool: RawPool,
-    buffer: wl_buffer::WlBuffer,
-    buffer_info: BufferInfo,
-}
-
-impl Buffer {
-    fn new(
-        buffer_info: BufferInfo,
-        shm: &impl ProvidesBoundGlobal<wl_shm::WlShm, 1>,
-        qh: &QueueHandle<AppData>,
-    ) -> Self {
-        // Assume format is already known to be valid
-        let mut pool =
-            RawPool::new((buffer_info.stride * buffer_info.height) as usize, shm).unwrap();
-        let format = wl_shm::Format::try_from(buffer_info.format).unwrap();
-        let buffer = pool.create_buffer(
-            0,
-            buffer_info.width as i32,
-            buffer_info.height as i32,
-            buffer_info.stride as i32,
-            format,
-            (),
-            qh,
-        );
-        Self {
-            pool,
-            buffer,
-            buffer_info,
-        }
-    }
-}
-
-impl Drop for Buffer {
-    fn drop(&mut self) {
-        self.buffer.destroy();
-    }
 }
 
 struct Capture {
@@ -432,7 +395,6 @@ impl ScreencopyHandler for AppData {
                     && x.format == wl_shm::Format::Abgr8888.into()
             })
             .unwrap();
-        let buf_len = buffer_info.stride * buffer_info.height;
 
         // XXX fix in compositor
         if buffer_info.width == 0 || buffer_info.height == 0 || buffer_info.stride == 0 {
@@ -472,13 +434,7 @@ impl ScreencopyHandler for AppData {
         }
 
         let mut buffer = capture.buffer.lock().unwrap();
-        let mut buffer = buffer.as_mut().unwrap();
-        // XXX is this at all a performance issue?
-        let image = image::Handle::from_pixels(
-            buffer.buffer_info.width,
-            buffer.buffer_info.height,
-            buffer.pool.mmap().to_vec(),
-        );
+        let image = unsafe { buffer.as_mut().unwrap().to_image() };
         let event = match &capture.source {
             CaptureSource::Toplevel(toplevel) => Event::ToplevelCapture(toplevel.clone(), image),
             CaptureSource::Workspace(workspace, _) => {

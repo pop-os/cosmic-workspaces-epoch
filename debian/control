@@ -6,6 +6,7 @@ Build-Depends:
   debhelper (>= 11),
   debhelper-compat (= 11),
   cargo,
+  libegl1-mesa-dev,
   libudev-dev,
   libxkbcommon-dev,
   pkg-config,

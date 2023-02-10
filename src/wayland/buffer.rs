@@ -3,10 +3,12 @@ use cctk::{
     sctk::{globals::ProvidesBoundGlobal, shm::raw::RawPool},
     wayland_client::{
         protocol::{wl_buffer, wl_shm},
-        QueueHandle,
+        Connection, Dispatch, QueueHandle,
     },
 };
 use cosmic::iced::widget::image;
+
+use super::AppData;
 
 pub struct Buffer {
     pub pool: RawPool,
@@ -18,7 +20,7 @@ impl Buffer {
     pub fn new(
         buffer_info: BufferInfo,
         shm: &impl ProvidesBoundGlobal<wl_shm::WlShm, 1>,
-        qh: &QueueHandle<super::AppData>,
+        qh: &QueueHandle<AppData>,
     ) -> Self {
         // Assume format is already known to be valid
         let mut pool =
@@ -55,5 +57,21 @@ impl Buffer {
 impl Drop for Buffer {
     fn drop(&mut self) {
         self.buffer.destroy();
+    }
+}
+
+impl Dispatch<wl_buffer::WlBuffer, ()> for AppData {
+    fn event(
+        _app_data: &mut Self,
+        _buffer: &wl_buffer::WlBuffer,
+        event: wl_buffer::Event,
+        _: &(),
+        _: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            wl_buffer::Event::Release => {}
+            _ => unreachable!(),
+        }
     }
 }

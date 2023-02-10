@@ -447,6 +447,7 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
             }
         })),
     ]
+    .spacing(12)
     .height(iced::Length::Fill)
     .width(iced::Length::Fill)
     .into()
@@ -468,12 +469,21 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
     };
     widget::column![
         close_button(Msg::CloseWorkspace(workspace.handle.clone())),
-        widget::button(widget::Image::new(workspace.img.clone().unwrap_or_else(
-            || widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])
-        )))
+        widget::button(widget::column![
+            widget::Image::new(
+                workspace
+                    .img
+                    .clone()
+                    .unwrap_or_else(|| widget::image::Handle::from_pixels(
+                        1,
+                        1,
+                        vec![0, 0, 0, 255]
+                    ))
+            ),
+            widget::text(&workspace.name)
+        ])
         .style(theme)
         .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
-        widget::text(&workspace.name)
     ]
     .into()
 }
@@ -487,6 +497,7 @@ fn workspaces_sidebar<'a>(
         .into()
 
     // New workspace
+    // Show empty workspace same size as others
 }
 
 fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
@@ -500,6 +511,7 @@ fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
         )))
         .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
         widget::text(&toplevel.info.title)
+            .horizontal_alignment(iced::alignment::Horizontal::Center)
     ]
     .into()
 }
@@ -510,6 +522,8 @@ fn toplevel_previews<'a>(
     widget::row(toplevels.map(toplevel_preview).collect())
         .width(iced::Length::FillPortion(4))
         .height(iced::Length::Fill)
+        .spacing(16)
+        .align_items(iced::Alignment::Center)
         .into()
 }
 

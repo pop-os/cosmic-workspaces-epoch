@@ -32,9 +32,10 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        // TODO
+        let info = self.toplevel_info_state.info(toplevel).unwrap();
+        self.send_event(Event::UpdateToplevel(toplevel.clone(), info.clone()));
     }
 
     fn toplevel_closed(

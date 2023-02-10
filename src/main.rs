@@ -329,6 +329,13 @@ impl Application for App {
                             img: None,
                         });
                     }
+                    wayland::Event::UpdateToplevel(handle, info) => {
+                        if let Some(toplevel) =
+                            self.toplevels.iter_mut().find(|x| x.handle == handle)
+                        {
+                            toplevel.info = info;
+                        }
+                    }
                     wayland::Event::CloseToplevel(handle) => {
                         if let Some(idx) = self.toplevels.iter().position(|x| x.handle == handle) {
                             self.toplevels.remove(idx);
@@ -341,7 +348,7 @@ impl Application for App {
                     }
                     wayland::Event::ToplevelCapture(handle, image) => {
                         if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
-                            println!("Got toplevel image!");
+                            //println!("Got toplevel image!");
                             toplevel.img = Some(image);
                         }
                     }

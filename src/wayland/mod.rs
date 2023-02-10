@@ -67,6 +67,10 @@ pub enum Event {
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         ToplevelInfo,
     ),
+    UpdateToplevel(
+        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        ToplevelInfo,
+    ),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     ToplevelCapture(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,

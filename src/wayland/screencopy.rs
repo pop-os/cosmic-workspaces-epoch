@@ -93,6 +93,8 @@ impl ScreencopyHandler for AppData {
     ) {
         // TODO
         println!("Failed");
+        let capture = Capture::for_session(session).unwrap();
+        capture.cancel();
         session.destroy();
     }
 }

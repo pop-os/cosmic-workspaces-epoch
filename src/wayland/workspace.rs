@@ -14,17 +14,20 @@ impl WorkspaceHandler for AppData {
         let mut workspaces = Vec::new();
 
         // XXX remove capture source for removed workspaces
+        // Handle move to another output
 
         for group in self.workspace_state.workspace_groups() {
             for workspace in &group.workspaces {
                 if let Some(output) = group.output.as_ref() {
-                    let output_name = self.output_names.get(&output.id()).unwrap().clone();
-                    workspaces.push((output_name, workspace.clone()));
+                    if let Some(output_name) = self.output_names.get(&output.id()).unwrap().clone()
+                    {
+                        workspaces.push((output_name, workspace.clone()));
 
-                    self.add_capture_source(CaptureSource::Workspace(
-                        workspace.handle.clone(),
-                        output.clone(),
-                    ));
+                        self.add_capture_source(CaptureSource::Workspace(
+                            workspace.handle.clone(),
+                            output.clone(),
+                        ));
+                    }
                 }
             }
         }

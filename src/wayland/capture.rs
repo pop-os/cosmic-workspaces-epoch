@@ -40,15 +40,16 @@ impl std::hash::Hash for CaptureSource {
 
 #[derive(Clone, Debug, Default)]
 pub struct CaptureFilter {
-    pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
+    // TODO: Use `WlOutput` when one Wayland connection is used
+    pub workspaces_on_outputs: Vec<String>,
     pub toplevels_on_workspaces: Vec<zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
 }
 
 pub struct Capture {
     pub buffer: Mutex<Option<Buffer>>,
     pub source: CaptureSource,
-    pub first_frame: AtomicBool,
-    pub cancelled: AtomicBool,
+    first_frame: AtomicBool,
+    running: AtomicBool,
 }
 
 impl Capture {
@@ -57,7 +58,7 @@ impl Capture {
             buffer: Mutex::new(None),
             source,
             first_frame: AtomicBool::new(true),
-            cancelled: AtomicBool::new(false),
+            running: AtomicBool::new(false),
         }
     }
 
@@ -67,8 +68,17 @@ impl Capture {
         Some(&session.data::<SessionData>()?.capture)
     }
 
+    pub fn running(&self) -> bool {
+        self.running.load(Ordering::SeqCst)
+    }
+
+    pub fn first_frame(&self) -> bool {
+        self.first_frame.load(Ordering::SeqCst)
+    }
+
     pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
+        self.running.store(false, Ordering::SeqCst);
+        *self.buffer.lock().unwrap() = None;
     }
 
     pub fn capture(
@@ -76,6 +86,10 @@ impl Capture {
         manager: &zcosmic_screencopy_manager_v1::ZcosmicScreencopyManagerV1,
         qh: &QueueHandle<AppData>,
     ) {
+        // Mark as running. If already running, this is not the first frame.
+        let already_running = self.running.swap(true, Ordering::SeqCst);
+        self.first_frame.store(!already_running, Ordering::SeqCst);
+
         let udata = SessionData {
             session_data: Default::default(),
             capture: self.clone(),

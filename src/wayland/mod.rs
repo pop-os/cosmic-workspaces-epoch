@@ -58,7 +58,7 @@ pub enum Event {
     ToplevelManager(zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1),
     WorkspaceManager(zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1),
     // XXX Output name rather than `WlOutput`
-    Workspaces(Vec<(Option<String>, cctk::workspace::Workspace)>),
+    Workspaces(Vec<(String, cctk::workspace::Workspace)>),
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
         image::Handle,
@@ -116,16 +116,52 @@ impl AppData {
         }
     }
 
-    fn invalidate_capture_filter(&mut self) {
-        //for i in self.captures
-        // XXX drain filter
-        // TODO cancel captures if needed, enable capture
+    fn matches_capture_filter(&self, source: &CaptureSource) -> bool {
+        match source {
+            CaptureSource::Toplevel(toplevel) => {
+                let info = self.toplevel_info_state.info(toplevel).unwrap();
+                if let Some(workspace) = &info.workspace {
+                    self.capture_filter
+                        .toplevels_on_workspaces
+                        .contains(workspace)
+                } else {
+                    false
+                }
+            }
+            CaptureSource::Workspace(_, output) => {
+                if let Some(name) = &self.output_state.info(&output).unwrap().name {
+                    self.capture_filter.workspaces_on_outputs.contains(name)
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    fn invalidate_capture_filter(&self) {
+        for (source, capture) in self.captures.borrow_mut().iter_mut() {
+            let matches = self.matches_capture_filter(source);
+            let running = capture.running();
+            if running && !matches {
+                capture.cancel();
+            } else if !running & matches {
+                capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
+            }
+        }
     }
 
     fn add_capture_source(&self, source: CaptureSource) {
-        let capture = Arc::new(Capture::new(source.clone()));
-        capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
-        self.captures.borrow_mut().insert(source, capture);
+        self.captures
+            .borrow_mut()
+            .entry(source.clone())
+            .or_insert_with(|| {
+                let matches = self.matches_capture_filter(&source);
+                let capture = Arc::new(Capture::new(source));
+                if matches {
+                    capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
+                }
+                capture
+            });
     }
 
     fn remove_capture_source(&self, source: CaptureSource) {

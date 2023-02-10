@@ -55,7 +55,7 @@ struct Workspace {
     name: String,
     img: Option<iced::widget::image::Handle>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    output_name: Option<String>,
+    output_name: String,
     is_active: bool,
 }
 
@@ -70,7 +70,7 @@ struct Toplevel {
 struct Output {
     // Output, on the `iced_sctk` Wayland connection
     handle: wl_output::WlOutput,
-    name: Option<String>,
+    name: String,
     width: i32,
     height: i32,
 }
@@ -78,7 +78,7 @@ struct Output {
 struct LayerSurface {
     // Output, on the `iced_sctk` Wayland connection
     output: wl_output::WlOutput,
-    output_name: Option<String>,
+    output_name: String,
     // for transitions, would need windows in more than one workspace? But don't capture all of
     // them all the time every frame.
 }
@@ -128,7 +128,7 @@ impl App {
     fn create_surface(
         &mut self,
         output: wl_output::WlOutput,
-        output_name: Option<String>,
+        output_name: String,
         width: i32,
         height: i32,
     ) -> Command<Msg> {
@@ -177,14 +177,16 @@ impl App {
         if !self.visible {
             self.visible = true;
             let outputs = self.outputs.clone();
-            Command::batch(
+            let cmd = Command::batch(
                 outputs
                     .into_iter()
                     .map(|output| {
                         self.create_surface(output.handle, output.name, output.width, output.height)
                     })
                     .collect::<Vec<_>>(),
-            )
+            );
+            self.update_capture_filter();
+            cmd
         } else {
             Command::none()
         }
@@ -193,12 +195,31 @@ impl App {
     // Close all shell surfaces
     fn hide(&mut self) -> Command<Msg> {
         self.visible = false;
+        self.update_capture_filter();
         Command::batch(
             mem::take(&mut self.layer_surfaces)
                 .into_keys()
                 .map(destroy_layer_surface)
                 .collect::<Vec<_>>(),
         )
+    }
+
+    fn update_capture_filter(&self) {
+        if let Some(sender) = self.wayland_cmd_sender.as_ref() {
+            let mut capture_filter = wayland::CaptureFilter::default();
+            if self.visible {
+                // XXX handle on wrong connection
+                capture_filter.workspaces_on_outputs =
+                    self.outputs.iter().map(|x| x.name.clone()).collect();
+                capture_filter.toplevels_on_workspaces = self
+                    .workspaces
+                    .iter()
+                    .filter(|x| x.is_active)
+                    .map(|x| x.handle.clone())
+                    .collect();
+            }
+            let _ = sender.send(wayland::Cmd::CaptureFilter(capture_filter));
+        }
     }
 }
 
@@ -225,20 +246,16 @@ impl Application for App {
             Msg::WaylandEvent(evt) => match evt {
                 WaylandEvent::Output(evt, output) => match evt {
                     OutputEvent::Created(Some(info)) => {
-                        if let Some((width, height)) = info.logical_size {
+                        if let (Some((width, height)), Some(name)) = (info.logical_size, info.name)
+                        {
                             self.outputs.push(Output {
                                 handle: output.clone(),
-                                name: info.name.clone(),
+                                name: name.clone(),
                                 width,
                                 height,
                             });
                             if self.visible {
-                                return self.create_surface(
-                                    output.clone(),
-                                    info.name,
-                                    width,
-                                    height,
-                                );
+                                return self.create_surface(output.clone(), name, width, height);
                             }
                         }
                     }
@@ -249,7 +266,9 @@ impl Application for App {
                                 output.width = width;
                                 output.height = height;
                             }
-                            output.name = info.name;
+                            if let Some(name) = info.name {
+                                output.name = name;
+                            }
                             // XXX re-create surface?
                         }
                     }
@@ -300,6 +319,7 @@ impl Application for App {
                                 is_active,
                             });
                         }
+                        self.update_capture_filter();
                     }
                     wayland::Event::NewToplevel(handle, info) => {
                         println!("New toplevel: {info:?}");

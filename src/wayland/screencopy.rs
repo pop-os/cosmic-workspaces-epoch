@@ -4,8 +4,6 @@ use cctk::{
     wayland_client::{protocol::wl_shm, Connection, QueueHandle, WEnum},
 };
 
-use std::sync::atomic::Ordering;
-
 use super::{AppData, Buffer, Capture, CaptureSource, Event};
 
 impl ScreencopyHandler for AppData {
@@ -21,7 +19,7 @@ impl ScreencopyHandler for AppData {
         buffer_infos: &[BufferInfo],
     ) {
         let capture = Capture::for_session(session).unwrap();
-        if capture.cancelled.load(Ordering::SeqCst) {
+        if !capture.running() {
             session.destroy();
             return;
         }
@@ -51,7 +49,7 @@ impl ScreencopyHandler for AppData {
         let buffer = buffer.as_ref().unwrap();
 
         session.attach_buffer(&buffer.buffer, None, 0); // XXX age?
-        if capture.first_frame.load(Ordering::SeqCst) {
+        if capture.first_frame() {
             session.commit(zcosmic_screencopy_session_v1::Options::empty());
         } else {
             session.commit(zcosmic_screencopy_session_v1::Options::OnDamage);
@@ -66,7 +64,7 @@ impl ScreencopyHandler for AppData {
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     ) {
         let capture = Capture::for_session(session).unwrap();
-        if capture.cancelled.load(Ordering::SeqCst) {
+        if !capture.running() {
             session.destroy();
             return;
         }
@@ -83,7 +81,6 @@ impl ScreencopyHandler for AppData {
         session.destroy();
 
         // Capture again on damage
-        capture.first_frame.store(false, Ordering::SeqCst);
         capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
     }
 

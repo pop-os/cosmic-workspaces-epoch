@@ -143,7 +143,7 @@ impl App {
         get_layer_surface(SctkLayerSurfaceSettings {
             id,
             keyboard_interactivity: KeyboardInteractivity::Exclusive,
-            namespace: "workspace-overview".into(),
+            namespace: "cosmic-workspace-overview".into(),
             layer: Layer::Overlay,
             size: Some((Some(width as _), Some(height as _))),
             output: IcedOutput::Output(output),

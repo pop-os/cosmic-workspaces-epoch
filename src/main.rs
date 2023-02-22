@@ -485,6 +485,7 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
         .style(theme)
         .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
+    .height(iced::Length::Fill)
     .into()
 }
 
@@ -497,13 +498,9 @@ fn workspaces_sidebar<'a>(
         .into()
 
     // New workspace
-    // Show empty workspace same size as others
 }
 
 fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
-    // capture of window
-    // - selectable
-    // name of window
     widget::column![
         close_button(Msg::CloseToplevel(toplevel.handle.clone())),
         widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
@@ -513,6 +510,7 @@ fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
         widget::text(&toplevel.info.title)
             .horizontal_alignment(iced::alignment::Horizontal::Center)
     ]
+    .width(iced::Length::Fill)
     .into()
 }
 

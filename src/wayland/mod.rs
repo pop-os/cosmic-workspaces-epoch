@@ -15,11 +15,10 @@ use cctk::{
     screencopy::ScreencopyState,
     sctk::{
         self,
-        event_loop::WaylandSource,
         output::{OutputHandler, OutputState},
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
-        shm::{ShmHandler, ShmState},
+        shm::{Shm, ShmHandler},
     },
     toplevel_info::{ToplevelInfo, ToplevelInfoState},
     toplevel_management::ToplevelManagerState,
@@ -27,7 +26,7 @@ use cctk::{
         backend::ObjectId,
         globals::registry_queue_init,
         protocol::{wl_output, wl_seat},
-        Connection, Proxy, QueueHandle,
+        Connection, Proxy, QueueHandle, WaylandSource,
     },
     workspace::WorkspaceState,
 };
@@ -96,7 +95,7 @@ pub struct AppData {
     workspace_state: WorkspaceState,
     screencopy_state: ScreencopyState,
     seat_state: SeatState,
-    shm_state: ShmState,
+    shm_state: Shm,
     toplevel_manager_state: ToplevelManagerState,
     sender: mpsc::Sender<Event>,
     output_names: HashMap<ObjectId, Option<String>>,
@@ -219,7 +218,7 @@ impl SeatHandler for AppData {
 }
 
 impl ShmHandler for AppData {
-    fn shm_state(&mut self) -> &mut ShmState {
+    fn shm_state(&mut self) -> &mut Shm {
         &mut self.shm_state
     }
 }
@@ -276,7 +275,7 @@ fn start() -> mpsc::Receiver<Event> {
         screencopy_state: ScreencopyState::new(&globals, &qh),
         registry_state,
         seat_state: SeatState::new(&globals, &qh),
-        shm_state: ShmState::bind(&globals, &qh).unwrap(),
+        shm_state: Shm::bind(&globals, &qh).unwrap(),
         sender,
         output_names: HashMap::new(),
         seats: Vec::new(),

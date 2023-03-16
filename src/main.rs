@@ -6,7 +6,7 @@ use cctk::{
         toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
-    sctk::shell::layer::{KeyboardInteractivity, Layer},
+    sctk::shell::wlr_layer::{KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
     wayland_client::{
         protocol::{wl_output, wl_seat},

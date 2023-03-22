@@ -57,17 +57,20 @@ pub enum Event {
     ToplevelManager(zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1),
     WorkspaceManager(zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1),
     // XXX Output name rather than `WlOutput`
-    Workspaces(Vec<(String, cctk::workspace::Workspace)>),
+    Workspaces(Vec<(Vec<String>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        String,
         image::Handle,
     ),
     NewToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        Option<String>,
         ToplevelInfo,
     ),
     UpdateToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        Option<String>,
         ToplevelInfo,
     ),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),

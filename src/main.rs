@@ -53,9 +53,9 @@ enum Msg {
 #[derive(Debug)]
 struct Workspace {
     name: String,
-    img: Option<iced::widget::image::Handle>,
+    img_for_output: HashMap<String, iced::widget::image::Handle>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    output_name: String,
+    output_names: Vec<String>,
     is_active: bool,
 }
 
@@ -63,6 +63,7 @@ struct Workspace {
 struct Toplevel {
     handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
+    output_name: Option<String>,
     img: Option<iced::widget::image::Handle>,
 }
 
@@ -300,39 +301,42 @@ impl Application for App {
                     wayland::Event::Workspaces(workspaces) => {
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
-                        for (output_name, workspace) in workspaces {
+                        for (output_names, workspace) in workspaces {
                             let is_active = workspace.state.contains(&WEnum::Value(
                                 zcosmic_workspace_handle_v1::State::Active,
                             ));
 
                             // XXX efficiency
-                            let img = old_workspaces
+                            let img_for_output = old_workspaces
                                 .iter()
                                 .find(|i| i.handle == workspace.handle)
-                                .and_then(|i| i.img.clone());
+                                .map(|i| i.img_for_output.clone())
+                                .unwrap_or_default();
 
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
                                 handle: workspace.handle,
-                                output_name,
-                                img,
+                                output_names,
+                                img_for_output,
                                 is_active,
                             });
                         }
                         self.update_capture_filter();
                     }
-                    wayland::Event::NewToplevel(handle, info) => {
+                    wayland::Event::NewToplevel(handle, output_name, info) => {
                         println!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
                             handle,
+                            output_name,
                             info,
                             img: None,
                         });
                     }
-                    wayland::Event::UpdateToplevel(handle, info) => {
+                    wayland::Event::UpdateToplevel(handle, output_name, info) => {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
+                            toplevel.output_name = output_name;
                             toplevel.info = info;
                         }
                     }
@@ -341,9 +345,9 @@ impl Application for App {
                             self.toplevels.remove(idx);
                         }
                     }
-                    wayland::Event::WorkspaceCapture(handle, image) => {
+                    wayland::Event::WorkspaceCapture(handle, output_name, image) => {
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
-                            workspace.img = Some(image);
+                            workspace.img_for_output.insert(output_name, image);
                         }
                     }
                     wayland::Event::ToplevelCapture(handle, image) => {
@@ -435,17 +439,21 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
         workspaces_sidebar(
             app.workspaces
                 .iter()
-                .filter(|i| i.output_name == surface.output_name),
+                .filter(|i| i.output_names.contains(&surface.output_name)),
+            &surface.output_name
         ),
         toplevel_previews(app.toplevels.iter().filter(|i| {
+            if i.output_name.as_ref() != Some(&surface.output_name) {
+                return false;
+            }
+
             if let Some(workspace) = &i.info.workspace {
-                app.workspace_for_handle(workspace).map_or(false, |x| {
-                    x.is_active && x.output_name == surface.output_name
-                })
+                app.workspace_for_handle(workspace)
+                    .map_or(false, |x| x.is_active)
             } else {
                 false
             }
-        })),
+        }))
     ]
     .spacing(12)
     .height(iced::Length::Fill)
@@ -460,7 +468,10 @@ fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
         .into()
 }
 
-fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
+fn workspace_sidebar_entry<'a>(
+    workspace: &'a Workspace,
+    output_name: &'a str,
+) -> cosmic::Element<'a, Msg> {
     // TODO style
     let theme = if workspace.is_active {
         cosmic::theme::Button::Primary
@@ -472,8 +483,9 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
         widget::button(widget::column![
             widget::Image::new(
                 workspace
-                    .img
-                    .clone()
+                    .img_for_output
+                    .get(output_name)
+                    .cloned()
                     .unwrap_or_else(|| widget::image::Handle::from_pixels(
                         1,
                         1,
@@ -491,11 +503,16 @@ fn workspace_sidebar_entry(workspace: &Workspace) -> cosmic::Element<Msg> {
 
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
+    output_name: &'a str,
 ) -> cosmic::Element<'a, Msg> {
-    widget::column(workspaces.map(workspace_sidebar_entry).collect())
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill)
-        .into()
+    widget::column(
+        workspaces
+            .map(|w| workspace_sidebar_entry(w, output_name))
+            .collect(),
+    )
+    .width(iced::Length::Fill)
+    .height(iced::Length::Fill)
+    .into()
 
     // New workspace
 }

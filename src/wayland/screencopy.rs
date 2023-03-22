@@ -1,7 +1,7 @@
 use cctk::{
     cosmic_protocols::screencopy::v1::client::zcosmic_screencopy_session_v1,
     screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
-    wayland_client::{protocol::wl_shm, Connection, QueueHandle, WEnum},
+    wayland_client::{protocol::wl_shm, Connection, Proxy, QueueHandle, WEnum},
 };
 
 use super::{AppData, Buffer, Capture, CaptureSource, Event};
@@ -71,13 +71,20 @@ impl ScreencopyHandler for AppData {
 
         let mut buffer = capture.buffer.lock().unwrap();
         let image = unsafe { buffer.as_mut().unwrap().to_image() };
-        let event = match &capture.source {
-            CaptureSource::Toplevel(toplevel) => Event::ToplevelCapture(toplevel.clone(), image),
-            CaptureSource::Workspace(workspace, _) => {
-                Event::WorkspaceCapture(workspace.clone(), image)
+        match &capture.source {
+            CaptureSource::Toplevel(toplevel) => {
+                self.send_event(Event::ToplevelCapture(toplevel.clone(), image))
+            }
+            CaptureSource::Workspace(workspace, output) => {
+                if let Some(Some(output_name)) = self.output_names.get(&output.id()) {
+                    self.send_event(Event::WorkspaceCapture(
+                        workspace.clone(),
+                        output_name.clone(),
+                        image,
+                    ));
+                }
             }
         };
-        self.send_event(event);
         session.destroy();
 
         // Capture again on damage

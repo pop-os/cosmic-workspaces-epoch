@@ -5,7 +5,7 @@ use cctk::{
     },
     toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
     toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
-    wayland_client::{Connection, QueueHandle, WEnum},
+    wayland_client::{Connection, Proxy, QueueHandle, WEnum},
 };
 
 use super::{AppData, CaptureSource, Event};
@@ -23,7 +23,15 @@ impl ToplevelInfoHandler for AppData {
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
-        self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
+        let output_name = info
+            .output
+            .as_ref()
+            .and_then(|o| self.output_names.get(&o.id()).cloned()?);
+        self.send_event(Event::NewToplevel(
+            toplevel.clone(),
+            output_name,
+            info.clone(),
+        ));
 
         self.add_capture_source(CaptureSource::Toplevel(toplevel.clone()));
     }
@@ -35,7 +43,15 @@ impl ToplevelInfoHandler for AppData {
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
-        self.send_event(Event::UpdateToplevel(toplevel.clone(), info.clone()));
+        let output_name = info
+            .output
+            .as_ref()
+            .and_then(|o| self.output_names.get(&o.id()).cloned()?);
+        self.send_event(Event::UpdateToplevel(
+            toplevel.clone(),
+            output_name,
+            info.clone(),
+        ));
     }
 
     fn toplevel_closed(

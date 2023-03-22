@@ -231,7 +231,6 @@ impl Application for App {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Msg>) {
-        //(Self::default(), destroy_layer_surface(SurfaceId::new(0)))
         (Self::default(), Command::none())
     }
 
@@ -546,13 +545,7 @@ pub fn main() -> iced::Result {
     App::run(iced::Settings {
         antialiasing: true,
         exit_on_close_request: false,
-        initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            keyboard_interactivity: KeyboardInteractivity::None,
-            namespace: "ignore".into(),
-            size: Some((Some(1), Some(1))),
-            layer: Layer::Background,
-            ..Default::default()
-        }),
+        initial_surface: InitialSurface::None,
         ..iced::Settings::default()
     })
 }

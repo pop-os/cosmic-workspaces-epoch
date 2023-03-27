@@ -143,6 +143,7 @@ impl App {
         );
         get_layer_surface(SctkLayerSurfaceSettings {
             id,
+            exclusive_zone: -1,
             keyboard_interactivity: KeyboardInteractivity::Exclusive,
             namespace: "cosmic-workspace-overview".into(),
             layer: Layer::Overlay,

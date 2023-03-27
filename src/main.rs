@@ -6,7 +6,7 @@ use cctk::{
         toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
     },
-    sctk::shell::wlr_layer::{KeyboardInteractivity, Layer},
+    sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
     wayland_client::{
         protocol::{wl_output, wl_seat},
@@ -143,12 +143,12 @@ impl App {
         );
         get_layer_surface(SctkLayerSurfaceSettings {
             id,
-            exclusive_zone: -1,
             keyboard_interactivity: KeyboardInteractivity::Exclusive,
             namespace: "cosmic-workspace-overview".into(),
             layer: Layer::Overlay,
-            size: Some((Some(width as _), Some(height as _))),
+            size: Some((None, None)),
             output: IcedOutput::Output(output),
+            anchor: Anchor::all(),
             ..Default::default()
         })
     }

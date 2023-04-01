@@ -18,6 +18,7 @@ ifneq ($(VENDOR),0)
 endif
 
 BIN = cosmic-workspaces
+APPID = com.system76.CosmicWorkspaces
 
 all: $(BIN)
 
@@ -32,6 +33,7 @@ $(BIN): Cargo.toml Cargo.lock src/main.rs vendor-check
 
 install:
 	install -Dm0755 target/$(TARGET)/$(BIN) $(DESTDIR)$(bindir)/$(BIN)
+	install -Dm0644 data/$(APPID).desktop $(DESTDIR)$(datadir)/applications/$(APPID).desktop
 
 ## Cargo Vendoring
 

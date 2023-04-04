@@ -27,7 +27,6 @@ use cosmic::{
         window::Id as SurfaceId,
     },
     iced_sctk::{
-        application::SurfaceIdWrapper,
         commands::layer_surface::{destroy_layer_surface, get_layer_surface},
         settings::InitialSurface,
     },
@@ -42,7 +41,7 @@ enum Msg {
     WaylandEvent(WaylandEvent),
     Wayland(wayland::Event),
     Close,
-    Closed(SurfaceIdWrapper),
+    Closed(SurfaceId),
     ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
     CloseWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
@@ -419,17 +418,15 @@ impl Application for App {
         ])
     }
 
-    fn view(&self, id: SurfaceIdWrapper) -> cosmic::Element<Msg> {
+    fn view(&self, id: SurfaceId) -> cosmic::Element<Msg> {
         use iced::widget::*;
-        if let SurfaceIdWrapper::LayerSurface(id) = id {
-            if let Some(surface) = self.layer_surfaces.get(&id) {
-                return layer_surface(self, surface);
-            }
-        };
+        if let Some(surface) = self.layer_surfaces.get(&id) {
+            return layer_surface(self, surface);
+        }
         text("workspaces").into()
     }
 
-    fn close_requested(&self, id: SurfaceIdWrapper) -> Msg {
+    fn close_requested(&self, id: SurfaceId) -> Msg {
         Msg::Closed(id)
     }
 }

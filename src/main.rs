@@ -540,6 +540,8 @@ fn toplevel_previews<'a>(
 }
 
 pub fn main() -> iced::Result {
+    env_logger::init();
+
     App::run(iced::Settings {
         antialiasing: true,
         exit_on_close_request: false,

@@ -82,7 +82,7 @@ pub enum Event {
 }
 
 pub fn subscription() -> iced::Subscription<Event> {
-    iced::subscription::run("wayland-sub", async { start() }.flatten_stream())
+    iced::subscription::run_with_id("wayland-sub", async { start() }.flatten_stream())
 }
 
 #[derive(Debug)]

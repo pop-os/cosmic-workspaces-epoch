@@ -20,7 +20,7 @@ use cosmic::{
         keyboard::KeyCode,
         widget, Application, Command, Subscription,
     },
-    iced_native::{
+    iced_runtime::{
         command::platform_specific::wayland::layer_surface::{
             IcedOutput, SctkLayerSurfaceSettings,
         },
@@ -85,7 +85,7 @@ struct LayerSurface {
 
 #[derive(Default)]
 struct App {
-    max_surface_id: usize,
+    max_surface_id: u128,
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     outputs: Vec<Output>,
     workspaces: Vec<Workspace>,
@@ -101,7 +101,7 @@ struct App {
 impl App {
     fn next_surface_id(&mut self) -> SurfaceId {
         self.max_surface_id += 1;
-        SurfaceId::new(self.max_surface_id)
+        SurfaceId(self.max_surface_id)
     }
 
     fn workspace_for_handle(

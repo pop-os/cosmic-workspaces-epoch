@@ -1,5 +1,5 @@
 {
-  description = "OSD for the COSMIC desktop environment";
+  description = "Workspace for the COSMIC desktop environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

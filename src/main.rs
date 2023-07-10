@@ -9,7 +9,7 @@ use cctk::{
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
     wayland_client::{
-        protocol::{wl_output, wl_seat},
+        protocol::{wl_data_device_manager::DndAction, wl_output, wl_seat},
         Connection, WEnum,
     },
 };
@@ -18,6 +18,10 @@ use cosmic::{
         self,
         event::wayland::{Event as WaylandEvent, OutputEvent},
         keyboard::KeyCode,
+        wayland::{
+            actions::data_device::{DataFromMimeType, DndIcon},
+            data_device::start_drag,
+        },
         widget, Application, Command, Subscription,
     },
     iced_runtime::{
@@ -36,6 +40,20 @@ use std::{collections::HashMap, mem};
 mod toggle_dbus;
 mod wayland;
 
+static WORKSPACE_MIME: &str = "text/x.cosmic-workspace-id";
+
+struct WorkspaceDndId(String);
+
+impl DataFromMimeType for WorkspaceDndId {
+    fn from_mime_type(&self, mime_type: &str) -> Option<Vec<u8>> {
+        if mime_type == WORKSPACE_MIME {
+            Some(self.0.as_bytes().to_vec())
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Msg {
     WaylandEvent(WaylandEvent),
@@ -47,6 +65,8 @@ enum Msg {
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     DBus(toggle_dbus::Event),
+    StartDrag(DragSurface),
+    SourceFinished,
 }
 
 #[derive(Debug)]
@@ -83,6 +103,11 @@ struct LayerSurface {
     // them all the time every frame.
 }
 
+#[derive(Clone, Debug)]
+enum DragSurface {
+    Workspace { name: String, output_name: String },
+}
+
 #[derive(Default)]
 struct App {
     max_surface_id: u128,
@@ -96,6 +121,7 @@ struct App {
     seats: Vec<wl_seat::WlSeat>,
     visible: bool,
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
+    drag_surface: Option<(SurfaceId, DragSurface)>,
 }
 
 impl App {
@@ -391,6 +417,34 @@ impl Application for App {
             Msg::DBus(toggle_dbus::Event::Toggle) => {
                 return self.toggle();
             }
+            Msg::StartDrag(drag_surface) => {
+                match &drag_surface {
+                    DragSurface::Workspace {
+                        output_name,
+                        name: _,
+                    } => {
+                        let id = self.next_surface_id();
+                        if let Some((parent_id, _)) = self
+                            .layer_surfaces
+                            .iter()
+                            .find(|(_, x)| &x.output_name == output_name)
+                        {
+                            println!("\n\n\nSTART DRAG");
+                            self.drag_surface = Some((id, drag_surface));
+                            return start_drag(
+                                vec![WORKSPACE_MIME.to_string()],
+                                DndAction::Move,
+                                *parent_id,
+                                Some(DndIcon::Custom(id)), // TODO store
+                                Box::new(WorkspaceDndId(String::new())),
+                            );
+                        }
+                    }
+                }
+            }
+            Msg::SourceFinished => {
+                println!("finish");
+            }
         }
 
         Command::none()
@@ -423,7 +477,23 @@ impl Application for App {
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return layer_surface(self, surface);
         }
+        if let Some((drag_id, drag_surface)) = &self.drag_surface {
+            if drag_id == &id {
+                println!("DRAG VIEW");
+                match drag_surface {
+                    DragSurface::Workspace { output_name, name } => {
+                        if let Some(workspace) = self.workspaces.iter().find(|x| &x.name == name) {
+                            return workspace_item2(workspace, &output_name);
+                        }
+                    }
+                }
+            }
+        }
+        println!("NO VIEW");
         text("workspaces").into()
+        //
+        //       workspace_sidebar_entry(&self.workspaces[0], "eDP-1").into()
+        //text("FOO BAR BAZ FOO BAR BAZ").into()
     }
 
     fn close_requested(&self, id: SurfaceId) -> Msg {
@@ -465,10 +535,7 @@ fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
         .into()
 }
 
-fn workspace_sidebar_entry<'a>(
-    workspace: &'a Workspace,
-    output_name: &'a str,
-) -> cosmic::Element<'a, Msg> {
+fn workspace_item<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic::Element<'a, Msg> {
     // TODO style
     let theme = if workspace.is_active {
         cosmic::theme::Button::Primary
@@ -496,6 +563,46 @@ fn workspace_sidebar_entry<'a>(
     ]
     .height(iced::Length::Fill)
     .into()
+}
+
+fn workspace_item2<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic::Element<'a, Msg> {
+    println!("{:?}", workspace);
+    println!("{:?}", output_name);
+    /*
+    widget::column![
+        widget::Image::new(
+            workspace
+                .img_for_output
+                .get(output_name)
+                .cloned()
+                .unwrap_or_else(|| widget::image::Handle::from_pixels(
+                    1,
+                    1,
+                    vec![0, 0, 0, 255]
+                ))
+        ),
+        widget::text(&workspace.name)
+    ]
+    .into()
+    */
+    //widget::text(&workspace.name).into()
+    widget::Image::new(workspace.img_for_output.get(output_name).cloned().unwrap()).into()
+    //widget::text(&format!("WORKSPACE: {}", workspace.name)).into()
+    //widget::text("ABC").into()
+}
+
+fn workspace_sidebar_entry<'a>(
+    workspace: &'a Workspace,
+    output_name: &'a str,
+) -> cosmic::Element<'a, Msg> {
+    widget::dnd_source(workspace_item(workspace, output_name))
+        .on_drag(Msg::StartDrag(DragSurface::Workspace {
+            name: workspace.name.to_string(),
+            output_name: output_name.to_string(),
+        }))
+        .on_finished(Msg::SourceFinished)
+        .on_cancelled(Msg::SourceFinished)
+        .into()
 }
 
 fn workspaces_sidebar<'a>(

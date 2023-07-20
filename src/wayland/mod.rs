@@ -135,7 +135,7 @@ impl AppData {
                 }
             }
             CaptureSource::Workspace(_, output) => {
-                if let Some(name) = &self.output_state.info(&output).unwrap().name {
+                if let Some(name) = &self.output_state.info(&output).and_then(|x| x.name) {
                     self.capture_filter.workspaces_on_outputs.contains(name)
                 } else {
                     false

@@ -20,9 +20,9 @@ use cosmic::{
         keyboard::KeyCode,
         wayland::{
             actions::data_device::{DataFromMimeType, DndIcon},
-            data_device::start_drag,
+            data_device::{accept_mime_type, start_drag, set_actions},
         },
-        widget, Application, Command, Subscription,
+        widget, Application, Command, Size, Subscription,
     },
     iced_runtime::{
         command::platform_specific::wayland::layer_surface::{
@@ -36,6 +36,8 @@ use cosmic::{
     },
 };
 use std::{collections::HashMap, mem};
+
+// accept_mime_type, finish_dnd, request_dnd_data, set_actions,
 
 mod toggle_dbus;
 mod wayland;
@@ -65,8 +67,12 @@ enum Msg {
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     DBus(toggle_dbus::Event),
-    StartDrag(DragSurface),
+    StartDrag(Size, DragSurface),
     SourceFinished,
+    DndWorkspaceEnter(DndAction, Vec<String>, (f32, f32)),
+    DndWorkspaceLeave,
+    DndWorkspaceDrop,
+    DndWorkspaceData(String, Vec<u8>),
 }
 
 #[derive(Debug)]
@@ -121,7 +127,7 @@ struct App {
     seats: Vec<wl_seat::WlSeat>,
     visible: bool,
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
-    drag_surface: Option<(SurfaceId, DragSurface)>,
+    drag_surface: Option<(SurfaceId, DragSurface, Size)>,
 }
 
 impl App {
@@ -417,7 +423,7 @@ impl Application for App {
             Msg::DBus(toggle_dbus::Event::Toggle) => {
                 return self.toggle();
             }
-            Msg::StartDrag(drag_surface) => {
+            Msg::StartDrag(size, drag_surface) => {
                 match &drag_surface {
                     DragSurface::Workspace {
                         output_name,
@@ -429,8 +435,7 @@ impl Application for App {
                             .iter()
                             .find(|(_, x)| &x.output_name == output_name)
                         {
-                            println!("\n\n\nSTART DRAG");
-                            self.drag_surface = Some((id, drag_surface));
+                            self.drag_surface = Some((id, drag_surface, size));
                             return start_drag(
                                 vec![WORKSPACE_MIME.to_string()],
                                 DndAction::Move,
@@ -445,6 +450,19 @@ impl Application for App {
             Msg::SourceFinished => {
                 println!("finish");
             }
+            Msg::DndWorkspaceEnter(action, mimes, (_x, _y)) => {
+                if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
+                    let mut cmds = Vec::new();
+                    cmds.push(set_actions(DndAction::Move, DndAction::Move));
+                    cmds.push(accept_mime_type(Some(WORKSPACE_MIME.to_string())));
+                    return Command::batch(cmds);
+                }
+            }
+            Msg::DndWorkspaceLeave => {
+                return accept_mime_type(None);
+            }
+            Msg::DndWorkspaceDrop => {}
+            Msg::DndWorkspaceData(_, _) => {}
         }
 
         Command::none()
@@ -477,13 +495,16 @@ impl Application for App {
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return layer_surface(self, surface);
         }
-        if let Some((drag_id, drag_surface)) = &self.drag_surface {
+        if let Some((drag_id, drag_surface, size)) = &self.drag_surface {
             if drag_id == &id {
-                println!("DRAG VIEW");
                 match drag_surface {
                     DragSurface::Workspace { output_name, name } => {
                         if let Some(workspace) = self.workspaces.iter().find(|x| &x.name == name) {
-                            return workspace_item2(workspace, &output_name);
+                            let item = workspace_item(workspace, &output_name);
+                            return widget::container(item)
+                                .height(iced::Length::Fixed(size.height))
+                                .width(iced::Length::Fixed(size.width))
+                                .into();
                         }
                     }
                 }
@@ -491,9 +512,6 @@ impl Application for App {
         }
         println!("NO VIEW");
         text("workspaces").into()
-        //
-        //       workspace_sidebar_entry(&self.workspaces[0], "eDP-1").into()
-        //text("FOO BAR BAZ FOO BAR BAZ").into()
     }
 
     fn close_requested(&self, id: SurfaceId) -> Msg {
@@ -565,42 +583,19 @@ fn workspace_item<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic:
     .into()
 }
 
-fn workspace_item2<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic::Element<'a, Msg> {
-    println!("{:?}", workspace);
-    println!("{:?}", output_name);
-    /*
-    widget::column![
-        widget::Image::new(
-            workspace
-                .img_for_output
-                .get(output_name)
-                .cloned()
-                .unwrap_or_else(|| widget::image::Handle::from_pixels(
-                    1,
-                    1,
-                    vec![0, 0, 0, 255]
-                ))
-        ),
-        widget::text(&workspace.name)
-    ]
-    .into()
-    */
-    //widget::text(&workspace.name).into()
-    widget::Image::new(workspace.img_for_output.get(output_name).cloned().unwrap()).into()
-    //widget::text(&format!("WORKSPACE: {}", workspace.name)).into()
-    //widget::text("ABC").into()
-}
-
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output_name: &'a str,
 ) -> cosmic::Element<'a, Msg> {
     widget::dnd_source(workspace_item(workspace, output_name))
-        .on_drag(|_| {
-            Msg::StartDrag(DragSurface::Workspace {
-                name: workspace.name.to_string(),
-                output_name: output_name.to_string(),
-            })
+        .on_drag(|size| {
+            Msg::StartDrag(
+                size,
+                DragSurface::Workspace {
+                    name: workspace.name.to_string(),
+                    output_name: output_name.to_string(),
+                },
+            )
         })
         .on_finished(Msg::SourceFinished)
         .on_cancelled(Msg::SourceFinished)
@@ -611,10 +606,16 @@ fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
     output_name: &'a str,
 ) -> cosmic::Element<'a, Msg> {
-    widget::column(
-        workspaces
-            .map(|w| workspace_sidebar_entry(w, output_name))
-            .collect(),
+    widget::container(
+        widget::dnd_listener(widget::column(
+            workspaces
+                .map(|w| workspace_sidebar_entry(w, output_name))
+                .collect(),
+        ))
+        .on_enter(Msg::DndWorkspaceEnter)
+        .on_exit(Msg::DndWorkspaceLeave)
+        .on_drop(Msg::DndWorkspaceDrop)
+        .on_data(Msg::DndWorkspaceData)
     )
     .width(iced::Length::Fill)
     .height(iced::Length::Fill)

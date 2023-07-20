@@ -596,10 +596,12 @@ fn workspace_sidebar_entry<'a>(
     output_name: &'a str,
 ) -> cosmic::Element<'a, Msg> {
     widget::dnd_source(workspace_item(workspace, output_name))
-        .on_drag(Msg::StartDrag(DragSurface::Workspace {
-            name: workspace.name.to_string(),
-            output_name: output_name.to_string(),
-        }))
+        .on_drag(|_| {
+            Msg::StartDrag(DragSurface::Workspace {
+                name: workspace.name.to_string(),
+                output_name: output_name.to_string(),
+            })
+        })
         .on_finished(Msg::SourceFinished)
         .on_cancelled(Msg::SourceFinished)
         .into()

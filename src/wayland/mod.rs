@@ -15,7 +15,9 @@ use cctk::{
     screencopy::ScreencopyState,
     sctk::{
         self,
+        dmabuf::DmabufState,
         output::{OutputHandler, OutputState},
+        reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
         shm::{Shm, ShmHandler},
@@ -26,7 +28,7 @@ use cctk::{
         backend::ObjectId,
         globals::registry_queue_init,
         protocol::{wl_output, wl_seat},
-        Connection, Proxy, QueueHandle, WaylandSource,
+        Connection, Proxy, QueueHandle,
     },
     workspace::WorkspaceState,
 };
@@ -42,6 +44,7 @@ mod buffer;
 use buffer::Buffer;
 mod capture;
 use capture::{Capture, CaptureSource};
+mod dmabuf;
 mod screencopy;
 mod toplevel;
 mod workspace;
@@ -92,6 +95,7 @@ pub enum Cmd {
 
 pub struct AppData {
     qh: QueueHandle<Self>,
+    dmabuf_state: DmabufState,
     output_state: OutputState,
     registry_state: RegistryState,
     toplevel_info_state: ToplevelInfoState,
@@ -260,7 +264,8 @@ impl OutputHandler for AppData {
     }
 }
 
-fn start() -> mpsc::Receiver<Event> {
+// XXX
+pub fn start() -> mpsc::Receiver<Event> {
     let (sender, receiver) = mpsc::channel(20);
 
     // TODO share connection? Can't use same `WlOutput` with seperate connection
@@ -268,9 +273,12 @@ fn start() -> mpsc::Receiver<Event> {
     let (globals, event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 
+    let dmabuf_state = DmabufState::new(&globals, &qh);
+
     let registry_state = RegistryState::new(&globals);
     let mut app_data = AppData {
         qh: qh.clone(),
+        dmabuf_state,
         output_state: OutputState::new(&globals, &qh),
         workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
         toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
@@ -286,7 +294,7 @@ fn start() -> mpsc::Receiver<Event> {
         captures: RefCell::new(HashMap::new()),
     };
 
-    app_data.send_event(Event::Connection(conn));
+    app_data.send_event(Event::Connection(conn.clone()));
     app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
     app_data.send_event(Event::ToplevelManager(
         app_data.toplevel_manager_state.manager.clone(),
@@ -303,8 +311,7 @@ fn start() -> mpsc::Receiver<Event> {
         app_data.send_event(Event::CmdSender(cmd_sender));
 
         let mut event_loop = calloop::EventLoop::try_new().unwrap();
-        WaylandSource::new(event_queue)
-            .unwrap()
+        WaylandSource::new(conn, event_queue)
             .insert(event_loop.handle())
             .unwrap();
         event_loop
@@ -328,3 +335,9 @@ sctk::delegate_output!(AppData);
 sctk::delegate_registry!(AppData);
 sctk::delegate_seat!(AppData);
 sctk::delegate_shm!(AppData);
+
+// TODO create layer shell surface for each output
+// - subsurfaces for each workspace; window on current workspace. filter update logic.
+//   * still use iced, but hack away window creation, and make that send commad for layer shell? Or
+//   easier no to?
+// - seperate state for layer shell?

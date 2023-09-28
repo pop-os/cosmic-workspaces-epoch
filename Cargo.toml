@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-calloop = "0.10.5"
-cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
+calloop = "0.12.2"
+cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols", branch = "update-deps-dmabuf" }
 env_logger = "0.10.0"
 futures-channel = "0.3.25"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland"] }
 tokio = "1.23.0"
+wayland-protocols = "0.31.0"
 zbus = { version = "3.7.0", default-features = false, features = ["tokio"] }
 
 [profile.dev]

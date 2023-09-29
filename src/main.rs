@@ -13,11 +13,17 @@ use cctk::{
     },
     sctk::{
         self,
-        compositor::CompositorHandler,
+        compositor::{CompositorHandler, CompositorState},
         output::{OutputHandler, OutputState},
         reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState, SimpleGlobal},
-        shell::xdg::window::{Window, WindowConfigure, WindowHandler},
+        shell::{
+            wlr_layer::{
+                Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
+                LayerSurfaceConfigure,
+            },
+            xdg::window::{Window, WindowConfigure, WindowHandler},
+        },
     },
     toplevel_info::ToplevelInfo,
     wayland_client::{
@@ -61,7 +67,7 @@ struct Output {
     height: i32,
 }
 
-struct LayerSurface {
+struct LayerSurfaceInstance {
     // Output, on the `iced_sctk` Wayland connection
     output: wl_output::WlOutput,
     output_name: String,
@@ -73,6 +79,10 @@ struct App {
     output_state: OutputState,
     registry_state: RegistryState,
     wp_viewporter: WpViewporter,
+    layer_shell: LayerShell,
+    compositor_state: CompositorState,
+    visible: bool,
+    qh: QueueHandle<Self>,
 }
 
 sctk::delegate_compositor!(App);
@@ -80,6 +90,7 @@ sctk::delegate_output!(App);
 
 sctk::delegate_xdg_shell!(App);
 sctk::delegate_xdg_window!(App);
+sctk::delegate_layer!(App);
 
 sctk::delegate_registry!(App);
 
@@ -178,6 +189,58 @@ impl ProvidesRegistryState for App {
     sctk::registry_handlers![OutputState,];
 }
 
+impl LayerShellHandler for App {
+    fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _layer: &LayerSurface) {}
+
+    fn configure(
+        &mut self,
+        _conn: &Connection,
+        qh: &QueueHandle<Self>,
+        _layer: &LayerSurface,
+        configure: LayerSurfaceConfigure,
+        _serial: u32,
+    ) {
+    }
+}
+
+impl App {
+    fn handle_wayland_event(&mut self, event: wayland::Event) {
+        match event {
+            wayland::Event::Connection(_conn) => {}
+            wayland::Event::CmdSender(sender) => {}
+            wayland::Event::ToplevelManager(manager) => {}
+            wayland::Event::WorkspaceManager(manager) => {}
+            wayland::Event::Workspaces(workspaces) => {}
+            wayland::Event::NewToplevel(handle, output_name, info) => {}
+            wayland::Event::UpdateToplevel(handle, output_name, info) => {}
+            wayland::Event::CloseToplevel(handle) => {}
+            wayland::Event::WorkspaceCapture(handle, output_name, image) => {}
+            wayland::Event::ToplevelCapture(handle, image) => {}
+            wayland::Event::Seats(seats) => {}
+        }
+    }
+
+    fn toggle(&mut self) {
+        println!("Toggle!");
+        self.visible = !self.visible;
+        if self.visible {
+            for output in self.output_state.outputs() {
+                let surface = self.compositor_state.create_surface(&self.qh);
+                self.layer_shell.create_layer_surface(
+                    &self.qh,
+                    surface,
+                    Layer::Overlay,
+                    Some("cosmic-workspaces"),
+                    Some(&output),
+                );
+            }
+            // TODO create shell surfaces
+        } else {
+            // TODO close shell surfaces
+        }
+    }
+}
+
 fn main() {
     let mut toggles = toggle_dbus::stream();
     let conn = Connection::connect_to_env().unwrap();
@@ -195,31 +258,29 @@ fn main() {
         output_state: OutputState::new(&globals, &qh),
         registry_state,
         wp_viewporter,
+        layer_shell: LayerShell::bind(&globals, &qh).unwrap(),
+        compositor_state: CompositorState::bind(&globals, &qh).unwrap(),
+        visible: true,
+        qh: qh.clone(),
     };
     let mut event_loop = calloop::EventLoop::try_new().unwrap();
     WaylandSource::new(conn, event_queue)
         .insert(event_loop.handle())
         .unwrap();
-    event_loop.handle().insert_source(toggles, |_, _, _| {
-        println!("Toggle!");
-    });
-    event_loop.handle().insert_source(events, |evt, (), app| {
-        if let calloop::channel::Event::Msg(evt) = evt {
-            match evt {
-                wayland::Event::Connection(conn) => {}
-                wayland::Event::CmdSender(sender) => {}
-                wayland::Event::ToplevelManager(manager) => {}
-                wayland::Event::WorkspaceManager(manager) => {}
-                wayland::Event::Workspaces(workspaces) => {}
-                wayland::Event::NewToplevel(handle, output_name, info) => {}
-                wayland::Event::UpdateToplevel(handle, output_name, info) => {}
-                wayland::Event::CloseToplevel(handle) => {}
-                wayland::Event::WorkspaceCapture(handle, output_name, image) => {}
-                wayland::Event::ToplevelCapture(handle, image) => {}
-                wayland::Event::Seats(seats) => {}
+    event_loop
+        .handle()
+        .insert_source(toggles, |_, _, app| {
+            app.toggle();
+        })
+        .unwrap();
+    event_loop
+        .handle()
+        .insert_source(events, |evt, (), app| {
+            if let calloop::channel::Event::Msg(evt) = evt {
+                app.handle_wayland_event(evt);
             }
-        }
-    });
+        })
+        .unwrap();
     loop {
         event_loop.dispatch(None, &mut app).unwrap();
     }

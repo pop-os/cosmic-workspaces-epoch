@@ -15,7 +15,8 @@ use cctk::{
         self,
         compositor::CompositorHandler,
         output::{OutputHandler, OutputState},
-        registry::{ProvidesRegistryState, RegistryState},
+        reexports::calloop_wayland_source::WaylandSource,
+        registry::{ProvidesRegistryState, RegistryState, SimpleGlobal},
         shell::xdg::window::{Window, WindowConfigure, WindowHandler},
     },
     toplevel_info::ToplevelInfo,
@@ -31,6 +32,8 @@ use cctk::{
 
 mod toggle_dbus;
 mod wayland;
+// XXX
+mod mpsc;
 
 #[derive(Debug)]
 struct Workspace {
@@ -70,27 +73,6 @@ struct App {
     output_state: OutputState,
     registry_state: RegistryState,
     wp_viewporter: WpViewporter,
-}
-
-fn main() {
-    let mut events = wayland::start();
-    block_on(async {
-        while let Some(evt) = events.next().await {
-            match evt {
-                wayland::Event::Connection(conn) => {}
-                wayland::Event::CmdSender(sender) => {}
-                wayland::Event::ToplevelManager(manager) => {}
-                wayland::Event::WorkspaceManager(manager) => {}
-                wayland::Event::Workspaces(workspaces) => {}
-                wayland::Event::NewToplevel(handle, output_name, info) => {}
-                wayland::Event::UpdateToplevel(handle, output_name, info) => {}
-                wayland::Event::CloseToplevel(handle) => {}
-                wayland::Event::WorkspaceCapture(handle, output_name, image) => {}
-                wayland::Event::ToplevelCapture(handle, image) => {}
-                wayland::Event::Seats(seats) => {}
-            }
-        }
-    })
 }
 
 sctk::delegate_compositor!(App);
@@ -194,4 +176,51 @@ impl ProvidesRegistryState for App {
         &mut self.registry_state
     }
     sctk::registry_handlers![OutputState,];
+}
+
+fn main() {
+    let mut toggles = toggle_dbus::stream();
+    let conn = Connection::connect_to_env().unwrap();
+    let mut events = wayland::start(conn.clone());
+
+    let (globals, event_queue) = registry_queue_init::<App>(&conn).unwrap();
+    let qh = event_queue.handle();
+    let registry_state = RegistryState::new(&globals);
+    let wp_viewporter = SimpleGlobal::<wp_viewporter::WpViewporter, 1>::bind(&globals, &qh)
+        .unwrap()
+        .get()
+        .unwrap()
+        .clone();
+    let mut app: App = App {
+        output_state: OutputState::new(&globals, &qh),
+        registry_state,
+        wp_viewporter,
+    };
+    let mut event_loop = calloop::EventLoop::try_new().unwrap();
+    WaylandSource::new(conn, event_queue)
+        .insert(event_loop.handle())
+        .unwrap();
+    event_loop.handle().insert_source(toggles, |_, _, _| {
+        println!("Toggle!");
+    });
+    event_loop.handle().insert_source(events, |evt, (), app| {
+        if let calloop::channel::Event::Msg(evt) = evt {
+            match evt {
+                wayland::Event::Connection(conn) => {}
+                wayland::Event::CmdSender(sender) => {}
+                wayland::Event::ToplevelManager(manager) => {}
+                wayland::Event::WorkspaceManager(manager) => {}
+                wayland::Event::Workspaces(workspaces) => {}
+                wayland::Event::NewToplevel(handle, output_name, info) => {}
+                wayland::Event::UpdateToplevel(handle, output_name, info) => {}
+                wayland::Event::CloseToplevel(handle) => {}
+                wayland::Event::WorkspaceCapture(handle, output_name, image) => {}
+                wayland::Event::ToplevelCapture(handle, image) => {}
+                wayland::Event::Seats(seats) => {}
+            }
+        }
+    });
+    loop {
+        event_loop.dispatch(None, &mut app).unwrap();
+    }
 }

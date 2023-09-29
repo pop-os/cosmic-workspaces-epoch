@@ -37,7 +37,8 @@ use cosmic::iced::{
     futures::{executor::block_on, FutureExt, SinkExt},
     widget::image,
 };
-use futures_channel::mpsc;
+// use futures_channel::mpsc;
+use crate::mpsc;
 use std::{cell::RefCell, collections::HashMap, sync::Arc, thread};
 
 mod buffer;
@@ -84,9 +85,11 @@ pub enum Event {
     Seats(Vec<wl_seat::WlSeat>),
 }
 
+/*
 pub fn subscription() -> iced::Subscription<Event> {
     iced::subscription::run_with_id("wayland-sub", async { start() }.flatten_stream())
 }
+*/
 
 #[derive(Debug)]
 pub enum Cmd {
@@ -113,7 +116,7 @@ pub struct AppData {
 
 impl AppData {
     fn send_event(&mut self, event: Event) {
-        let _ = block_on(self.sender.send(event));
+        let _ = self.sender.send(event);
     }
 
     // Handle message from main thread
@@ -265,11 +268,11 @@ impl OutputHandler for AppData {
 }
 
 // XXX
-pub fn start() -> mpsc::Receiver<Event> {
+pub fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let (sender, receiver) = mpsc::channel(20);
 
     // TODO share connection? Can't use same `WlOutput` with seperate connection
-    let conn = Connection::connect_to_env().unwrap();
+    //let conn = Connection::connect_to_env().unwrap();
     let (globals, event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 

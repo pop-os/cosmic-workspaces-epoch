@@ -73,7 +73,7 @@ struct Output {
 struct LayerSurfaceInstance {
     // Output, on the `iced_sctk` Wayland connection
     output: wl_output::WlOutput,
-    // XXX output_name: String,
+    output_name: String,
     // for transitions, would need windows in more than one workspace? But don't capture all of
     // them all the time every frame.
     layer_surface: LayerSurface,
@@ -90,6 +90,7 @@ struct App {
     qh: QueueHandle<Self>,
     layer_surfaces: Vec<LayerSurfaceInstance>,
     pool: SlotPool,
+    wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
 }
 
 sctk::delegate_compositor!(App);
@@ -247,7 +248,9 @@ impl App {
     fn handle_wayland_event(&mut self, event: wayland::Event) {
         match event {
             wayland::Event::Connection(_conn) => {}
-            wayland::Event::CmdSender(sender) => {}
+            wayland::Event::CmdSender(sender) => {
+                self.wayland_cmd_sender = Some(sender);
+            }
             wayland::Event::ToplevelManager(manager) => {}
             wayland::Event::WorkspaceManager(manager) => {}
             wayland::Event::Workspaces(workspaces) => {}
@@ -257,6 +260,31 @@ impl App {
             wayland::Event::WorkspaceCapture(handle, output_name, image) => {}
             wayland::Event::ToplevelCapture(handle, image) => {}
             wayland::Event::Seats(seats) => {}
+        }
+    }
+
+    fn update_capture_filter(&self) {
+        if let Some(sender) = self.wayland_cmd_sender.as_ref() {
+            let mut capture_filter = wayland::CaptureFilter::default();
+            if self.visible {
+                // XXX handle on wrong connection
+                capture_filter.workspaces_on_outputs = self
+                    .layer_surfaces
+                    .iter()
+                    .map(|x| x.output_name.clone())
+                    .collect();
+                //    self.outputs.iter().map(|x| x.name.clone()).collect();
+                // TODO
+                /*
+                capture_filter.toplevels_on_workspaces = self
+                    .workspaces
+                    .iter()
+                    .filter(|x| x.is_active)
+                    .map(|x| x.handle.clone())
+                    .collect();
+                */
+                let _ = sender.send(wayland::Cmd::CaptureFilter(capture_filter));
+            }
         }
     }
 
@@ -280,6 +308,7 @@ impl App {
                         layer_surface.commit();
                         self.layer_surfaces.push(LayerSurfaceInstance {
                             output,
+                            output_name: info.name.unwrap_or_default(),
                             layer_surface,
                         });
                     }
@@ -291,6 +320,8 @@ impl App {
             // TODO close shell surfaces
             self.layer_surfaces.clear();
         }
+
+        self.update_capture_filter();
     }
 }
 
@@ -319,6 +350,7 @@ fn main() {
         layer_surfaces: Vec::new(),
         pool: SlotPool::new(256 * 256 * 4, &shm_state).unwrap(),
         shm_state,
+        wayland_cmd_sender: None,
     };
     let mut event_loop = calloop::EventLoop::try_new().unwrap();
     WaylandSource::new(conn, event_queue)

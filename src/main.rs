@@ -91,6 +91,7 @@ impl SubSurface {
         self.wl_subsurface.set_position(x, y);
         self.wp_viewport.set_destination(width, height);
         self.wl_surface.attach(wl_buffer, 0, 0);
+        self.wl_surface.commit();
     }
 }
 
@@ -192,8 +193,8 @@ impl CompositorHandler for App {
             .iter()
             .find(|x| &x.layer_surface.wl_surface() == &surface)
         {
-            self.draw_layer(&instance); // XXX only if changed?
             surface.frame(&self.qh, surface.clone());
+            self.draw_layer(&instance); // XXX only if changed?
         }
     }
 }
@@ -298,10 +299,10 @@ impl LayerShellHandler for App {
             .iter()
             .find(|x| &x.layer_surface == layer)
         {
-            self.draw_layer(&instance);
             layer
                 .wl_surface()
                 .frame(&self.qh, layer.wl_surface().clone());
+            self.draw_layer(&instance);
         }
     }
 }
@@ -412,7 +413,7 @@ impl App {
                             &self.qh,
                             surface,
                             Layer::Overlay,
-                            Some("cosmic-workspaces"),
+                            Some("cosmic-workspace-overview"),
                             Some(&output),
                         );
                         layer_surface.set_anchor(Anchor::all());

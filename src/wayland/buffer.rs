@@ -56,7 +56,8 @@ impl Buffer {
 
 impl Drop for Buffer {
     fn drop(&mut self) {
-        self.buffer.destroy();
+        // XXX
+        // self.buffer.destroy();
     }
 }
 

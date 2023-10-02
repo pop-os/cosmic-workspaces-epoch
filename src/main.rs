@@ -470,6 +470,7 @@ impl App {
         for (n, (workspace, subsurface)) in workspaces.iter().zip(subsurfaces.iter()).enumerate() {
             let wl_buffer = workspace.img_for_output.get(&layer_surface.output_name);
             // XXX aspect ratio?
+            println!("Buffer: {:?}", wl_buffer.map(|x| x.id()));
             subsurface.attach_with_scale(wl_buffer, 0, n as i32 * height, height, height);
             println!("attach");
         }

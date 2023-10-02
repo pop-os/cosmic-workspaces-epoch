@@ -62,6 +62,7 @@ struct Toplevel {
     info: ToplevelInfo,
     output_name: Option<String>,
     // img: Option<iced::widget::image::Handle>,
+    img: Option<wl_buffer::WlBuffer>,
 }
 
 #[derive(Clone)]
@@ -128,6 +129,7 @@ struct App {
     pool: SlotPool,
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
     workspaces: Vec<Workspace>,
+    toplevels: Vec<Toplevel>,
 }
 
 sctk::delegate_compositor!(App);
@@ -355,18 +357,47 @@ impl App {
                 }
                 self.update_capture_filter();
             }
-            wayland::Event::NewToplevel(handle, output_name, info) => {}
-            wayland::Event::UpdateToplevel(handle, output_name, info) => {}
-            wayland::Event::CloseToplevel(handle) => {}
+            wayland::Event::NewToplevel(handle, output_name, info) => {
+                println!("New toplevel: {info:?}");
+                self.toplevels.push(Toplevel {
+                    handle,
+                    output_name,
+                    info,
+                    img: None,
+                });
+            }
+            wayland::Event::UpdateToplevel(handle, output_name, info) => {
+                if let Some(toplevel) = self.toplevels.iter_mut().find(|x| x.handle == handle) {
+                    toplevel.output_name = output_name;
+                    toplevel.info = info;
+                }
+            }
+            wayland::Event::CloseToplevel(handle) => {
+                if let Some(idx) = self.toplevels.iter().position(|x| x.handle == handle) {
+                    self.toplevels.remove(idx);
+                }
+            }
             wayland::Event::WorkspaceCapture(handle, output_name, image) => {
                 if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
                     workspace.img_for_output.insert(output_name, image);
                 }
                 println!("workspace captured");
             }
-            wayland::Event::ToplevelCapture(handle, image) => {}
+            wayland::Event::ToplevelCapture(handle, image) => {
+                if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
+                    //println!("Got toplevel image!");
+                    toplevel.img = Some(image);
+                }
+            }
             wayland::Event::Seats(seats) => {}
         }
+    }
+
+    fn workspace_for_handle(
+        &self,
+        handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+    ) -> Option<&Workspace> {
+        self.workspaces.iter().find(|i| &i.handle == handle)
     }
 
     fn workspace_for_handle_mut(
@@ -374,6 +405,13 @@ impl App {
         handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
     ) -> Option<&mut Workspace> {
         self.workspaces.iter_mut().find(|i| &i.handle == handle)
+    }
+
+    fn toplevel_for_handle_mut(
+        &mut self,
+        handle: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+    ) -> Option<&mut Toplevel> {
+        self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
 
     fn update_capture_filter(&self) {
@@ -387,15 +425,12 @@ impl App {
                     .map(|x| x.output_name.clone())
                     .collect();
                 //    self.outputs.iter().map(|x| x.name.clone()).collect();
-                // TODO
-                /*
                 capture_filter.toplevels_on_workspaces = self
                     .workspaces
                     .iter()
                     .filter(|x| x.is_active)
                     .map(|x| x.handle.clone())
                     .collect();
-                */
             }
             let _ = sender.send(wayland::Cmd::CaptureFilter(capture_filter));
         }
@@ -457,9 +492,24 @@ impl App {
             .iter()
             .filter(|x| x.output_names.contains(&layer_surface.output_name))
             .collect();
+        let toplevels: Vec<_> = self
+            .toplevels
+            .iter()
+            .filter(|x| {
+                if x.output_name.as_ref() != Some(&layer_surface.output_name) {
+                    return false;
+                }
+                if let Some(workspace) = &x.info.workspace {
+                    self.workspace_for_handle(workspace)
+                        .map_or(false, |x| x.is_active)
+                } else {
+                    false
+                }
+            })
+            .collect();
 
         // Create or destroy subsurfaces until we have the number we need
-        let n_subsurfaces = workspaces.len(); // XXX windows
+        let n_subsurfaces = workspaces.len() + toplevels.len();
         if subsurfaces.len() > n_subsurfaces {
             subsurfaces.truncate(n_subsurfaces);
         }
@@ -474,6 +524,24 @@ impl App {
             println!("Buffer: {:?}", wl_buffer.map(|x| x.id()));
             subsurface.attach_with_scale(wl_buffer, 0, n as i32 * height, height, height);
             println!("attach");
+        }
+
+        let x_0 = height; // XXX
+        let width = (configure.new_size.0 as i32 - x_0) / toplevels.len() as i32;
+        dbg!(width, toplevels.len(), x_0, configure.new_size.0);
+        let y = (configure.new_size.1 as i32 - width) / 2;
+        for (n, (toplevel, subsurface)) in toplevels
+            .iter()
+            .zip(subsurfaces[workspaces.len()..].iter())
+            .enumerate()
+        {
+            subsurface.attach_with_scale(
+                toplevel.img.as_ref(),
+                x_0 + width * n as i32,
+                y,
+                width,
+                width,
+            );
         }
 
         layer_surface.layer_surface.commit();
@@ -514,6 +582,7 @@ fn main() {
         shm_state,
         wayland_cmd_sender: None,
         workspaces: Vec::new(),
+        toplevels: Vec::new(),
     };
     let mut event_loop = calloop::EventLoop::try_new().unwrap();
     WaylandSource::new(conn, event_queue)

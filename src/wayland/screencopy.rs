@@ -70,7 +70,8 @@ impl ScreencopyHandler for AppData {
         }
 
         let mut buffer = capture.buffer.lock().unwrap();
-        let image = unsafe { buffer.as_mut().unwrap().to_image() };
+        // let image = unsafe { buffer.as_mut().unwrap().to_image() };
+        let image = buffer.as_mut().unwrap().buffer.clone(); // XXX swapping?
         match &capture.source {
             CaptureSource::Toplevel(toplevel) => {
                 self.send_event(Event::ToplevelCapture(toplevel.clone(), image))

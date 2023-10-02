@@ -1,5 +1,5 @@
 use cosmic::iced::futures::{executor::block_on, stream::StreamExt};
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 use wayland_protocols::wp::viewporter::client::{
     wp_viewport::{self, WpViewport},
     wp_viewporter::{self, WpViewporter},
@@ -48,6 +48,7 @@ mod mpsc;
 struct Workspace {
     name: String,
     //img_for_output: HashMap<String, iced::widget::image::Handle>,
+    img_for_output: HashMap<String, wl_buffer::WlBuffer>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
     output_names: Vec<String>,
     is_active: bool,
@@ -91,6 +92,7 @@ struct App {
     layer_surfaces: Vec<LayerSurfaceInstance>,
     pool: SlotPool,
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
+    workspaces: Vec<Workspace>,
 }
 
 sctk::delegate_compositor!(App);
@@ -253,14 +255,50 @@ impl App {
             }
             wayland::Event::ToplevelManager(manager) => {}
             wayland::Event::WorkspaceManager(manager) => {}
-            wayland::Event::Workspaces(workspaces) => {}
+            wayland::Event::Workspaces(workspaces) => {
+                let old_workspaces = mem::take(&mut self.workspaces);
+                self.workspaces = Vec::new();
+                for (output_names, workspace) in workspaces {
+                    let is_active = workspace.state.contains(&WEnum::Value(
+                        zcosmic_workspace_handle_v1::State::Active,
+                    ));
+
+                    // XXX efficiency
+                    let img_for_output = old_workspaces
+                        .iter()
+                        .find(|i| i.handle == workspace.handle)
+                        .map(|i| i.img_for_output.clone())
+                        .unwrap_or_default();
+
+                    self.workspaces.push(Workspace {
+                        name: workspace.name,
+                        handle: workspace.handle,
+                        output_names,
+                        img_for_output,
+                        is_active,
+                    });
+                }
+                self.update_capture_filter();
+            }
             wayland::Event::NewToplevel(handle, output_name, info) => {}
             wayland::Event::UpdateToplevel(handle, output_name, info) => {}
             wayland::Event::CloseToplevel(handle) => {}
-            wayland::Event::WorkspaceCapture(handle, output_name, image) => {}
+            wayland::Event::WorkspaceCapture(handle, output_name, image) => {
+                if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
+                    workspace.img_for_output.insert(output_name, image);
+                }
+                println!("workspace captured");
+            }
             wayland::Event::ToplevelCapture(handle, image) => {}
             wayland::Event::Seats(seats) => {}
         }
+    }
+
+    fn workspace_for_handle_mut(
+        &mut self,
+        handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+    ) -> Option<&mut Workspace> {
+        self.workspaces.iter_mut().find(|i| &i.handle == handle)
     }
 
     fn update_capture_filter(&self) {
@@ -283,8 +321,8 @@ impl App {
                     .map(|x| x.handle.clone())
                     .collect();
                 */
-                let _ = sender.send(wayland::Cmd::CaptureFilter(capture_filter));
             }
+            let _ = sender.send(wayland::Cmd::CaptureFilter(capture_filter));
         }
     }
 
@@ -351,6 +389,7 @@ fn main() {
         pool: SlotPool::new(256 * 256 * 4, &shm_state).unwrap(),
         shm_state,
         wayland_cmd_sender: None,
+        workspaces: Vec::new(),
     };
     let mut event_loop = calloop::EventLoop::try_new().unwrap();
     WaylandSource::new(conn, event_queue)

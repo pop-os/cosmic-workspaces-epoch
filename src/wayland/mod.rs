@@ -27,7 +27,7 @@ use cctk::{
     wayland_client::{
         backend::ObjectId,
         globals::registry_queue_init,
-        protocol::{wl_output, wl_seat},
+        protocol::{wl_buffer, wl_output, wl_seat},
         Connection, Proxy, QueueHandle,
     },
     workspace::WorkspaceState,
@@ -65,7 +65,8 @@ pub enum Event {
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
         String,
-        image::Handle,
+        //image::Handle,
+        wl_buffer::WlBuffer,
     ),
     NewToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
@@ -80,7 +81,8 @@ pub enum Event {
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     ToplevelCapture(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        image::Handle,
+        //image::Handle,
+        wl_buffer::WlBuffer,
     ),
     Seats(Vec<wl_seat::WlSeat>),
 }

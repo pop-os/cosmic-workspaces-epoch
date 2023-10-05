@@ -517,7 +517,11 @@ impl App {
             subsurfaces.push(self.create_subsurface(layer_surface.layer_surface.wl_surface()));
         }
 
-        let height = configure.new_size.1 as i32 / workspaces.len() as i32;
+        let height = if workspaces.len() != 0 {
+            configure.new_size.1 as i32 / workspaces.len() as i32
+        } else {
+            0
+        };
         for (n, (workspace, subsurface)) in workspaces.iter().zip(subsurfaces.iter()).enumerate() {
             let wl_buffer = workspace.img_for_output.get(&layer_surface.output_name);
             // XXX aspect ratio?
@@ -527,7 +531,11 @@ impl App {
         }
 
         let x_0 = height; // XXX
-        let width = (configure.new_size.0 as i32 - x_0) / toplevels.len() as i32;
+        let width = if toplevels.len() != 0 {
+            (configure.new_size.0 as i32 - x_0) / toplevels.len() as i32
+        } else {
+            0
+        };
         dbg!(width, toplevels.len(), x_0, configure.new_size.0);
         let y = (configure.new_size.1 as i32 - width) / 2;
         for (n, (toplevel, subsurface)) in toplevels

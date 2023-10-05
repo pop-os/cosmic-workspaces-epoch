@@ -63,16 +63,18 @@ impl AppData {
                 let modifier = gbm_buffer.modifier().unwrap();
                 let mut params = self.dmabuf_state.create_params(&self.qh).unwrap();
                 params.add(fd.as_fd(), 0, 0, stride, modifier.into());
-                let buffer = params.create_immed(
-                    info.width as i32,
-                    info.height as i32,
-                    info.format,
-                    zwp_linux_buffer_params_v1::Flags::empty(),
-                    &self.qh,
-                ).0;
+                let buffer = params
+                    .create_immed(
+                        info.width as i32,
+                        info.height as i32,
+                        info.format,
+                        zwp_linux_buffer_params_v1::Flags::empty(),
+                        &self.qh,
+                    )
+                    .0;
                 return Buffer {
                     buffer,
-                    buffer_info: info.clone()
+                    buffer_info: info.clone(),
                 };
             }
         }

@@ -24,27 +24,17 @@ impl ScreencopyHandler for AppData {
             return;
         }
 
-        let buffer_info = buffer_infos
-            .iter()
-            .find(|x| {
-                x.type_ == WEnum::Value(zcosmic_screencopy_session_v1::BufferType::WlShm)
-                    && x.format == wl_shm::Format::Abgr8888.into()
-            })
-            .unwrap();
-
-        // XXX fix in compositor
-        if buffer_info.width == 0 || buffer_info.height == 0 || buffer_info.stride == 0 {
-            session.destroy();
-            return;
-        }
-
         let mut buffer = capture.buffer.lock().unwrap();
         // Create new buffer if none, or different format
+        /*
         if !buffer
             .as_ref()
             .map_or(false, |x| &x.buffer_info == buffer_info)
         {
-            *buffer = Some(Buffer::new(buffer_info.clone(), &self.shm_state, qh));
+        */
+        // XXX format change
+        if buffer.is_none() {
+            *buffer = Some(self.create_buffer(buffer_infos));
         }
         let buffer = buffer.as_ref().unwrap();
 

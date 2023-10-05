@@ -15,7 +15,7 @@ use cctk::{
     screencopy::ScreencopyState,
     sctk::{
         self,
-        dmabuf::DmabufState,
+        dmabuf::{DmabufFeedback, DmabufState},
         output::{OutputHandler, OutputState},
         reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState},
@@ -114,6 +114,9 @@ pub struct AppData {
     seats: Vec<wl_seat::WlSeat>,
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
+    // XXX use surface feedback; or default feedback
+    gbm: gbm::Device<std::fs::File>,
+    dmabuf_feedback: Option<DmabufFeedback>,
 }
 
 impl AppData {
@@ -275,10 +278,11 @@ pub fn start(conn: Connection) -> mpsc::Receiver<Event> {
 
     // TODO share connection? Can't use same `WlOutput` with seperate connection
     //let conn = Connection::connect_to_env().unwrap();
-    let (globals, event_queue) = registry_queue_init(&conn).unwrap();
+    let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 
     let dmabuf_state = DmabufState::new(&globals, &qh);
+    dmabuf_state.get_default_feedback(&qh).unwrap();
 
     let registry_state = RegistryState::new(&globals);
     let mut app_data = AppData {
@@ -297,7 +301,20 @@ pub fn start(conn: Connection) -> mpsc::Receiver<Event> {
         seats: Vec::new(),
         capture_filter: CaptureFilter::default(),
         captures: RefCell::new(HashMap::new()),
+        // XXX
+        gbm: gbm::Device::new(
+            std::fs::File::options()
+                .read(true)
+                .write(true)
+                .open("/dev/dri/card0")
+                .unwrap(),
+        )
+        .unwrap(),
+        dmabuf_feedback: None,
     };
+
+    // Get dmabuf feedback
+    event_queue.roundtrip(&mut app_data).unwrap();
 
     app_data.send_event(Event::Connection(conn.clone()));
     app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));

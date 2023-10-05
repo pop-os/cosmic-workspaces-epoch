@@ -41,6 +41,7 @@ impl DmabufHandler for AppData {
         proxy: &ZwpLinuxDmabufFeedbackV1,
         feedback: DmabufFeedback,
     ) {
+        self.dmabuf_feedback = Some(feedback);
     }
     fn created(
         &mut self,

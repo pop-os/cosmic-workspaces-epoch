@@ -8,6 +8,7 @@ calloop = { version = "0.12.2", features = ["executor"] }
 cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols", branch = "update-deps-dmabuf" }
 env_logger = "0.10.0"
 futures-channel = "0.3.25"
+gbm = "0.13.0"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland"] }
 tokio = "1.23.0"
 wayland-protocols = "0.31.0"

@@ -20,7 +20,7 @@ use cosmic::{
         keyboard::KeyCode,
         wayland::{
             actions::data_device::{DataFromMimeType, DndIcon},
-            data_device::{accept_mime_type, start_drag, set_actions},
+            data_device::{accept_mime_type, set_actions, start_drag},
         },
         widget, Application, Command, Size, Subscription,
     },
@@ -35,7 +35,10 @@ use cosmic::{
         settings::InitialSurface,
     },
 };
-use std::{collections::HashMap, mem};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+};
 
 // accept_mime_type, finish_dnd, request_dnd_data, set_actions,
 
@@ -88,7 +91,7 @@ struct Workspace {
 struct Toplevel {
     handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
-    output_name: Option<String>,
+    output_names: HashSet<String>,
     img: Option<iced::widget::image::Handle>,
 }
 
@@ -354,20 +357,20 @@ impl Application for App {
                         }
                         self.update_capture_filter();
                     }
-                    wayland::Event::NewToplevel(handle, output_name, info) => {
+                    wayland::Event::NewToplevel(handle, output_names, info) => {
                         println!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
                             handle,
-                            output_name,
+                            output_names,
                             info,
                             img: None,
                         });
                     }
-                    wayland::Event::UpdateToplevel(handle, output_name, info) => {
+                    wayland::Event::UpdateToplevel(handle, output_names, info) => {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
-                            toplevel.output_name = output_name;
+                            toplevel.output_names = output_names;
                             toplevel.info = info;
                         }
                     }
@@ -528,16 +531,14 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
             &surface.output_name
         ),
         toplevel_previews(app.toplevels.iter().filter(|i| {
-            if i.output_name.as_ref() != Some(&surface.output_name) {
+            if !i.output_names.contains(&surface.output_name) {
                 return false;
             }
 
-            if let Some(workspace) = &i.info.workspace {
+            i.info.workspace.iter().any(|workspace| {
                 app.workspace_for_handle(workspace)
                     .map_or(false, |x| x.is_active)
-            } else {
-                false
-            }
+            })
         }))
     ]
     .spacing(12)
@@ -547,7 +548,7 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
-    iced::widget::button(cosmic::widget::icon("window-close-symbolic", 16))
+    cosmic::widget::button(cosmic::widget::icon::from_name("window-close-symbolic").size(16))
         .style(cosmic::theme::Button::Destructive)
         .on_press(on_press)
         .into()
@@ -556,13 +557,13 @@ fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
 fn workspace_item<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic::Element<'a, Msg> {
     // TODO style
     let theme = if workspace.is_active {
-        cosmic::theme::Button::Primary
+        cosmic::theme::Button::Suggested
     } else {
-        cosmic::theme::Button::Secondary
+        cosmic::theme::Button::Standard
     };
     widget::column![
         close_button(Msg::CloseWorkspace(workspace.handle.clone())),
-        widget::button(widget::column![
+        cosmic::widget::button(widget::column![
             widget::Image::new(
                 workspace
                     .img_for_output
@@ -615,7 +616,7 @@ fn workspaces_sidebar<'a>(
         .on_enter(Msg::DndWorkspaceEnter)
         .on_exit(Msg::DndWorkspaceLeave)
         .on_drop(Msg::DndWorkspaceDrop)
-        .on_data(Msg::DndWorkspaceData)
+        .on_data(Msg::DndWorkspaceData),
     )
     .width(iced::Length::Fill)
     .height(iced::Length::Fill)

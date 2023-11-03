@@ -23,13 +23,14 @@ impl ToplevelInfoHandler for AppData {
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
-        let output_name = info
+        let output_names = info
             .output
-            .as_ref()
-            .and_then(|o| self.output_names.get(&o.id()).cloned()?);
+            .iter()
+            .filter_map(|o| self.output_names.get(&o.id()).cloned()?)
+            .collect();
         self.send_event(Event::NewToplevel(
             toplevel.clone(),
-            output_name,
+            output_names,
             info.clone(),
         ));
 
@@ -43,13 +44,14 @@ impl ToplevelInfoHandler for AppData {
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
-        let output_name = info
+        let output_names = info
             .output
-            .as_ref()
-            .and_then(|o| self.output_names.get(&o.id()).cloned()?);
+            .iter()
+            .filter_map(|o| self.output_names.get(&o.id()).cloned()?)
+            .collect();
         self.send_event(Event::UpdateToplevel(
             toplevel.clone(),
-            output_name,
+            output_names,
             info.clone(),
         ));
     }

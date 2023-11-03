@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-calloop = "0.10.5"
+calloop = "0.12.3"
 cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
 env_logger = "0.10.0"
 futures-channel = "0.3.25"

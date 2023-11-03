@@ -16,6 +16,7 @@ use cctk::{
     sctk::{
         self,
         output::{OutputHandler, OutputState},
+        reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
         shm::{Shm, ShmHandler},
@@ -26,7 +27,7 @@ use cctk::{
         backend::ObjectId,
         globals::registry_queue_init,
         protocol::{wl_output, wl_seat},
-        Connection, Proxy, QueueHandle, WaylandSource,
+        Connection, Proxy, QueueHandle,
     },
     workspace::WorkspaceState,
 };
@@ -36,7 +37,12 @@ use cosmic::iced::{
     widget::image,
 };
 use futures_channel::mpsc;
-use std::{cell::RefCell, collections::HashMap, sync::Arc, thread};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    thread,
+};
 
 mod buffer;
 use buffer::Buffer;
@@ -65,12 +71,12 @@ pub enum Event {
     ),
     NewToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        Option<String>,
+        HashSet<String>,
         ToplevelInfo,
     ),
     UpdateToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        Option<String>,
+        HashSet<String>,
         ToplevelInfo,
     ),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
@@ -126,13 +132,11 @@ impl AppData {
         match source {
             CaptureSource::Toplevel(toplevel) => {
                 let info = self.toplevel_info_state.info(toplevel).unwrap();
-                if let Some(workspace) = &info.workspace {
+                info.workspace.iter().any(|workspace| {
                     self.capture_filter
                         .toplevels_on_workspaces
                         .contains(workspace)
-                } else {
-                    false
-                }
+                })
             }
             CaptureSource::Workspace(_, output) => {
                 if let Some(name) = &self.output_state.info(&output).and_then(|x| x.name) {
@@ -286,7 +290,7 @@ fn start() -> mpsc::Receiver<Event> {
         captures: RefCell::new(HashMap::new()),
     };
 
-    app_data.send_event(Event::Connection(conn));
+    app_data.send_event(Event::Connection(conn.clone()));
     app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
     app_data.send_event(Event::ToplevelManager(
         app_data.toplevel_manager_state.manager.clone(),
@@ -303,8 +307,7 @@ fn start() -> mpsc::Receiver<Event> {
         app_data.send_event(Event::CmdSender(cmd_sender));
 
         let mut event_loop = calloop::EventLoop::try_new().unwrap();
-        WaylandSource::new(event_queue)
-            .unwrap()
+        WaylandSource::new(conn, event_queue)
             .insert(event_loop.handle())
             .unwrap();
         event_loop

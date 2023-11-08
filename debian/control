@@ -9,6 +9,7 @@ Build-Depends:
   libegl1-mesa-dev,
   libudev-dev,
   libxkbcommon-dev,
+  libwayland-dev,
   pkg-config,
 Standards-Version: 4.3.0
 Homepage: https://github.com/pop-os/cosmic-workspaces-epoch

@@ -32,12 +32,6 @@ impl ScreencopyHandler for AppData {
             })
             .unwrap();
 
-        // XXX fix in compositor
-        if buffer_info.width == 0 || buffer_info.height == 0 || buffer_info.stride == 0 {
-            session.destroy();
-            return;
-        }
-
         let mut buffer = capture.buffer.lock().unwrap();
         // Create new buffer if none, or different format
         if !buffer

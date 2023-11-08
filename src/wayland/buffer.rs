@@ -1,9 +1,10 @@
 use cctk::{
+    cosmic_protocols::screencopy::v1::client::zcosmic_screencopy_session_v1::BufferType,
     screencopy::BufferInfo,
-    sctk::{globals::ProvidesBoundGlobal, shm::raw::RawPool},
+    sctk::shm::raw::RawPool,
     wayland_client::{
         protocol::{wl_buffer, wl_shm},
-        Connection, Dispatch, QueueHandle,
+        Connection, Dispatch, QueueHandle, WEnum,
     },
 };
 use cosmic::iced::widget::image;
@@ -16,15 +17,22 @@ pub struct Buffer {
     pub buffer_info: BufferInfo,
 }
 
-impl Buffer {
-    pub fn new(
-        buffer_info: BufferInfo,
-        shm: &impl ProvidesBoundGlobal<wl_shm::WlShm, 1>,
-        qh: &QueueHandle<AppData>,
-    ) -> Self {
+impl AppData {
+    pub fn create_buffer(&self, buffer_infos: &[BufferInfo]) -> Buffer {
+        // XXX Handle other formats?
+        let format = wl_shm::Format::Abgr8888.into();
+
+        let buffer_info = buffer_infos
+            .iter()
+            .find(|x| x.type_ == WEnum::Value(BufferType::WlShm) && x.format == format)
+            .unwrap();
+
         // Assume format is already known to be valid
-        let mut pool =
-            RawPool::new((buffer_info.stride * buffer_info.height) as usize, shm).unwrap();
+        let mut pool = RawPool::new(
+            (buffer_info.stride * buffer_info.height) as usize,
+            &self.shm_state,
+        )
+        .unwrap();
         let format = wl_shm::Format::try_from(buffer_info.format).unwrap();
         let buffer = pool.create_buffer(
             0,
@@ -33,15 +41,17 @@ impl Buffer {
             buffer_info.stride as i32,
             format,
             (),
-            qh,
+            &self.qh,
         );
-        Self {
+        Buffer {
             pool,
             buffer,
-            buffer_info,
+            buffer_info: buffer_info.clone(),
         }
     }
+}
 
+impl Buffer {
     // Buffer must be released by server for safety
     #[allow(clippy::wrong_self_convention)]
     pub unsafe fn to_image(&mut self) -> image::Handle {

@@ -1,10 +1,10 @@
 use cctk::{
     cosmic_protocols::screencopy::v1::client::zcosmic_screencopy_session_v1,
     screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
-    wayland_client::{protocol::wl_shm, Connection, QueueHandle, WEnum},
+    wayland_client::{Connection, QueueHandle, WEnum},
 };
 
-use super::{AppData, Buffer, Capture, CaptureSource, Event};
+use super::{AppData, Capture, CaptureSource, Event};
 
 impl ScreencopyHandler for AppData {
     fn screencopy_state(&mut self) -> &mut ScreencopyState {
@@ -14,7 +14,7 @@ impl ScreencopyHandler for AppData {
     fn init_done(
         &mut self,
         conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _qh: &QueueHandle<Self>,
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
         buffer_infos: &[BufferInfo],
     ) {
@@ -24,21 +24,13 @@ impl ScreencopyHandler for AppData {
             return;
         }
 
-        let buffer_info = buffer_infos
-            .iter()
-            .find(|x| {
-                x.type_ == WEnum::Value(zcosmic_screencopy_session_v1::BufferType::WlShm)
-                    && x.format == wl_shm::Format::Abgr8888.into()
-            })
-            .unwrap();
-
         let mut buffer = capture.buffer.lock().unwrap();
         // Create new buffer if none, or different format
         if !buffer
             .as_ref()
-            .map_or(false, |x| &x.buffer_info == buffer_info)
+            .map_or(false, |x| buffer_infos.contains(&x.buffer_info))
         {
-            *buffer = Some(Buffer::new(buffer_info.clone(), &self.shm_state, qh));
+            *buffer = Some(self.create_buffer(buffer_infos));
         }
         let buffer = buffer.as_ref().unwrap();
 

@@ -734,6 +734,7 @@ dependencies = [
  "futures-channel",
  "libcosmic",
  "tokio",
+ "wayland-protocols 0.31.0",
  "zbus",
 ]
 

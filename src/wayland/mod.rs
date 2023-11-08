@@ -15,6 +15,7 @@ use cctk::{
     screencopy::ScreencopyState,
     sctk::{
         self,
+        dmabuf::{DmabufFeedback, DmabufState},
         reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
@@ -46,6 +47,7 @@ mod buffer;
 use buffer::Buffer;
 mod capture;
 use capture::{Capture, CaptureSource};
+mod dmabuf;
 mod screencopy;
 mod toplevel;
 mod workspace;
@@ -92,6 +94,7 @@ pub enum Cmd {
 
 pub struct AppData {
     qh: QueueHandle<Self>,
+    dmabuf_state: DmabufState,
     registry_state: RegistryState,
     toplevel_info_state: ToplevelInfoState,
     workspace_state: WorkspaceState,
@@ -103,6 +106,7 @@ pub struct AppData {
     seats: Vec<wl_seat::WlSeat>,
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
+    dmabuf_feedback: Option<DmabufFeedback>,
 }
 
 impl AppData {
@@ -224,9 +228,13 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let (globals, event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 
+    let dmabuf_state = DmabufState::new(&globals, &qh);
+    dmabuf_state.get_default_feedback(&qh).unwrap();
+
     let registry_state = RegistryState::new(&globals);
     let mut app_data = AppData {
         qh: qh.clone(),
+        dmabuf_state,
         workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
         toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
         toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
@@ -238,6 +246,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
         seats: Vec::new(),
         capture_filter: CaptureFilter::default(),
         captures: RefCell::new(HashMap::new()),
+        dmabuf_feedback: None,
     };
 
     app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));

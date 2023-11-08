@@ -10,6 +10,7 @@ env_logger = "0.10.0"
 futures-channel = "0.3.25"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland"] }
 tokio = "1.23.0"
+wayland-protocols = "0.31.0"
 zbus = { version = "3.7.0", default-features = false, features = ["tokio"] }
 
 [profile.dev]

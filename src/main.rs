@@ -10,7 +10,7 @@ use cctk::{
     toplevel_info::ToplevelInfo,
     wayland_client::{
         protocol::{wl_data_device_manager::DndAction, wl_output, wl_seat},
-        Connection, WEnum,
+        Connection, Proxy, WEnum,
     },
 };
 use cosmic::{
@@ -279,50 +279,65 @@ impl Application for App {
     fn update(&mut self, message: Msg) -> Command<Msg> {
         match message {
             Msg::WaylandEvent(evt) => match evt {
-                WaylandEvent::Output(evt, output) => match evt {
-                    OutputEvent::Created(Some(info)) => {
-                        if let (Some((width, height)), Some(name)) = (info.logical_size, info.name)
-                        {
-                            self.outputs.push(Output {
-                                handle: output.clone(),
-                                name: name.clone(),
-                                width,
-                                height,
-                            });
+                WaylandEvent::Output(evt, output) => {
+                    // TODO: Less hacky way to get connection from iced-sctk
+                    if self.conn.is_none() {
+                        if let Some(backend) = output.backend().upgrade() {
+                            self.conn = Some(Connection::from_backend(backend));
+                        }
+                    }
+
+                    match evt {
+                        OutputEvent::Created(Some(info)) => {
+                            if let (Some((width, height)), Some(name)) =
+                                (info.logical_size, info.name)
+                            {
+                                self.outputs.push(Output {
+                                    handle: output.clone(),
+                                    name: name.clone(),
+                                    width,
+                                    height,
+                                });
+                                if self.visible {
+                                    return self.create_surface(
+                                        output.clone(),
+                                        name,
+                                        width,
+                                        height,
+                                    );
+                                }
+                            }
+                        }
+                        OutputEvent::Created(None) => {} // XXX?
+                        OutputEvent::InfoUpdate(info) => {
+                            if let Some(output) =
+                                self.outputs.iter_mut().find(|x| x.handle == output)
+                            {
+                                if let Some((width, height)) = info.logical_size {
+                                    output.width = width;
+                                    output.height = height;
+                                }
+                                if let Some(name) = info.name {
+                                    output.name = name;
+                                }
+                                // XXX re-create surface?
+                            }
+                        }
+                        OutputEvent::Removed => {
+                            if let Some(idx) = self.outputs.iter().position(|x| x.handle == output)
+                            {
+                                self.outputs.remove(idx);
+                            }
                             if self.visible {
-                                return self.create_surface(output.clone(), name, width, height);
+                                return self.destroy_surface(&output);
                             }
                         }
                     }
-                    OutputEvent::Created(None) => {} // XXX?
-                    OutputEvent::InfoUpdate(info) => {
-                        if let Some(output) = self.outputs.iter_mut().find(|x| x.handle == output) {
-                            if let Some((width, height)) = info.logical_size {
-                                output.width = width;
-                                output.height = height;
-                            }
-                            if let Some(name) = info.name {
-                                output.name = name;
-                            }
-                            // XXX re-create surface?
-                        }
-                    }
-                    OutputEvent::Removed => {
-                        if let Some(idx) = self.outputs.iter().position(|x| x.handle == output) {
-                            self.outputs.remove(idx);
-                        }
-                        if self.visible {
-                            return self.destroy_surface(&output);
-                        }
-                    }
-                },
+                }
                 _ => {}
             },
             Msg::Wayland(evt) => {
                 match evt {
-                    wayland::Event::Connection(conn) => {
-                        self.conn = Some(conn);
-                    }
                     wayland::Event::CmdSender(sender) => {
                         self.wayland_cmd_sender = Some(sender);
                     }
@@ -486,11 +501,11 @@ impl Application for App {
                 None
             }
         });
-        iced::Subscription::batch(vec![
-            events,
-            toggle_dbus::subscription().map(Msg::DBus),
-            wayland::subscription().map(Msg::Wayland),
-        ])
+        let mut subscriptions = vec![events, toggle_dbus::subscription().map(Msg::DBus)];
+        if let Some(conn) = self.conn.clone() {
+            subscriptions.push(wayland::subscription(conn).map(Msg::Wayland));
+        }
+        iced::Subscription::batch(subscriptions)
     }
 
     fn view(&self, id: SurfaceId) -> cosmic::Element<Msg> {

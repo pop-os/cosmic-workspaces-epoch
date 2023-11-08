@@ -59,7 +59,6 @@ pub use capture::CaptureFilter;
 #[derive(Clone, Debug)]
 pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
-    Connection(Connection),
     ToplevelManager(zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1),
     WorkspaceManager(zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1),
     // XXX Output name rather than `WlOutput`
@@ -87,8 +86,8 @@ pub enum Event {
     Seats(Vec<wl_seat::WlSeat>),
 }
 
-pub fn subscription() -> iced::Subscription<Event> {
-    iced::subscription::run_with_id("wayland-sub", async { start() }.flatten_stream())
+pub fn subscription(conn: Connection) -> iced::Subscription<Event> {
+    iced::subscription::run_with_id("wayland-sub", async { start(conn) }.flatten_stream())
 }
 
 #[derive(Debug)]
@@ -264,11 +263,9 @@ impl OutputHandler for AppData {
     }
 }
 
-fn start() -> mpsc::Receiver<Event> {
+fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let (sender, receiver) = mpsc::channel(20);
 
-    // TODO share connection? Can't use same `WlOutput` with seperate connection
-    let conn = Connection::connect_to_env().unwrap();
     let (globals, event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 
@@ -290,7 +287,6 @@ fn start() -> mpsc::Receiver<Event> {
         captures: RefCell::new(HashMap::new()),
     };
 
-    app_data.send_event(Event::Connection(conn.clone()));
     app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
     app_data.send_event(Event::ToplevelManager(
         app_data.toplevel_manager_state.manager.clone(),

@@ -1,5 +1,6 @@
 [Desktop Entry]
 Name=Workspaces
+Name[ru]=Рабочие места
 Comment=
 Type=Application
 Exec=busctl --user call com.system76.CosmicWorkspaces /com/system76/CosmicWorkspaces com.system76.CosmicWorkspaces Toggle

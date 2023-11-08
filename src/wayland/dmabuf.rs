@@ -6,6 +6,8 @@ use cctk::{
     wayland_client::{protocol::wl_buffer, Connection, QueueHandle},
 };
 
+use std::{fs, io, os::unix::fs::MetadataExt};
+
 use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1,
     zwp_linux_dmabuf_feedback_v1::ZwpLinuxDmabufFeedbackV1,
@@ -24,6 +26,19 @@ impl DmabufHandler for AppData {
         _proxy: &ZwpLinuxDmabufFeedbackV1,
         feedback: DmabufFeedback,
     ) {
+        if self.gbm.is_none() {
+            match find_gbm_device(feedback.main_device() as u64) {
+                Ok(Some(gbm)) => {
+                    self.gbm = Some(gbm);
+                }
+                Ok(None) => {
+                    eprintln!("Gbm main device '{}' not found", feedback.main_device());
+                }
+                Err(err) => {
+                    eprintln!("Failed to open gbm main device: {}", err);
+                }
+            }
+        }
         self.dmabuf_feedback = Some(feedback);
     }
     fn created(
@@ -48,6 +63,18 @@ impl DmabufHandler for AppData {
         _buffer: &wl_buffer::WlBuffer,
     ) {
     }
+}
+
+fn find_gbm_device(dev: u64) -> io::Result<Option<gbm::Device<fs::File>>> {
+    for i in std::fs::read_dir("/dev/dri")? {
+        let i = i?;
+        if i.metadata()?.rdev() == dev {
+            let file = fs::File::options().read(true).write(true).open(i.path())?;
+            eprintln!("Opened gbm main device '{}'", i.path().display());
+            return Ok(Some(gbm::Device::new(file)?));
+        }
+    }
+    Ok(None)
 }
 
 sctk::delegate_dmabuf!(AppData);

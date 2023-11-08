@@ -39,6 +39,7 @@ use futures_channel::mpsc;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    fs,
     sync::Arc,
     thread,
 };
@@ -107,6 +108,7 @@ pub struct AppData {
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
+    gbm: Option<gbm::Device<fs::File>>,
 }
 
 impl AppData {
@@ -247,6 +249,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
         capture_filter: CaptureFilter::default(),
         captures: RefCell::new(HashMap::new()),
         dmabuf_feedback: None,
+        gbm: None,
     };
 
     app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));

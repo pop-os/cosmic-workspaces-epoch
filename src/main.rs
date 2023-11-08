@@ -81,9 +81,9 @@ enum Msg {
 #[derive(Debug)]
 struct Workspace {
     name: String,
-    img_for_output: HashMap<String, iced::widget::image::Handle>,
+    img_for_output: HashMap<wl_output::WlOutput, iced::widget::image::Handle>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    output_names: Vec<String>,
+    outputs: HashSet<wl_output::WlOutput>,
     is_active: bool,
 }
 
@@ -91,13 +91,11 @@ struct Workspace {
 struct Toplevel {
     handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
-    output_names: HashSet<String>,
     img: Option<iced::widget::image::Handle>,
 }
 
 #[derive(Clone)]
 struct Output {
-    // Output, on the `iced_sctk` Wayland connection
     handle: wl_output::WlOutput,
     name: String,
     width: i32,
@@ -105,16 +103,17 @@ struct Output {
 }
 
 struct LayerSurface {
-    // Output, on the `iced_sctk` Wayland connection
     output: wl_output::WlOutput,
-    output_name: String,
     // for transitions, would need windows in more than one workspace? But don't capture all of
     // them all the time every frame.
 }
 
 #[derive(Clone, Debug)]
 enum DragSurface {
-    Workspace { name: String, output_name: String },
+    Workspace {
+        name: String,
+        output: wl_output::WlOutput,
+    },
 }
 
 #[derive(Default)]
@@ -163,7 +162,6 @@ impl App {
     fn create_surface(
         &mut self,
         output: wl_output::WlOutput,
-        output_name: String,
         width: i32,
         height: i32,
     ) -> Command<Msg> {
@@ -172,7 +170,6 @@ impl App {
             id,
             LayerSurface {
                 output: output.clone(),
-                output_name,
             },
         );
         get_layer_surface(SctkLayerSurfaceSettings {
@@ -216,9 +213,7 @@ impl App {
             let cmd = Command::batch(
                 outputs
                     .into_iter()
-                    .map(|output| {
-                        self.create_surface(output.handle, output.name, output.width, output.height)
-                    })
+                    .map(|output| self.create_surface(output.handle, output.width, output.height))
                     .collect::<Vec<_>>(),
             );
             self.update_capture_filter();
@@ -246,7 +241,7 @@ impl App {
             if self.visible {
                 // XXX handle on wrong connection
                 capture_filter.workspaces_on_outputs =
-                    self.outputs.iter().map(|x| x.name.clone()).collect();
+                    self.outputs.iter().map(|x| x.handle.clone()).collect();
                 capture_filter.toplevels_on_workspaces = self
                     .workspaces
                     .iter()
@@ -299,12 +294,7 @@ impl Application for App {
                                     height,
                                 });
                                 if self.visible {
-                                    return self.create_surface(
-                                        output.clone(),
-                                        name,
-                                        width,
-                                        height,
-                                    );
+                                    return self.create_surface(output.clone(), width, height);
                                 }
                             }
                         }
@@ -350,7 +340,7 @@ impl Application for App {
                     wayland::Event::Workspaces(workspaces) => {
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
-                        for (output_names, workspace) in workspaces {
+                        for (outputs, workspace) in workspaces {
                             let is_active = workspace.state.contains(&WEnum::Value(
                                 zcosmic_workspace_handle_v1::State::Active,
                             ));
@@ -365,27 +355,25 @@ impl Application for App {
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
                                 handle: workspace.handle,
-                                output_names,
+                                outputs,
                                 img_for_output,
                                 is_active,
                             });
                         }
                         self.update_capture_filter();
                     }
-                    wayland::Event::NewToplevel(handle, output_names, info) => {
+                    wayland::Event::NewToplevel(handle, info) => {
                         println!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
                             handle,
-                            output_names,
                             info,
                             img: None,
                         });
                     }
-                    wayland::Event::UpdateToplevel(handle, output_names, info) => {
+                    wayland::Event::UpdateToplevel(handle, info) => {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
-                            toplevel.output_names = output_names;
                             toplevel.info = info;
                         }
                     }
@@ -443,15 +431,12 @@ impl Application for App {
             }
             Msg::StartDrag(size, drag_surface) => {
                 match &drag_surface {
-                    DragSurface::Workspace {
-                        output_name,
-                        name: _,
-                    } => {
+                    DragSurface::Workspace { output, name: _ } => {
                         let id = self.next_surface_id();
                         if let Some((parent_id, _)) = self
                             .layer_surfaces
                             .iter()
-                            .find(|(_, x)| &x.output_name == output_name)
+                            .find(|(_, x)| &x.output == output)
                         {
                             self.drag_surface = Some((id, drag_surface, size));
                             return start_drag(
@@ -516,9 +501,9 @@ impl Application for App {
         if let Some((drag_id, drag_surface, size)) = &self.drag_surface {
             if drag_id == &id {
                 match drag_surface {
-                    DragSurface::Workspace { output_name, name } => {
+                    DragSurface::Workspace { output, name } => {
                         if let Some(workspace) = self.workspaces.iter().find(|x| &x.name == name) {
-                            let item = workspace_item(workspace, &output_name);
+                            let item = workspace_item(workspace, &output);
                             return widget::container(item)
                                 .height(iced::Length::Fixed(size.height))
                                 .width(iced::Length::Fixed(size.width))
@@ -542,11 +527,11 @@ fn layer_surface<'a>(app: &'a App, surface: &'a LayerSurface) -> cosmic::Element
         workspaces_sidebar(
             app.workspaces
                 .iter()
-                .filter(|i| i.output_names.contains(&surface.output_name)),
-            &surface.output_name
+                .filter(|i| i.outputs.contains(&surface.output)),
+            &surface.output
         ),
         toplevel_previews(app.toplevels.iter().filter(|i| {
-            if !i.output_names.contains(&surface.output_name) {
+            if !i.info.output.contains(&surface.output) {
                 return false;
             }
 
@@ -569,7 +554,10 @@ fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
         .into()
 }
 
-fn workspace_item<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic::Element<'a, Msg> {
+fn workspace_item<'a>(
+    workspace: &'a Workspace,
+    output: &wl_output::WlOutput,
+) -> cosmic::Element<'a, Msg> {
     // TODO style
     let theme = if workspace.is_active {
         cosmic::theme::Button::Suggested
@@ -582,7 +570,7 @@ fn workspace_item<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic:
             widget::Image::new(
                 workspace
                     .img_for_output
-                    .get(output_name)
+                    .get(output)
                     .cloned()
                     .unwrap_or_else(|| widget::image::Handle::from_pixels(
                         1,
@@ -601,15 +589,15 @@ fn workspace_item<'a>(workspace: &'a Workspace, output_name: &'a str) -> cosmic:
 
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
-    output_name: &'a str,
+    output: &'a wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
-    widget::dnd_source(workspace_item(workspace, output_name))
+    widget::dnd_source(workspace_item(workspace, output))
         .on_drag(|size| {
             Msg::StartDrag(
                 size,
                 DragSurface::Workspace {
                     name: workspace.name.to_string(),
-                    output_name: output_name.to_string(),
+                    output: output.clone(),
                 },
             )
         })
@@ -620,12 +608,12 @@ fn workspace_sidebar_entry<'a>(
 
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
-    output_name: &'a str,
+    output: &'a wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
     widget::container(
         widget::dnd_listener(widget::column(
             workspaces
-                .map(|w| workspace_sidebar_entry(w, output_name))
+                .map(|w| workspace_sidebar_entry(w, output))
                 .collect(),
         ))
         .on_enter(Msg::DndWorkspaceEnter)

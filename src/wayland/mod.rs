@@ -15,7 +15,6 @@ use cctk::{
     screencopy::ScreencopyState,
     sctk::{
         self,
-        output::{OutputHandler, OutputState},
         reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
@@ -24,10 +23,9 @@ use cctk::{
     toplevel_info::{ToplevelInfo, ToplevelInfoState},
     toplevel_management::ToplevelManagerState,
     wayland_client::{
-        backend::ObjectId,
         globals::registry_queue_init,
         protocol::{wl_output, wl_seat},
-        Connection, Proxy, QueueHandle,
+        Connection, QueueHandle,
     },
     workspace::WorkspaceState,
 };
@@ -61,21 +59,18 @@ pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
     ToplevelManager(zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1),
     WorkspaceManager(zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1),
-    // XXX Output name rather than `WlOutput`
-    Workspaces(Vec<(Vec<String>, cctk::workspace::Workspace)>),
+    Workspaces(Vec<(HashSet<wl_output::WlOutput>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        String,
+        wl_output::WlOutput,
         image::Handle,
     ),
     NewToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        HashSet<String>,
         ToplevelInfo,
     ),
     UpdateToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        HashSet<String>,
         ToplevelInfo,
     ),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
@@ -97,7 +92,6 @@ pub enum Cmd {
 
 pub struct AppData {
     qh: QueueHandle<Self>,
-    output_state: OutputState,
     registry_state: RegistryState,
     toplevel_info_state: ToplevelInfoState,
     workspace_state: WorkspaceState,
@@ -106,7 +100,6 @@ pub struct AppData {
     shm_state: Shm,
     toplevel_manager_state: ToplevelManagerState,
     sender: mpsc::Sender<Event>,
-    output_names: HashMap<ObjectId, Option<String>>,
     seats: Vec<wl_seat::WlSeat>,
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
@@ -138,11 +131,7 @@ impl AppData {
                 })
             }
             CaptureSource::Workspace(_, output) => {
-                if let Some(name) = &self.output_state.info(&output).and_then(|x| x.name) {
-                    self.capture_filter.workspaces_on_outputs.contains(name)
-                } else {
-                    false
-                }
+                self.capture_filter.workspaces_on_outputs.contains(output)
             }
         }
     }
@@ -185,7 +174,7 @@ impl ProvidesRegistryState for AppData {
         &mut self.registry_state
     }
 
-    sctk::registry_handlers!(OutputState, SeatState);
+    sctk::registry_handlers!(SeatState);
 }
 
 impl SeatHandler for AppData {
@@ -229,40 +218,6 @@ impl ShmHandler for AppData {
     }
 }
 
-// TODO: don't need this if we use same connection with same IDs? Or?
-impl OutputHandler for AppData {
-    fn output_state(&mut self) -> &mut OutputState {
-        &mut self.output_state
-    }
-
-    fn new_output(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        output: wl_output::WlOutput,
-    ) {
-        let name = self.output_state.info(&output).unwrap().name;
-        self.output_names.insert(output.id(), name);
-    }
-
-    fn update_output(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _output: wl_output::WlOutput,
-    ) {
-    }
-
-    fn output_destroyed(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        output: wl_output::WlOutput,
-    ) {
-        self.output_names.remove(&output.id());
-    }
-}
-
 fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let (sender, receiver) = mpsc::channel(20);
 
@@ -272,7 +227,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let registry_state = RegistryState::new(&globals);
     let mut app_data = AppData {
         qh: qh.clone(),
-        output_state: OutputState::new(&globals, &qh),
         workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
         toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
         toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
@@ -281,7 +235,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
         seat_state: SeatState::new(&globals, &qh),
         shm_state: Shm::bind(&globals, &qh).unwrap(),
         sender,
-        output_names: HashMap::new(),
         seats: Vec::new(),
         capture_filter: CaptureFilter::default(),
         captures: RefCell::new(HashMap::new()),
@@ -323,7 +276,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     receiver
 }
 
-sctk::delegate_output!(AppData);
+// Don't bind outputs; use `WlOutput` instances from iced-sctk
 sctk::delegate_registry!(AppData);
 sctk::delegate_seat!(AppData);
 sctk::delegate_shm!(AppData);

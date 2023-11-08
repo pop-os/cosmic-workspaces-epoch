@@ -1,7 +1,4 @@
-use cctk::{
-    wayland_client::Proxy,
-    workspace::{WorkspaceHandler, WorkspaceState},
-};
+use cctk::workspace::{WorkspaceHandler, WorkspaceState};
 
 use super::{AppData, CaptureSource, Event};
 
@@ -18,20 +15,13 @@ impl WorkspaceHandler for AppData {
 
         for group in self.workspace_state.workspace_groups() {
             for workspace in &group.workspaces {
-                let output_names: Vec<_> = group
-                    .outputs
-                    .iter()
-                    .filter_map(|output| self.output_names.get(&output.id()).cloned()?)
-                    .collect();
-                if !output_names.is_empty() {
-                    workspaces.push((output_names, workspace.clone()));
+                workspaces.push((group.outputs.iter().cloned().collect(), workspace.clone()));
 
-                    for output in &group.outputs {
-                        self.add_capture_source(CaptureSource::Workspace(
-                            workspace.handle.clone(),
-                            output.clone(),
-                        ));
-                    }
+                for output in &group.outputs {
+                    self.add_capture_source(CaptureSource::Workspace(
+                        workspace.handle.clone(),
+                        output.clone(),
+                    ));
                 }
             }
         }

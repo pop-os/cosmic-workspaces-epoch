@@ -20,7 +20,7 @@ use cctk::{
     toplevel_management::ToplevelManagerState,
     wayland_client::{
         globals::registry_queue_init,
-        protocol::{wl_output, wl_seat},
+        protocol::{wl_buffer, wl_output, wl_seat},
         Connection, QueueHandle,
     },
     workspace::WorkspaceState,
@@ -30,6 +30,7 @@ use cosmic::iced::{
     self,
     futures::{executor::block_on, FutureExt, SinkExt},
 };
+use cosmic::iced_sctk::subsurface_widget::SubsurfaceBuffer;
 use futures_channel::mpsc;
 use std::{
     cell::RefCell,
@@ -83,7 +84,9 @@ pub enum Event {
 
 #[derive(Clone, Debug)]
 pub struct CaptureImage {
-    pub img: iced::widget::image::Handle,
+    pub width: u32,
+    pub height: u32,
+    pub wl_buffer: SubsurfaceBuffer,
 }
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {

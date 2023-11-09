@@ -9,6 +9,7 @@ use cosmic::cctk::{
     },
     wayland_client::{Connection, QueueHandle, WEnum},
 };
+use cosmic::iced_sctk::subsurface_widget::{SubsurfaceBuffer, SubsurfaceBufferRelease};
 use std::{
     array,
     sync::{Arc, Weak},
@@ -21,6 +22,9 @@ pub struct ScreencopySession {
     buffers: Option<[Buffer; 2]>,
     session: zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     first_frame: bool,
+    // Future signaled when buffer is signaled.
+    // if triple buffer is used, will need more than one.
+    release: Option<SubsurfaceBufferRelease>,
 }
 
 impl ScreencopySession {
@@ -54,6 +58,7 @@ impl ScreencopySession {
             buffers: None,
             session,
             first_frame: true,
+            release: None,
         }
     }
 
@@ -70,8 +75,9 @@ impl ScreencopySession {
                 .commit(zcosmic_screencopy_session_v1::Options::empty());
             self.first_frame = false;
         } else {
+            // TODO Not updating properly if `Options::OnDamage` is used
             self.session
-                .commit(zcosmic_screencopy_session_v1::Options::OnDamage);
+                .commit(zcosmic_screencopy_session_v1::Options::empty());
         }
         conn.flush().unwrap();
     }
@@ -149,11 +155,34 @@ impl ScreencopyHandler for AppData {
         session.buffers.as_mut().unwrap().rotate_left(1);
 
         // Capture again on damage
-        session.attach_buffer_and_commit(&capture, conn);
+        let capture_clone = capture.clone();
+        let conn = conn.clone();
+        let release = session.release.take();
+        self.scheduler
+            .schedule(async move {
+                if let Some(release) = release {
+                    // Wait for buffer to be released by server
+                    release.await;
+                }
+                let mut session = capture_clone.session.lock().unwrap();
+                let Some(session) = session.as_mut() else {
+                    return;
+                };
+                session.attach_buffer_and_commit(&capture_clone, &conn);
+            })
+            .unwrap();
 
         let front = session.buffers.as_mut().unwrap().first_mut().unwrap();
-        let img = unsafe { front.to_image() };
-        let image = CaptureImage { img };
+        let (buffer, release) = SubsurfaceBuffer::new(front.backing.clone());
+        session.release = Some(release);
+        // let img = unsafe { front.to_image() };
+        // let image = CaptureImage { img };
+        let buffer_info = &front.buffer_info;
+        let image = CaptureImage {
+            wl_buffer: buffer,
+            width: buffer_info.width,
+            height: buffer_info.height,
+        };
         match &capture.source {
             CaptureSource::Toplevel(toplevel) => {
                 self.send_event(Event::ToplevelCapture(toplevel.clone(), image))

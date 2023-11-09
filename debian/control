@@ -7,6 +7,7 @@ Build-Depends:
   debhelper-compat (= 11),
   cargo,
   libegl1-mesa-dev,
+  libgbm-dev,
   libudev-dev,
   libxkbcommon-dev,
   libwayland-dev,

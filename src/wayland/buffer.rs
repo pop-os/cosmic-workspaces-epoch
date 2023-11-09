@@ -14,8 +14,8 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1
 use super::AppData;
 
 enum BufferBacking {
-    Shm(RawPool),
-    Dmabuf(OwnedFd),
+    Shm { pool: RawPool },
+    Dmabuf { fd: OwnedFd, stride: u32 },
 }
 
 pub struct Buffer {
@@ -43,7 +43,7 @@ impl AppData {
             &self.qh,
         );
 
-        (BufferBacking::Shm(pool), buffer)
+        (BufferBacking::Shm { pool }, buffer)
     }
 
     #[allow(dead_code)]
@@ -90,7 +90,7 @@ impl AppData {
             )
             .0;
 
-        Some((BufferBacking::Dmabuf(fd), buffer))
+        Some((BufferBacking::Dmabuf { fd, stride }, buffer))
     }
 
     pub fn create_buffer(&self, buffer_infos: &[BufferInfo]) -> Buffer {
@@ -133,9 +133,9 @@ impl Buffer {
     #[allow(clippy::wrong_self_convention)]
     pub unsafe fn to_image(&mut self) -> image::Handle {
         let pixels = match &mut self.backing {
-            BufferBacking::Shm(pool) => pool.mmap().to_vec(),
+            BufferBacking::Shm { pool } => pool.mmap().to_vec(),
             // NOTE: Only will work with linear modifier
-            BufferBacking::Dmabuf(fd) => {
+            BufferBacking::Dmabuf { fd, stride } => {
                 // XXX Error handling?
                 let mmap = memmap2::Mmap::map(&*fd).unwrap();
                 if self.buffer_info.stride == self.buffer_info.width * 4 {
@@ -143,7 +143,7 @@ impl Buffer {
                 } else {
                     let width = self.buffer_info.width as usize;
                     let height = self.buffer_info.height as usize;
-                    let stride = self.buffer_info.stride as usize;
+                    let stride = *stride as usize;
                     let output_stride = width * 4;
                     let mut pixels = vec![0; height * output_stride];
                     for y in 0..height {

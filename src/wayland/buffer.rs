@@ -8,14 +8,23 @@ use cctk::{
     },
 };
 use cosmic::iced::widget::image;
-use std::os::fd::{AsFd, OwnedFd};
+use std::{
+    os::fd::{AsFd, OwnedFd},
+    path::{Path, PathBuf},
+};
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
 
 use super::AppData;
 
 enum BufferBacking {
-    Shm { pool: RawPool },
-    Dmabuf { fd: OwnedFd, stride: u32 },
+    Shm {
+        pool: RawPool,
+    },
+    Dmabuf {
+        fd: OwnedFd,
+        node: PathBuf,
+        stride: u32,
+    },
 }
 
 pub struct Buffer {
@@ -53,7 +62,7 @@ impl AppData {
         needs_linear: bool,
     ) -> Option<(BufferBacking, wl_buffer::WlBuffer)> {
         // TODO Handle errors in some way
-        let gbm = self.gbm.as_ref()?;
+        let (node, gbm) = self.gbm.as_ref()?;
         let feedback = self.dmabuf_feedback.as_ref()?;
         let formats = feedback.format_table();
         let format_info = feedback
@@ -90,7 +99,14 @@ impl AppData {
             )
             .0;
 
-        Some((BufferBacking::Dmabuf { fd, stride }, buffer))
+        Some((
+            BufferBacking::Dmabuf {
+                fd,
+                node: node.clone(),
+                stride,
+            },
+            buffer,
+        ))
     }
 
     pub fn create_buffer(&self, buffer_infos: &[BufferInfo]) -> Buffer {
@@ -135,7 +151,11 @@ impl Buffer {
         let pixels = match &mut self.backing {
             BufferBacking::Shm { pool } => pool.mmap().to_vec(),
             // NOTE: Only will work with linear modifier
-            BufferBacking::Dmabuf { fd, stride } => {
+            BufferBacking::Dmabuf {
+                fd,
+                node: _,
+                stride,
+            } => {
                 // XXX Error handling?
                 let mmap = memmap2::Mmap::map(&*fd).unwrap();
                 if self.buffer_info.stride == self.buffer_info.width * 4 {
@@ -155,6 +175,13 @@ impl Buffer {
             }
         };
         image::Handle::from_pixels(self.buffer_info.width, self.buffer_info.height, pixels)
+    }
+
+    pub fn node(&self) -> Option<&Path> {
+        match &self.backing {
+            BufferBacking::Shm { .. } => None,
+            BufferBacking::Dmabuf { node, .. } => Some(node),
+        }
     }
 }
 

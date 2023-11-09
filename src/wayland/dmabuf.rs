@@ -6,7 +6,7 @@ use cctk::{
     wayland_client::{protocol::wl_buffer, Connection, QueueHandle},
 };
 
-use std::{fs, io, os::unix::fs::MetadataExt};
+use std::{fs, io, os::unix::fs::MetadataExt, path::PathBuf};
 
 use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1,
@@ -65,13 +65,13 @@ impl DmabufHandler for AppData {
     }
 }
 
-fn find_gbm_device(dev: u64) -> io::Result<Option<gbm::Device<fs::File>>> {
+fn find_gbm_device(dev: u64) -> io::Result<Option<(PathBuf, gbm::Device<fs::File>)>> {
     for i in std::fs::read_dir("/dev/dri")? {
         let i = i?;
         if i.metadata()?.rdev() == dev {
             let file = fs::File::options().read(true).write(true).open(i.path())?;
             eprintln!("Opened gbm main device '{}'", i.path().display());
-            return Ok(Some(gbm::Device::new(file)?));
+            return Ok(Some((i.path(), gbm::Device::new(file)?)));
         }
     }
     Ok(None)

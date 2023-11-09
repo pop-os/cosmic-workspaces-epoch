@@ -40,6 +40,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     fs,
+    path::PathBuf,
     sync::Arc,
     thread,
 };
@@ -108,7 +109,7 @@ pub struct AppData {
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
-    gbm: Option<gbm::Device<fs::File>>,
+    gbm: Option<(PathBuf, gbm::Device<fs::File>)>,
 }
 
 impl AppData {

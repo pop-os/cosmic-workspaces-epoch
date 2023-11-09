@@ -34,7 +34,10 @@ impl ScreencopyHandler for AppData {
         }
         let buffer = buffer.as_ref().unwrap();
 
-        session.attach_buffer(&buffer.buffer, None, 0); // XXX age?
+        let node = buffer
+            .node()
+            .and_then(|x| x.to_str().map(|x| x.to_string()));
+        session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
         if capture.first_frame() {
             session.commit(zcosmic_screencopy_session_v1::Options::empty());
         } else {

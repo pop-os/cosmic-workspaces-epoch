@@ -15,27 +15,13 @@ use std::sync::{
 
 use super::{AppData, Buffer};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum CaptureSource {
     Toplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     Workspace(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
     ),
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl std::hash::Hash for CaptureSource {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: std::hash::Hasher,
-    {
-        match self {
-            Self::Toplevel(handle) => handle.id(),
-            Self::Workspace(handle, _output) => handle.id(),
-        }
-        .hash(state)
-    }
 }
 
 #[derive(Clone, Debug, Default)]

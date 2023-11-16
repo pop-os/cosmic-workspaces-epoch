@@ -60,12 +60,14 @@ impl AppData {
         &self,
         buffer_info: &BufferInfo,
         needs_linear: bool,
-    ) -> Option<(BufferBacking, wl_buffer::WlBuffer)> {
-        // TODO Handle errors in some way
-        let (node, gbm) = self.gbm.as_ref()?;
-        let feedback = self.dmabuf_feedback.as_ref()?;
+    ) -> anyhow::Result<Option<(BufferBacking, wl_buffer::WlBuffer)>> {
+        let (Some((node, gbm)), Some(feedback)) =
+            (self.gbm.as_ref(), self.dmabuf_feedback.as_ref())
+        else {
+            return Ok(None);
+        };
         let formats = feedback.format_table();
-        let format_info = feedback
+        let Some(format_info) = feedback
             .tranches()
             .iter()
             .flat_map(|x| &x.formats)
@@ -73,25 +75,26 @@ impl AppData {
             .find(|x| {
                 x.format == buffer_info.format
                     && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
-            })?;
-        let format = gbm::Format::try_from(buffer_info.format).ok()?;
-        let modifier = gbm::Modifier::try_from(format_info.modifier).ok()?;
-        let bo = gbm
-            .create_buffer_object_with_modifiers::<()>(
-                buffer_info.width,
-                buffer_info.height,
-                format,
-                [modifier].into_iter(),
-            )
-            .ok()?;
+            })
+        else {
+            return Ok(None);
+        };
+        let format = gbm::Format::try_from(buffer_info.format)?;
+        let modifier = gbm::Modifier::try_from(format_info.modifier)?;
+        let bo = gbm.create_buffer_object_with_modifiers::<()>(
+            buffer_info.width,
+            buffer_info.height,
+            format,
+            [modifier].into_iter(),
+        )?;
 
-        let fd = bo.fd().ok()?;
-        let stride = bo.stride().ok()?;
-        let params = self.dmabuf_state.create_params(&self.qh).ok()?;
-        for i in 0..bo.plane_count().ok()? as i32 {
-            let plane_fd = bo.fd_for_plane(i).ok()?;
-            let plane_offset = bo.offset(i).ok()?;
-            let plane_stride = bo.stride_for_plane(i).ok()?;
+        let fd = bo.fd()?;
+        let stride = bo.stride()?;
+        let params = self.dmabuf_state.create_params(&self.qh)?;
+        for i in 0..bo.plane_count()? as i32 {
+            let plane_fd = bo.fd_for_plane(i)?;
+            let plane_offset = bo.offset(i)?;
+            let plane_stride = bo.stride_for_plane(i)?;
             params.add(
                 plane_fd.as_fd(),
                 i as u32,
@@ -110,14 +113,14 @@ impl AppData {
             )
             .0;
 
-        Some((
+        Ok(Some((
             BufferBacking::Dmabuf {
                 fd,
                 node: node.clone(),
                 stride,
             },
             buffer,
-        ))
+        )))
     }
 
     pub fn create_buffer(&self, buffer_infos: &[BufferInfo]) -> Buffer {
@@ -129,12 +132,16 @@ impl AppData {
             .iter()
             .find(|x| x.type_ == WEnum::Value(BufferType::Dmabuf) && x.format == format)
         {
-            if let Some((backing, buffer)) = self.create_gbm_backing(buffer_info, true) {
-                return Buffer {
-                    backing,
-                    buffer,
-                    buffer_info: buffer_info.clone(),
-                };
+            match self.create_gbm_backing(buffer_info, true) {
+                Ok(Some((backing, buffer))) => {
+                    return Buffer {
+                        backing,
+                        buffer,
+                        buffer_info: buffer_info.clone(),
+                    };
+                }
+                Ok(None) => {}
+                Err(err) => eprintln!("Failed to create gbm buffer: {}", err),
             }
         }
         */

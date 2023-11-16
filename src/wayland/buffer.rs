@@ -88,7 +88,18 @@ impl AppData {
         let fd = bo.fd().ok()?;
         let stride = bo.stride().ok()?;
         let params = self.dmabuf_state.create_params(&self.qh).ok()?;
-        params.add(fd.as_fd(), 0, 0, stride, modifier.into());
+        for i in 0..bo.plane_count().ok()? as i32 {
+            let plane_fd = bo.fd_for_plane(i).ok()?;
+            let plane_offset = bo.offset(i).ok()?;
+            let plane_stride = bo.stride_for_plane(i).ok()?;
+            params.add(
+                plane_fd.as_fd(),
+                i as u32,
+                plane_offset,
+                plane_stride,
+                modifier.into(),
+            );
+        }
         let buffer = params
             .create_immed(
                 buffer_info.width as i32,

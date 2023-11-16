@@ -159,12 +159,7 @@ impl App {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
 
-    fn create_surface(
-        &mut self,
-        output: wl_output::WlOutput,
-        width: i32,
-        height: i32,
-    ) -> Command<Msg> {
+    fn create_surface(&mut self, output: wl_output::WlOutput) -> Command<Msg> {
         let id = self.next_surface_id();
         self.layer_surfaces.insert(
             id,
@@ -213,7 +208,7 @@ impl App {
             let cmd = Command::batch(
                 outputs
                     .into_iter()
-                    .map(|output| self.create_surface(output.handle, output.width, output.height))
+                    .map(|output| self.create_surface(output.handle))
                     .collect::<Vec<_>>(),
             );
             self.update_capture_filter();
@@ -294,7 +289,7 @@ impl Application for App {
                                     height,
                                 });
                                 if self.visible {
-                                    return self.create_surface(output.clone(), width, height);
+                                    return self.create_surface(output.clone());
                                 }
                             }
                         }
@@ -455,10 +450,10 @@ impl Application for App {
             }
             Msg::DndWorkspaceEnter(action, mimes, (_x, _y)) => {
                 if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
-                    let mut cmds = Vec::new();
-                    cmds.push(set_actions(DndAction::Move, DndAction::Move));
-                    cmds.push(accept_mime_type(Some(WORKSPACE_MIME.to_string())));
-                    return Command::batch(cmds);
+                    return Command::batch(vec![
+                        set_actions(DndAction::Move, DndAction::Move),
+                        accept_mime_type(Some(WORKSPACE_MIME.to_string())),
+                    ]);
                 }
             }
             Msg::DndWorkspaceLeave => {
@@ -503,7 +498,7 @@ impl Application for App {
                 match drag_surface {
                     DragSurface::Workspace { output, name } => {
                         if let Some(workspace) = self.workspaces.iter().find(|x| &x.name == name) {
-                            let item = workspace_item(workspace, &output);
+                            let item = workspace_item(workspace, output);
                             return widget::container(item)
                                 .height(iced::Length::Fixed(size.height))
                                 .width(iced::Length::Fixed(size.width))

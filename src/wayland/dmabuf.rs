@@ -27,6 +27,7 @@ impl DmabufHandler for AppData {
         feedback: DmabufFeedback,
     ) {
         if self.gbm.is_none() {
+            #[allow(clippy::unnecessary_cast)]
             match find_gbm_device(feedback.main_device() as u64) {
                 Ok(Some(gbm)) => {
                     self.gbm = Some(gbm);

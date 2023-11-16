@@ -8,7 +8,7 @@ calloop = "0.12.3"
 cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
 env_logger = "0.10.0"
 futures-channel = "0.3.25"
-gbm = "0.13.0"
+gbm = "0.14.0"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland"] }
 memmap2 = "0.9.0"
 tokio = "1.23.0"

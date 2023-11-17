@@ -4,7 +4,7 @@ use cctk::{
     wayland_client::{Connection, QueueHandle, WEnum},
 };
 
-use super::{AppData, Capture, CaptureSource, Event};
+use super::{AppData, Capture, CaptureImage, CaptureSource, Event};
 
 impl ScreencopyHandler for AppData {
     fn screencopy_state(&mut self) -> &mut ScreencopyState {
@@ -59,7 +59,8 @@ impl ScreencopyHandler for AppData {
         }
 
         let mut buffer = capture.buffer.lock().unwrap();
-        let image = unsafe { buffer.as_mut().unwrap().to_image() };
+        let img = unsafe { buffer.as_mut().unwrap().to_image() };
+        let image = CaptureImage { img };
         match &capture.source {
             CaptureSource::Toplevel(toplevel) => {
                 self.send_event(Event::ToplevelCapture(toplevel.clone(), image))

@@ -82,7 +82,7 @@ enum Msg {
 #[derive(Debug)]
 struct Workspace {
     name: String,
-    img_for_output: HashMap<wl_output::WlOutput, iced::widget::image::Handle>,
+    img_for_output: HashMap<wl_output::WlOutput, wayland::CaptureImage>,
     handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
     is_active: bool,
@@ -92,7 +92,7 @@ struct Workspace {
 struct Toplevel {
     handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
-    img: Option<iced::widget::image::Handle>,
+    img: Option<wayland::CaptureImage>,
 }
 
 #[derive(Clone)]

@@ -1,7 +1,7 @@
 use cctk::wayland_client::protocol::wl_output;
 use cosmic::iced::{self, widget};
 
-use crate::{App, DragSurface, LayerSurface, Msg, Toplevel, Workspace};
+use crate::{wayland::CaptureImage, App, DragSurface, LayerSurface, Msg, Toplevel, Workspace};
 
 pub(crate) fn layer_surface<'a>(
     app: &'a App,
@@ -51,17 +51,7 @@ pub(crate) fn workspace_item<'a>(
     widget::column![
         close_button(Msg::CloseWorkspace(workspace.handle.clone())),
         cosmic::widget::button(widget::column![
-            widget::Image::new(
-                workspace
-                    .img_for_output
-                    .get(output)
-                    .cloned()
-                    .unwrap_or_else(|| widget::image::Handle::from_pixels(
-                        1,
-                        1,
-                        vec![0, 0, 0, 255]
-                    ))
-            ),
+            capture_image(workspace.img_for_output.get(output)),
             widget::text(&workspace.name)
         ])
         .style(theme)
@@ -115,10 +105,8 @@ fn workspaces_sidebar<'a>(
 fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
     widget::column![
         close_button(Msg::CloseToplevel(toplevel.handle.clone())),
-        widget::button(widget::Image::new(toplevel.img.clone().unwrap_or_else(
-            || widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255]),
-        )))
-        .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
+        widget::button(capture_image(toplevel.img.as_ref()))
+            .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
         widget::text(&toplevel.info.title)
             .horizontal_alignment(iced::alignment::Horizontal::Center)
     ]
@@ -135,4 +123,12 @@ fn toplevel_previews<'a>(
         .spacing(16)
         .align_items(iced::Alignment::Center)
         .into()
+}
+
+fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {
+    if let Some(image) = image {
+        widget::Image::new(image.img.clone()).into()
+    } else {
+        widget::Image::new(widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])).into()
+    }
 }

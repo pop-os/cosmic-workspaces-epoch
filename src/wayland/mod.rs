@@ -33,7 +33,6 @@ use cctk::{
 use cosmic::iced::{
     self,
     futures::{executor::block_on, FutureExt, SinkExt},
-    widget::image,
 };
 use futures_channel::mpsc;
 use std::{
@@ -67,7 +66,7 @@ pub enum Event {
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
-        image::Handle,
+        CaptureImage,
     ),
     NewToplevel(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
@@ -80,9 +79,14 @@ pub enum Event {
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     ToplevelCapture(
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        image::Handle,
+        CaptureImage,
     ),
     Seats(Vec<wl_seat::WlSeat>),
+}
+
+#[derive(Clone, Debug)]
+pub struct CaptureImage {
+    pub img: iced::widget::image::Handle,
 }
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {

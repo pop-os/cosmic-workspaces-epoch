@@ -1,4 +1,7 @@
-use cctk::wayland_client::protocol::wl_output;
+use cctk::{
+    cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+    wayland_client::protocol::wl_output,
+};
 use cosmic::{
     iced::{
         self,
@@ -57,19 +60,14 @@ pub(crate) fn workspace_item<'a>(
     workspace: &'a Workspace,
     output: &wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
-    // TODO style
-    let theme = if workspace.is_active {
-        cosmic::theme::Button::Suggested
-    } else {
-        cosmic::theme::Button::Standard
-    };
     column![
         close_button(Msg::CloseWorkspace(workspace.handle.clone())),
         widget::button(column![
             capture_image(workspace.img_for_output.get(output)),
             widget::text(&workspace.name)
         ])
-        .style(theme)
+        .selected(workspace.is_active)
+        .style(cosmic::theme::Button::Image)
         .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
     .height(iced::Length::Fill)
@@ -125,6 +123,13 @@ fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
     column![
         close_button(Msg::CloseToplevel(toplevel.handle.clone())),
         widget::button(capture_image(toplevel.img.as_ref()))
+            .selected(
+                toplevel
+                    .info
+                    .state
+                    .contains(&zcosmic_toplevel_handle_v1::State::Activated)
+            )
+            .style(cosmic::theme::Button::Image)
             .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
         widget::text(&toplevel.info.title)
             .horizontal_alignment(iced::alignment::Horizontal::Center)

@@ -35,6 +35,7 @@ use cosmic::{
         settings::InitialSurface,
     },
 };
+use cosmic_config::ConfigGet;
 use std::{
     collections::{HashMap, HashSet},
     mem,
@@ -117,6 +118,25 @@ enum DragSurface {
     },
 }
 
+struct Conf {
+    _cosmic_comp_config: cosmic_config::Config,
+    workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
+}
+
+impl Default for Conf {
+    fn default() -> Self {
+        let cosmic_comp_config = cosmic_config::Config::new("com.system76.CosmicComp", 1).unwrap();
+        let workspace_config = cosmic_comp_config.get("workspaces").unwrap_or_else(|err| {
+            eprintln!("Failed to read config 'worspaces': {}", err);
+            cosmic_comp_config::workspace::WorkspaceConfig::default()
+        });
+        Self {
+            _cosmic_comp_config: cosmic_comp_config,
+            workspace_config,
+        }
+    }
+}
+
 #[derive(Default)]
 struct App {
     max_surface_id: u128,
@@ -131,6 +151,7 @@ struct App {
     visible: bool,
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
     drag_surface: Option<(SurfaceId, DragSurface, Size)>,
+    conf: Conf,
 }
 
 impl App {

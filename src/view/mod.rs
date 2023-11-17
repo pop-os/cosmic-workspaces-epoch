@@ -6,6 +6,7 @@ use cosmic::{
     },
     widget,
 };
+use cosmic_comp_config::workspace::WorkspaceLayout;
 
 use crate::{wayland::CaptureImage, App, DragSurface, LayerSurface, Msg, Toplevel, Workspace};
 
@@ -13,28 +14,36 @@ pub(crate) fn layer_surface<'a>(
     app: &'a App,
     surface: &'a LayerSurface,
 ) -> cosmic::Element<'a, Msg> {
-    row![
-        workspaces_sidebar(
-            app.workspaces
-                .iter()
-                .filter(|i| i.outputs.contains(&surface.output)),
-            &surface.output
-        ),
-        toplevel_previews(app.toplevels.iter().filter(|i| {
-            if !i.info.output.contains(&surface.output) {
-                return false;
-            }
+    let layout = app.conf.workspace_config.workspace_layout;
+    let sidebar = workspaces_sidebar(
+        app.workspaces
+            .iter()
+            .filter(|i| i.outputs.contains(&surface.output)),
+        &surface.output,
+        layout,
+    );
+    let toplevels = toplevel_previews(app.toplevels.iter().filter(|i| {
+        if !i.info.output.contains(&surface.output) {
+            return false;
+        }
 
-            i.info.workspace.iter().any(|workspace| {
-                app.workspace_for_handle(workspace)
-                    .map_or(false, |x| x.is_active)
-            })
-        }))
-    ]
-    .spacing(12)
-    .height(iced::Length::Fill)
-    .width(iced::Length::Fill)
-    .into()
+        i.info.workspace.iter().any(|workspace| {
+            app.workspace_for_handle(workspace)
+                .map_or(false, |x| x.is_active)
+        })
+    }));
+    match layout {
+        WorkspaceLayout::Vertical => row![sidebar, toplevels]
+            .spacing(12)
+            .height(iced::Length::Fill)
+            .width(iced::Length::Fill)
+            .into(),
+        WorkspaceLayout::Horizontal => column![sidebar, toplevels]
+            .spacing(12)
+            .height(iced::Length::Fill)
+            .width(iced::Length::Fill)
+            .into(),
+    }
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
@@ -89,17 +98,21 @@ fn workspace_sidebar_entry<'a>(
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
     output: &'a wl_output::WlOutput,
+    layout: WorkspaceLayout,
 ) -> cosmic::Element<'a, Msg> {
+    let sidebar_entries = workspaces
+        .map(|w| workspace_sidebar_entry(w, output))
+        .collect();
+    let sidebar_entries_container: cosmic::Element<'_, _> = match layout {
+        WorkspaceLayout::Vertical => column(sidebar_entries).into(),
+        WorkspaceLayout::Horizontal => row(sidebar_entries).into(),
+    };
     widget::container(
-        iced::widget::dnd_listener(column(
-            workspaces
-                .map(|w| workspace_sidebar_entry(w, output))
-                .collect(),
-        ))
-        .on_enter(Msg::DndWorkspaceEnter)
-        .on_exit(Msg::DndWorkspaceLeave)
-        .on_drop(Msg::DndWorkspaceDrop)
-        .on_data(Msg::DndWorkspaceData),
+        iced::widget::dnd_listener(sidebar_entries_container)
+            .on_enter(Msg::DndWorkspaceEnter)
+            .on_exit(Msg::DndWorkspaceLeave)
+            .on_drop(Msg::DndWorkspaceDrop)
+            .on_data(Msg::DndWorkspaceData),
     )
     .width(iced::Length::Fill)
     .height(iced::Length::Fill)

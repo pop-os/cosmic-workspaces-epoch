@@ -5,7 +5,6 @@
 //   * Need output name to compare?
 
 // TODO: Way to activate workspace, toplevel? Close? Move?
-
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
@@ -30,6 +29,7 @@ use cctk::{
     },
     workspace::WorkspaceState,
 };
+use cosmic::cctk;
 use cosmic::iced::{
     self,
     futures::{executor::block_on, FutureExt, SinkExt},

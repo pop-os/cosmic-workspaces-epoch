@@ -7,6 +7,7 @@ use cctk::{
     toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
     wayland_client::{Connection, QueueHandle, WEnum},
 };
+use cosmic::cctk;
 
 use super::{AppData, CaptureSource, Event};
 

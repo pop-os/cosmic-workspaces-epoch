@@ -3,6 +3,7 @@ use cctk::{
     wayland_client::protocol::wl_output,
 };
 use cosmic::{
+    cctk,
     iced::{
         self,
         widget::{column, row},
@@ -36,17 +37,19 @@ pub(crate) fn layer_surface<'a>(
         })
     }));
     match layout {
-        WorkspaceLayout::Vertical => row![sidebar, toplevels]
-            .spacing(12)
-            .height(iced::Length::Fill)
-            .width(iced::Length::Fill)
-            .into(),
-        WorkspaceLayout::Horizontal => column![sidebar, toplevels]
-            .spacing(12)
-            .height(iced::Length::Fill)
-            .width(iced::Length::Fill)
-            .into(),
+        WorkspaceLayout::Vertical => widget::cosmic_container::container(
+            row![sidebar, toplevels]
+                .spacing(12)
+                .height(iced::Length::Fill)
+                .width(iced::Length::Fill),
+        ),
+        WorkspaceLayout::Horizontal => widget::cosmic_container::container(
+            column![sidebar, toplevels]
+                .spacing(12)
+                .height(iced::Length::Fill),
+        ),
     }
+    .into()
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {

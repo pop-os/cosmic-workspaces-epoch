@@ -3,6 +3,7 @@ use cctk::{
     screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
     wayland_client::{Connection, QueueHandle, WEnum},
 };
+use cosmic::cctk;
 
 use super::{AppData, Capture, CaptureImage, CaptureSource, Event};
 

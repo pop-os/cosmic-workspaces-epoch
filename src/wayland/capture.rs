@@ -7,6 +7,7 @@ use cctk::{
     screencopy::{ScreencopySessionData, ScreencopySessionDataExt},
     wayland_client::{protocol::wl_output, Proxy, QueueHandle},
 };
+use cosmic::cctk;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},

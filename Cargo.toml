@@ -6,12 +6,12 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 calloop = "0.12.3"
-cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
+clap = { version = "4", features = ["derive"] }
 cosmic-comp-config = { git = "https://github.com/pop-os/cosmic-comp" }
 env_logger = "0.10.0"
 futures-channel = "0.3.25"
 gbm = "0.14.0"
-libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland"] }
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland", "single-instance"] }
 cosmic-config = { git = "https://github.com/pop-os/libcosmic" }
 memmap2 = "0.9.0"
 tokio = "1.23.0"

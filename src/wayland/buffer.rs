@@ -7,6 +7,7 @@ use cctk::{
         Connection, Dispatch, QueueHandle, WEnum,
     },
 };
+use cosmic::cctk;
 use cosmic::iced::widget::image;
 use std::{
     os::fd::{AsFd, OwnedFd},

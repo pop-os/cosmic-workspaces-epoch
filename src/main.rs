@@ -13,7 +13,10 @@ use cctk::{
         Connection, Proxy, WEnum,
     },
 };
+use clap::Parser;
 use cosmic::{
+    app::{Application, CosmicFlags, DbusActivationDetails, Message},
+    cctk,
     iced::{
         self,
         event::wayland::{Event as WaylandEvent, OutputEvent},
@@ -22,7 +25,7 @@ use cosmic::{
             actions::data_device::{DataFromMimeType, DndIcon},
             data_device::{accept_mime_type, set_actions, start_drag},
         },
-        widget, Application, Command, Size, Subscription,
+        widget, Command, Size, Subscription,
     },
     iced_runtime::{
         command::platform_specific::wayland::layer_surface::{
@@ -30,10 +33,7 @@ use cosmic::{
         },
         window::Id as SurfaceId,
     },
-    iced_sctk::{
-        commands::layer_surface::{destroy_layer_surface, get_layer_surface},
-        settings::InitialSurface,
-    },
+    iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
 use cosmic_config::ConfigGet;
 use std::{
@@ -43,11 +43,33 @@ use std::{
 
 // accept_mime_type, finish_dnd, request_dnd_data, set_actions,
 
-mod toggle_dbus;
 mod view;
 mod wayland;
 
 static WORKSPACE_MIME: &str = "text/x.cosmic-workspace-id";
+
+#[derive(Parser, Debug, Clone)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+pub struct Args {}
+
+#[derive(Default, Debug, Clone)]
+pub struct WorkspaceCommands;
+
+impl ToString for WorkspaceCommands {
+    fn to_string(&self) -> String {
+        String::new()
+    }
+}
+
+impl CosmicFlags for Args {
+    type SubCommand = WorkspaceCommands;
+    type Args = Vec<String>;
+
+    fn action(&self) -> Option<&WorkspaceCommands> {
+        None
+    }
+}
 
 struct WorkspaceDndId(String);
 
@@ -71,7 +93,6 @@ enum Msg {
     CloseWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
-    DBus(toggle_dbus::Event),
     StartDrag(Size, DragSurface),
     SourceFinished,
     DndWorkspaceEnter(DndAction, Vec<String>, (f32, f32)),
@@ -152,6 +173,7 @@ struct App {
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
     drag_surface: Option<(SurfaceId, DragSurface, Size)>,
     conf: Conf,
+    core: cosmic::app::Core,
 }
 
 impl App {
@@ -181,7 +203,10 @@ impl App {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
 
-    fn create_surface(&mut self, output: wl_output::WlOutput) -> Command<Msg> {
+    fn create_surface(
+        &mut self,
+        output: wl_output::WlOutput,
+    ) -> Command<cosmic::app::Message<Msg>> {
         let id = self.next_surface_id();
         self.layer_surfaces.insert(
             id,
@@ -201,7 +226,10 @@ impl App {
         })
     }
 
-    fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Command<Msg> {
+    fn destroy_surface(
+        &mut self,
+        output: &wl_output::WlOutput,
+    ) -> Command<cosmic::app::Message<Msg>> {
         if let Some((id, _)) = self
             .layer_surfaces
             .iter()
@@ -215,7 +243,7 @@ impl App {
         }
     }
 
-    fn toggle(&mut self) -> Command<Msg> {
+    fn toggle(&mut self) -> Command<cosmic::app::Message<Msg>> {
         if self.visible {
             self.hide()
         } else {
@@ -223,7 +251,7 @@ impl App {
         }
     }
 
-    fn show(&mut self) -> Command<Msg> {
+    fn show(&mut self) -> Command<cosmic::app::Message<Msg>> {
         if !self.visible {
             self.visible = true;
             let outputs = self.outputs.clone();
@@ -241,7 +269,7 @@ impl App {
     }
 
     // Close all shell surfaces
-    fn hide(&mut self) -> Command<Msg> {
+    fn hide(&mut self) -> Command<cosmic::app::Message<Msg>> {
         self.visible = false;
         self.update_capture_filter();
         Command::batch(
@@ -273,22 +301,25 @@ impl App {
 
 impl Application for App {
     type Message = Msg;
-    type Theme = cosmic::Theme;
     type Executor = iced::executor::Default;
-    type Flags = ();
+    type Flags = Args;
+    const APP_ID: &'static str = "com.system76.CosmicWorkspaces";
 
-    fn new(_flags: ()) -> (Self, Command<Msg>) {
-        (Self::default(), Command::none())
+    fn init(
+        core: cosmic::app::Core,
+        _flags: Self::Flags,
+    ) -> (Self, iced::Command<Message<Self::Message>>) {
+        (
+            Self {
+                core,
+                ..Default::default()
+            },
+            Command::none(),
+        )
     }
-
-    fn title(&self) -> String {
-        String::from("cosmic-workspaces")
-    }
-
-    // TODO transparent style?
     // TODO: show panel and dock? Drag?
 
-    fn update(&mut self, message: Msg) -> Command<Msg> {
+    fn update(&mut self, message: Msg) -> Command<cosmic::app::Message<Msg>> {
         match message {
             Msg::WaylandEvent(evt) => match evt {
                 WaylandEvent::Output(evt, output) => {
@@ -443,9 +474,6 @@ impl Application for App {
                     toplevel_manager.close(&toplevel_handle);
                 }
             }
-            Msg::DBus(toggle_dbus::Event::Toggle) => {
-                return self.toggle();
-            }
             Msg::StartDrag(size, drag_surface) => {
                 match &drag_surface {
                     DragSurface::Workspace { output, name: _ } => {
@@ -487,6 +515,16 @@ impl Application for App {
 
         Command::none()
     }
+    fn dbus_activation(
+        &mut self,
+        msg: cosmic::app::DbusActivationMessage,
+    ) -> iced::Command<cosmic::app::Message<Self::Message>> {
+        if let DbusActivationDetails::Activate = msg.msg {
+            self.toggle()
+        } else {
+            Command::none()
+        }
+    }
 
     fn subscription(&self) -> Subscription<Msg> {
         let events = iced::subscription::events_with(|evt, _| {
@@ -503,14 +541,18 @@ impl Application for App {
                 None
             }
         });
-        let mut subscriptions = vec![events, toggle_dbus::subscription().map(Msg::DBus)];
+        let mut subscriptions = vec![events];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(wayland::subscription(conn).map(Msg::Wayland));
         }
         iced::Subscription::batch(subscriptions)
     }
 
-    fn view(&self, id: SurfaceId) -> cosmic::Element<Msg> {
+    fn view(&self) -> cosmic::prelude::Element<Self::Message> {
+        unreachable!()
+    }
+
+    fn view_window(&self, id: iced::window::Id) -> cosmic::prelude::Element<Self::Message> {
         use iced::widget::*;
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
@@ -534,18 +576,27 @@ impl Application for App {
         text("workspaces").into()
     }
 
-    fn close_requested(&self, id: SurfaceId) -> Msg {
-        Msg::Closed(id)
+    fn on_close_requested(&self, id: SurfaceId) -> Option<Msg> {
+        Some(Msg::Closed(id))
+    }
+
+    fn core(&self) -> &cosmic::app::Core {
+        &self.core
+    }
+
+    fn core_mut(&mut self) -> &mut cosmic::app::Core {
+        &mut self.core
     }
 }
 
 pub fn main() -> iced::Result {
     env_logger::init();
 
-    App::run(iced::Settings {
-        antialiasing: true,
-        exit_on_close_request: false,
-        initial_surface: InitialSurface::None,
-        ..iced::Settings::default()
-    })
+    cosmic::app::run_single_instance::<App>(
+        cosmic::app::Settings::default()
+            .antialiasing(true)
+            .no_main_window(true)
+            .exit_on_close(false),
+        Args::parse(),
+    )
 }

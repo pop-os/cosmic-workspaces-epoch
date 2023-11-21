@@ -8,6 +8,7 @@ Build-Depends:
   cargo,
   libegl1-mesa-dev,
   libgbm-dev,
+  libinput-dev,
   libudev-dev,
   libxkbcommon-dev,
   libwayland-dev,

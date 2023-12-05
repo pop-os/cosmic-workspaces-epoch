@@ -527,7 +527,7 @@ impl Application for App {
     }
 
     fn subscription(&self) -> Subscription<Msg> {
-        let events = iced::subscription::events_with(|evt, _| {
+        let events = iced::event::listen_with(|evt, _| {
             if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
             {
                 Some(Msg::WaylandEvent(evt))

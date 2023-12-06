@@ -23,7 +23,7 @@ use cosmic::{
         keyboard::KeyCode,
         wayland::{
             actions::data_device::{DataFromMimeType, DndIcon},
-            data_device::{accept_mime_type, set_actions, start_drag},
+            data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
         },
         widget, Command, Size, Subscription,
     },
@@ -40,8 +40,6 @@ use std::{
     collections::{HashMap, HashSet},
     mem,
 };
-
-// accept_mime_type, finish_dnd, request_dnd_data, set_actions,
 
 mod view;
 mod wayland;
@@ -499,7 +497,10 @@ impl Application for App {
                 println!("finish");
             }
             Msg::DndWorkspaceEnter(action, mimes, (_x, _y)) => {
-                if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
+                println!("Workspace enter: {:?}", (action, &mimes));
+                // XXX
+                // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
+                if mimes.iter().any(|x| x == WORKSPACE_MIME) {
                     return Command::batch(vec![
                         set_actions(DndAction::Move, DndAction::Move),
                         accept_mime_type(Some(WORKSPACE_MIME.to_string())),
@@ -507,10 +508,16 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceLeave => {
+                println!("Workspace leave");
                 return accept_mime_type(None);
             }
-            Msg::DndWorkspaceDrop => {}
-            Msg::DndWorkspaceData(_, _) => {}
+            Msg::DndWorkspaceDrop => {
+                println!("Workspace drop");
+                return request_dnd_data(WORKSPACE_MIME.to_string());
+            }
+            Msg::DndWorkspaceData(mime, data) => {
+                println!("Workspace data: {:?}", (mime, &data));
+            }
         }
 
         Command::none()

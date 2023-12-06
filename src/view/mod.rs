@@ -10,7 +10,7 @@ use cosmic::{
     },
     widget,
 };
-use cosmic_comp_config::workspace::WorkspaceLayout;
+use cosmic_comp_config::workspace::{WorkspaceAmount, WorkspaceLayout};
 
 use crate::{wayland::CaptureImage, App, DragSurface, LayerSurface, Msg, Toplevel, Workspace};
 
@@ -25,6 +25,7 @@ pub(crate) fn layer_surface<'a>(
             .filter(|i| i.outputs.contains(&surface.output)),
         &surface.output,
         layout,
+        app.conf.workspace_config.workspace_amount,
     );
     let toplevels = toplevel_previews(app.toplevels.iter().filter(|i| {
         if !i.info.output.contains(&surface.output) {
@@ -100,10 +101,15 @@ fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
+    amount: WorkspaceAmount,
 ) -> cosmic::Element<'a, Msg> {
-    let sidebar_entries = workspaces
+    let mut sidebar_entries: Vec<_> = workspaces
         .map(|w| workspace_sidebar_entry(w, output))
         .collect();
+    if amount != WorkspaceAmount::Dynamic {
+        // TODO implement
+        sidebar_entries.push(widget::button(widget::text("New Workspace")).into());
+    }
     let sidebar_entries_container: cosmic::Element<'_, _> = match layout {
         WorkspaceLayout::Vertical => column(sidebar_entries).into(),
         WorkspaceLayout::Horizontal => row(sidebar_entries).into(),
@@ -118,8 +124,6 @@ fn workspaces_sidebar<'a>(
     .width(iced::Length::Fill)
     .height(iced::Length::Fill)
     .into()
-
-    // New workspace
 }
 
 fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {

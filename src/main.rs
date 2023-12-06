@@ -9,6 +9,7 @@ use cctk::{
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
     wayland_client::{
+        backend::ObjectId,
         protocol::{wl_data_device_manager::DndAction, wl_output, wl_seat},
         Connection, Proxy, WEnum,
     },
@@ -36,6 +37,7 @@ use cosmic::{
     iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
 use cosmic_config::ConfigGet;
+use once_cell::sync::Lazy;
 use std::{
     collections::{HashMap, HashSet},
     mem,
@@ -44,7 +46,13 @@ use std::{
 mod view;
 mod wayland;
 
-static WORKSPACE_MIME: &str = "text/x.cosmic-workspace-id";
+// Include `pid` in mime. Want to drag between our surfaces, but not another
+// process, if we use Wayland object ids.
+static WORKSPACE_MIME: Lazy<String> =
+    Lazy::new(|| format!("text/x.cosmic-workspace-id-{}", std::process::id()));
+
+static TOPLEVEL_MIME: Lazy<String> =
+    Lazy::new(|| format!("text/x.cosmic-toplevel-id-{}", std::process::id()));
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -69,11 +77,26 @@ impl CosmicFlags for Args {
     }
 }
 
+struct WlDndId {
+    id: ObjectId,
+    mime_type: &'static str,
+}
+
+impl DataFromMimeType for WlDndId {
+    fn from_mime_type(&self, mime_type: &str) -> Option<Vec<u8>> {
+        if mime_type == self.mime_type {
+            Some(self.id.protocol_id().to_string().into_bytes())
+        } else {
+            None
+        }
+    }
+}
+
 struct WorkspaceDndId(String);
 
 impl DataFromMimeType for WorkspaceDndId {
     fn from_mime_type(&self, mime_type: &str) -> Option<Vec<u8>> {
-        if mime_type == WORKSPACE_MIME {
+        if mime_type == *WORKSPACE_MIME {
             Some(self.0.as_bytes().to_vec())
         } else {
             None
@@ -135,6 +158,19 @@ enum DragSurface {
         name: String,
         output: wl_output::WlOutput,
     },
+    Toplevel {
+        handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        output: wl_output::WlOutput,
+    },
+}
+
+impl DragSurface {
+    fn output(&self) -> &wl_output::WlOutput {
+        match self {
+            Self::Workspace { output, .. } => output,
+            Self::Toplevel { output, .. } => output,
+        }
+    }
 }
 
 struct Conf {
@@ -473,21 +509,36 @@ impl Application for App {
                 }
             }
             Msg::StartDrag(size, drag_surface) => {
-                match &drag_surface {
-                    DragSurface::Workspace { output, name: _ } => {
-                        let id = self.next_surface_id();
-                        if let Some((parent_id, _)) = self
-                            .layer_surfaces
-                            .iter()
-                            .find(|(_, x)| &x.output == output)
-                        {
+                let output = drag_surface.output();
+                let id = self.next_surface_id();
+                if let Some((parent_id, _)) = self
+                    .layer_surfaces
+                    .iter()
+                    .find(|(_, x)| &x.output == output)
+                {
+                    match &drag_surface {
+                        DragSurface::Workspace { output, name: _ } => {
                             self.drag_surface = Some((id, drag_surface, size));
                             return start_drag(
                                 vec![WORKSPACE_MIME.to_string()],
                                 DndAction::Move,
                                 *parent_id,
-                                Some(DndIcon::Custom(id)), // TODO store
+                                Some(DndIcon::Custom(id)),
                                 Box::new(WorkspaceDndId(String::new())),
+                            );
+                        }
+                        DragSurface::Toplevel { handle, .. } => {
+                            let handle = handle.clone();
+                            self.drag_surface = Some((id, drag_surface, size));
+                            return start_drag(
+                                vec![TOPLEVEL_MIME.to_string()],
+                                DndAction::Move,
+                                *parent_id,
+                                Some(DndIcon::Custom(id)),
+                                Box::new(WlDndId {
+                                    id: handle.id(),
+                                    mime_type: &*TOPLEVEL_MIME,
+                                }),
                             );
                         }
                     }
@@ -500,7 +551,7 @@ impl Application for App {
                 println!("Workspace enter: {:?}", (action, &mimes));
                 // XXX
                 // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
-                if mimes.iter().any(|x| x == WORKSPACE_MIME) {
+                if mimes.iter().any(|x| x == &*WORKSPACE_MIME) {
                     return Command::batch(vec![
                         set_actions(DndAction::Move, DndAction::Move),
                         accept_mime_type(Some(WORKSPACE_MIME.to_string())),
@@ -570,6 +621,16 @@ impl Application for App {
                     DragSurface::Workspace { output, name } => {
                         if let Some(workspace) = self.workspaces.iter().find(|x| &x.name == name) {
                             let item = view::workspace_item(workspace, output);
+                            return widget::container(item)
+                                .height(iced::Length::Fixed(size.height))
+                                .width(iced::Length::Fixed(size.width))
+                                .into();
+                        }
+                    }
+                    DragSurface::Toplevel { handle, .. } => {
+                        if let Some(toplevel) = self.toplevels.iter().find(|x| &x.handle == handle)
+                        {
+                            let item = view::toplevel_preview(toplevel);
                             return widget::container(item)
                                 .height(iced::Length::Fixed(size.height))
                                 .width(iced::Length::Fixed(size.width))

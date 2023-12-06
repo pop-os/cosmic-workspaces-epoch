@@ -27,16 +27,19 @@ pub(crate) fn layer_surface<'a>(
         layout,
         app.conf.workspace_config.workspace_amount,
     );
-    let toplevels = toplevel_previews(app.toplevels.iter().filter(|i| {
-        if !i.info.output.contains(&surface.output) {
-            return false;
-        }
+    let toplevels = toplevel_previews(
+        app.toplevels.iter().filter(|i| {
+            if !i.info.output.contains(&surface.output) {
+                return false;
+            }
 
-        i.info.workspace.iter().any(|workspace| {
-            app.workspace_for_handle(workspace)
-                .map_or(false, |x| x.is_active)
-        })
-    }));
+            i.info.workspace.iter().any(|workspace| {
+                app.workspace_for_handle(workspace)
+                    .map_or(false, |x| x.is_active)
+            })
+        }),
+        &surface.output,
+    );
     match layout {
         WorkspaceLayout::Vertical => widget::cosmic_container::container(
             row![sidebar, toplevels]
@@ -126,7 +129,7 @@ fn workspaces_sidebar<'a>(
     .into()
 }
 
-fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
+pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
     column![
         close_button(Msg::CloseToplevel(toplevel.handle.clone())),
         widget::button(capture_image(toplevel.img.as_ref()))
@@ -145,15 +148,35 @@ fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
     .into()
 }
 
+fn toplevel_previews_entry<'a>(
+    toplevel: &'a Toplevel,
+    output: &'a wl_output::WlOutput,
+) -> cosmic::Element<'a, Msg> {
+    iced::widget::dnd_source(toplevel_preview(toplevel))
+        .on_drag(|size| {
+            Msg::StartDrag(
+                size,
+                DragSurface::Toplevel {
+                    handle: toplevel.handle.clone(),
+                    output: output.clone(),
+                },
+            )
+        })
+        .into()
+}
+
 fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
+    output: &'a wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
-    row(toplevels.map(toplevel_preview).collect())
-        .width(iced::Length::FillPortion(4))
-        .height(iced::Length::Fill)
-        .spacing(16)
-        .align_items(iced::Alignment::Center)
-        .into()
+    row(toplevels
+        .map(|t| toplevel_previews_entry(t, output))
+        .collect())
+    .width(iced::Length::FillPortion(4))
+    .height(iced::Length::Fill)
+    .spacing(16)
+    .align_items(iced::Alignment::Center)
+    .into()
 }
 
 fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {

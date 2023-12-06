@@ -876,6 +876,7 @@ dependencies = [
  "gbm",
  "libcosmic",
  "memmap2 0.9.0",
+ "once_cell",
  "tokio",
  "wayland-protocols 0.31.0",
  "zbus",

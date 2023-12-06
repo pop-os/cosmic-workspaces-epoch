@@ -104,7 +104,13 @@ enum Msg {
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     StartDrag(Size, DragSurface),
-    DndWorkspaceEnter(DndAction, Vec<String>, (f32, f32)),
+    DndWorkspaceEnter(
+        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        wl_output::WlOutput,
+        DndAction,
+        Vec<String>,
+        (f32, f32),
+    ),
     DndWorkspaceLeave,
     DndWorkspaceDrop,
     DndWorkspaceData(String, Vec<u8>),
@@ -188,6 +194,10 @@ struct App {
     drag_surface: Option<(SurfaceId, DragSurface, Size)>,
     conf: Conf,
     core: cosmic::app::Core,
+    drop_target: Option<(
+        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        wl_output::WlOutput,
+    )>,
 }
 
 impl App {
@@ -516,7 +526,8 @@ impl Application for App {
                     );
                 }
             }
-            Msg::DndWorkspaceEnter(action, mimes, (_x, _y)) => {
+            Msg::DndWorkspaceEnter(handle, output, action, mimes, (_x, _y)) => {
+                self.drop_target = Some((handle, output));
                 // XXX
                 // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
                 if mimes.iter().any(|x| x == &*TOPLEVEL_MIME) {
@@ -527,6 +538,7 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceLeave => {
+                self.drop_target = None;
                 return accept_mime_type(None);
             }
             Msg::DndWorkspaceDrop => {
@@ -541,7 +553,9 @@ impl Application for App {
                     if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
                         if let Some(toplevel) = self.toplevels.iter().find(|t| &t.handle == handle)
                         {
-                            dbg!(toplevel);
+                            if let Some(drop_target) = &self.drop_target {
+                                dbg!(drop_target, toplevel);
+                            }
                         }
                     }
                 }

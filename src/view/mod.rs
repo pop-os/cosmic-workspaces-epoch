@@ -101,7 +101,9 @@ fn workspace_sidebar_entry<'a>(
         .into()
     */
     iced::widget::dnd_listener(workspace_item(workspace, output))
-        .on_enter(Msg::DndWorkspaceEnter)
+        .on_enter(|actions, mime, pos| {
+            Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
+        })
         .on_exit(Msg::DndWorkspaceLeave)
         .on_drop(Msg::DndWorkspaceDrop)
         .on_data(Msg::DndWorkspaceData)

@@ -41,6 +41,7 @@ use once_cell::sync::Lazy;
 use std::{
     collections::{HashMap, HashSet},
     mem,
+    str::{self, FromStr},
 };
 
 mod view;
@@ -92,18 +93,6 @@ impl DataFromMimeType for WlDndId {
     }
 }
 
-struct WorkspaceDndId(String);
-
-impl DataFromMimeType for WorkspaceDndId {
-    fn from_mime_type(&self, mime_type: &str) -> Option<Vec<u8>> {
-        if mime_type == *WORKSPACE_MIME {
-            Some(self.0.as_bytes().to_vec())
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 enum Msg {
     WaylandEvent(WaylandEvent),
@@ -115,7 +104,6 @@ enum Msg {
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     StartDrag(Size, DragSurface),
-    SourceFinished,
     DndWorkspaceEnter(DndAction, Vec<String>, (f32, f32)),
     DndWorkspaceLeave,
     DndWorkspaceDrop,
@@ -154,23 +142,15 @@ struct LayerSurface {
 
 #[derive(Clone, Debug)]
 enum DragSurface {
+    #[allow(dead_code)]
     Workspace {
-        name: String,
+        handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
         output: wl_output::WlOutput,
     },
     Toplevel {
         handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         output: wl_output::WlOutput,
     },
-}
-
-impl DragSurface {
-    fn output(&self) -> &wl_output::WlOutput {
-        match self {
-            Self::Workspace { output, .. } => output,
-            Self::Toplevel { output, .. } => output,
-        }
-    }
 }
 
 struct Conf {
@@ -509,65 +489,62 @@ impl Application for App {
                 }
             }
             Msg::StartDrag(size, drag_surface) => {
-                let output = drag_surface.output();
+                let (wl_id, output, mime_type) = match &drag_surface {
+                    DragSurface::Workspace { handle, output } => {
+                        (handle.clone().id(), output, &*WORKSPACE_MIME)
+                    }
+                    DragSurface::Toplevel { handle, output } => {
+                        (handle.clone().id(), output, &*TOPLEVEL_MIME)
+                    }
+                };
                 let id = self.next_surface_id();
                 if let Some((parent_id, _)) = self
                     .layer_surfaces
                     .iter()
                     .find(|(_, x)| &x.output == output)
                 {
-                    match &drag_surface {
-                        DragSurface::Workspace { output, name: _ } => {
-                            self.drag_surface = Some((id, drag_surface, size));
-                            return start_drag(
-                                vec![WORKSPACE_MIME.to_string()],
-                                DndAction::Move,
-                                *parent_id,
-                                Some(DndIcon::Custom(id)),
-                                Box::new(WorkspaceDndId(String::new())),
-                            );
-                        }
-                        DragSurface::Toplevel { handle, .. } => {
-                            let handle = handle.clone();
-                            self.drag_surface = Some((id, drag_surface, size));
-                            return start_drag(
-                                vec![TOPLEVEL_MIME.to_string()],
-                                DndAction::Move,
-                                *parent_id,
-                                Some(DndIcon::Custom(id)),
-                                Box::new(WlDndId {
-                                    id: handle.id(),
-                                    mime_type: &*TOPLEVEL_MIME,
-                                }),
-                            );
-                        }
-                    }
+                    self.drag_surface = Some((id, drag_surface, size));
+                    return start_drag(
+                        vec![mime_type.to_string()],
+                        DndAction::Move,
+                        *parent_id,
+                        Some(DndIcon::Custom(id)),
+                        Box::new(WlDndId {
+                            id: wl_id,
+                            mime_type,
+                        }),
+                    );
                 }
             }
-            Msg::SourceFinished => {
-                println!("finish");
-            }
             Msg::DndWorkspaceEnter(action, mimes, (_x, _y)) => {
-                println!("Workspace enter: {:?}", (action, &mimes));
                 // XXX
                 // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
-                if mimes.iter().any(|x| x == &*WORKSPACE_MIME) {
+                if mimes.iter().any(|x| x == &*TOPLEVEL_MIME) {
                     return Command::batch(vec![
                         set_actions(DndAction::Move, DndAction::Move),
-                        accept_mime_type(Some(WORKSPACE_MIME.to_string())),
+                        accept_mime_type(Some(TOPLEVEL_MIME.to_string())),
                     ]);
                 }
             }
             Msg::DndWorkspaceLeave => {
-                println!("Workspace leave");
                 return accept_mime_type(None);
             }
             Msg::DndWorkspaceDrop => {
-                println!("Workspace drop");
-                return request_dnd_data(WORKSPACE_MIME.to_string());
+                return request_dnd_data(TOPLEVEL_MIME.to_string());
             }
-            Msg::DndWorkspaceData(mime, data) => {
-                println!("Workspace data: {:?}", (mime, &data));
+            Msg::DndWorkspaceData(mime_type, data) => {
+                if mime_type == *TOPLEVEL_MIME {
+                    // XXX getting empty data?
+                    let _protocol_id = str::from_utf8(&data)
+                        .ok()
+                        .and_then(|s| u32::from_str(s).ok());
+                    if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
+                        if let Some(toplevel) = self.toplevels.iter().find(|t| &t.handle == handle)
+                        {
+                            dbg!(toplevel);
+                        }
+                    }
+                }
             }
         }
 
@@ -618,8 +595,10 @@ impl Application for App {
         if let Some((drag_id, drag_surface, size)) = &self.drag_surface {
             if drag_id == &id {
                 match drag_surface {
-                    DragSurface::Workspace { output, name } => {
-                        if let Some(workspace) = self.workspaces.iter().find(|x| &x.name == name) {
+                    DragSurface::Workspace { handle, output } => {
+                        if let Some(workspace) =
+                            self.workspaces.iter().find(|x| &x.handle == handle)
+                        {
                             let item = view::workspace_item(workspace, output);
                             return widget::container(item)
                                 .height(iced::Length::Fixed(size.height))

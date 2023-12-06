@@ -85,18 +85,26 @@ fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
+    /* TODO allow moving workspaces (needs compositor support)
     iced::widget::dnd_source(workspace_item(workspace, output))
         .on_drag(|size| {
             Msg::StartDrag(
                 size,
                 DragSurface::Workspace {
-                    name: workspace.name.to_string(),
+                    handle: workspace.handle.clone(),
                     output: output.clone(),
                 },
             )
         })
         .on_finished(Msg::SourceFinished)
         .on_cancelled(Msg::SourceFinished)
+        .into()
+    */
+    iced::widget::dnd_listener(workspace_item(workspace, output))
+        .on_enter(Msg::DndWorkspaceEnter)
+        .on_exit(Msg::DndWorkspaceLeave)
+        .on_drop(Msg::DndWorkspaceDrop)
+        .on_data(Msg::DndWorkspaceData)
         .into()
 }
 
@@ -117,16 +125,10 @@ fn workspaces_sidebar<'a>(
         WorkspaceLayout::Vertical => column(sidebar_entries).into(),
         WorkspaceLayout::Horizontal => row(sidebar_entries).into(),
     };
-    widget::container(
-        iced::widget::dnd_listener(sidebar_entries_container)
-            .on_enter(Msg::DndWorkspaceEnter)
-            .on_exit(Msg::DndWorkspaceLeave)
-            .on_drop(Msg::DndWorkspaceDrop)
-            .on_data(Msg::DndWorkspaceData),
-    )
-    .width(iced::Length::Fill)
-    .height(iced::Length::Fill)
-    .into()
+    widget::container(sidebar_entries_container)
+        .width(iced::Length::Fill)
+        .height(iced::Length::Fill)
+        .into()
 }
 
 pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {

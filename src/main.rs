@@ -180,7 +180,6 @@ impl Default for Conf {
 
 #[derive(Default)]
 struct App {
-    max_surface_id: u128,
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     outputs: Vec<Output>,
     workspaces: Vec<Workspace>,
@@ -201,11 +200,6 @@ struct App {
 }
 
 impl App {
-    fn next_surface_id(&mut self) -> SurfaceId {
-        self.max_surface_id += 1;
-        SurfaceId(self.max_surface_id)
-    }
-
     fn workspace_for_handle(
         &self,
         handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
@@ -231,7 +225,7 @@ impl App {
         &mut self,
         output: wl_output::WlOutput,
     ) -> Command<cosmic::app::Message<Msg>> {
-        let id = self.next_surface_id();
+        let id = SurfaceId::unique();
         self.layer_surfaces.insert(
             id,
             LayerSurface {
@@ -507,7 +501,7 @@ impl Application for App {
                         (handle.clone().id(), output, &*TOPLEVEL_MIME)
                     }
                 };
-                let id = self.next_surface_id();
+                let id = SurfaceId::unique();
                 if let Some((parent_id, _)) = self
                     .layer_surfaces
                     .iter()

@@ -166,6 +166,8 @@ fn toplevel_previews_entry<'a>(
                 },
             )
         })
+        .on_finished(Msg::SourceFinished)
+        .on_cancelled(Msg::SourceFinished)
         .into()
 }
 

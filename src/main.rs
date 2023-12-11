@@ -114,6 +114,7 @@ enum Msg {
     DndWorkspaceLeave,
     DndWorkspaceDrop,
     DndWorkspaceData(String, Vec<u8>),
+    SourceFinished,
 }
 
 #[derive(Debug)]
@@ -339,6 +340,7 @@ impl Application for App {
 
     fn update(&mut self, message: Msg) -> Command<cosmic::app::Message<Msg>> {
         match message {
+            Msg::SourceFinished => {}
             Msg::WaylandEvent(evt) => match evt {
                 WaylandEvent::Output(evt, output) => {
                     // TODO: Less hacky way to get connection from iced-sctk
@@ -532,8 +534,9 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceLeave => {
-                self.drop_target = None;
-                return accept_mime_type(None);
+                // XXX Doesn't work since leave for a widget may come after enter for another
+                // self.drop_target = None;
+                // return accept_mime_type(None);
             }
             Msg::DndWorkspaceDrop => {
                 return request_dnd_data(TOPLEVEL_MIME.to_string());
@@ -548,7 +551,15 @@ impl Application for App {
                         if let Some(toplevel) = self.toplevels.iter().find(|t| &t.handle == handle)
                         {
                             if let Some(drop_target) = &self.drop_target {
-                                dbg!(drop_target, toplevel);
+                                if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
+                                    if toplevel_manager.version() >= 2 {
+                                        toplevel_manager.move_to_workspace(
+                                            handle,
+                                            &drop_target.0,
+                                            &drop_target.1,
+                                        );
+                                    }
+                                }
                             }
                         }
                     }

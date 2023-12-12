@@ -60,6 +60,10 @@ impl ScreencopyHandler for AppData {
         }
 
         let mut buffer = capture.buffer.lock().unwrap();
+        if buffer.is_none() {
+            eprintln!("Error: No capture buffer?");
+            return;
+        }
         let img = unsafe { buffer.as_mut().unwrap().to_image() };
         let image = CaptureImage { img };
         match &capture.source {

@@ -120,8 +120,11 @@ fn workspaces_sidebar<'a>(
         .map(|w| workspace_sidebar_entry(w, output))
         .collect();
     if amount != WorkspaceAmount::Dynamic {
-        // TODO implement
-        sidebar_entries.push(widget::button(widget::text("New Workspace")).into());
+        sidebar_entries.push(
+            widget::button(widget::text("New Workspace"))
+                .on_press(Msg::NewWorkspace)
+                .into(),
+        );
     }
     let sidebar_entries_container: cosmic::Element<'_, _> = match layout {
         WorkspaceLayout::Vertical => column(sidebar_entries).into(),

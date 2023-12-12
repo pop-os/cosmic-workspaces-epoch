@@ -36,7 +36,8 @@ use cosmic::{
     },
     iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
-use cosmic_config::ConfigGet;
+use cosmic_comp_config::workspace::WorkspaceAmount;
+use cosmic_config::{ConfigGet, ConfigSet};
 use once_cell::sync::Lazy;
 use std::{
     collections::{HashMap, HashSet},
@@ -115,6 +116,7 @@ enum Msg {
     DndWorkspaceDrop,
     DndWorkspaceData(String, Vec<u8>),
     SourceFinished,
+    NewWorkspace,
 }
 
 #[derive(Debug)]
@@ -161,7 +163,7 @@ enum DragSurface {
 }
 
 struct Conf {
-    _cosmic_comp_config: cosmic_config::Config,
+    cosmic_comp_config: cosmic_config::Config,
     workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
 }
 
@@ -173,7 +175,7 @@ impl Default for Conf {
             cosmic_comp_config::workspace::WorkspaceConfig::default()
         });
         Self {
-            _cosmic_comp_config: cosmic_comp_config,
+            cosmic_comp_config,
             workspace_config,
         }
     }
@@ -563,6 +565,15 @@ impl Application for App {
                             }
                         }
                     }
+                }
+            }
+            Msg::NewWorkspace => {
+                if let WorkspaceAmount::Static(n) = &mut self.conf.workspace_config.workspace_amount
+                {
+                    *n += 1;
+                    self.conf
+                        .cosmic_comp_config
+                        .set("workspaces", &self.conf.workspace_config);
                 }
             }
         }

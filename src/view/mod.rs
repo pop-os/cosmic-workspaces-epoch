@@ -6,6 +6,7 @@ use cosmic::{
     cctk,
     iced::{
         self,
+        advanced::layout::flex::Axis,
         widget::{column, row},
     },
     widget,
@@ -67,15 +68,13 @@ pub(crate) fn workspace_item<'a>(
     workspace: &'a Workspace,
     output: &wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
+    let image = capture_image(workspace.img_for_output.get(output));
     column![
         close_button(Msg::CloseWorkspace(workspace.handle.clone())),
-        widget::button(column![
-            capture_image(workspace.img_for_output.get(output)),
-            widget::text(&workspace.name)
-        ])
-        .selected(workspace.is_active)
-        .style(cosmic::theme::Button::Image)
-        .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
+        widget::button(column![image, widget::text(&workspace.name)])
+            .selected(workspace.is_active)
+            .style(cosmic::theme::Button::Image)
+            .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
     .height(iced::Length::Fill)
     .into()
@@ -126,10 +125,11 @@ fn workspaces_sidebar<'a>(
                 .into(),
         );
     }
-    let sidebar_entries_container: cosmic::Element<'_, _> = match layout {
-        WorkspaceLayout::Vertical => column(sidebar_entries).into(),
-        WorkspaceLayout::Horizontal => row(sidebar_entries).into(),
+    let axis = match layout {
+        WorkspaceLayout::Vertical => Axis::Vertical,
+        WorkspaceLayout::Horizontal => Axis::Horizontal,
     };
+    let sidebar_entries_container = crate::widgets::workspace_bar(sidebar_entries, axis);
     widget::container(sidebar_entries_container)
         .width(iced::Length::Fill)
         .height(iced::Length::Fill)

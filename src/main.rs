@@ -47,6 +47,7 @@ use std::{
 
 mod view;
 mod wayland;
+mod widgets;
 
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
@@ -489,7 +490,16 @@ impl Application for App {
                     }
                 }
             }
-            Msg::CloseWorkspace(_workspace_handle) => {}
+            Msg::CloseWorkspace(_workspace_handle) => {
+                // XXX close specific workspace
+                if let WorkspaceAmount::Static(n) = &mut self.conf.workspace_config.workspace_amount
+                {
+                    *n -= 1;
+                    self.conf
+                        .cosmic_comp_config
+                        .set("workspaces", &self.conf.workspace_config);
+                }
+            }
             Msg::CloseToplevel(toplevel_handle) => {
                 // TODO confirmation?
                 if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {

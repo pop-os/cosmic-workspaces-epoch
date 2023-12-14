@@ -41,7 +41,7 @@ pub(crate) fn layer_surface<'a>(
         }),
         &surface.output,
     );
-    match layout {
+    let container = match layout {
         WorkspaceLayout::Vertical => widget::cosmic_container::container(
             row![sidebar, toplevels]
                 .spacing(12)
@@ -53,8 +53,8 @@ pub(crate) fn layer_surface<'a>(
                 .spacing(12)
                 .height(iced::Length::Fill),
         ),
-    }
-    .into()
+    };
+    crate::widgets::image_bg(container).into()
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {

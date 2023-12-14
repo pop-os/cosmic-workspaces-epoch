@@ -5,6 +5,8 @@ use cosmic::iced::{
 };
 use std::marker::PhantomData;
 
+mod image_bg;
+pub use image_bg::image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
 

@@ -27,28 +27,18 @@ pub struct ImageBg<'a, Msg> {
 }
 
 impl<'a, Msg> Widget<Msg, cosmic::Renderer> for ImageBg<'a, Msg> {
-    fn tag(&self) -> tree::Tag {
-        self.content.as_widget().tag()
-    }
+    delegate::delegate! {
+        to self.content.as_widget() {
+            fn tag(&self) -> tree::Tag;
+            fn state(&self) -> tree::State;
+            fn children(&self) -> Vec<Tree>;
+            fn width(&self) -> Length;
+            fn height(&self) -> Length;
+        }
 
-    fn state(&self) -> tree::State {
-        self.content.as_widget().state()
-    }
-
-    fn children(&self) -> Vec<Tree> {
-        self.content.as_widget().children()
-    }
-
-    fn diff(&mut self, tree: &mut Tree) {
-        self.content.as_widget_mut().diff(tree);
-    }
-
-    fn width(&self) -> Length {
-        self.content.as_widget().width()
-    }
-
-    fn height(&self) -> Length {
-        self.content.as_widget().height()
+        to self.content.as_widget_mut() {
+            fn diff(&mut self, tree: &mut Tree);
+        }
     }
 
     fn layout(

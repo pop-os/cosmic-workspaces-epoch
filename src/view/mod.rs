@@ -122,9 +122,11 @@ fn workspaces_sidebar<'a>(
         WorkspaceLayout::Vertical => Axis::Vertical,
         WorkspaceLayout::Horizontal => Axis::Horizontal,
     };
-    let sidebar_entries_container = crate::widgets::workspace_bar(sidebar_entries, axis);
-    let new_workspace_button =
-        widget::button(widget::text("New Workspace")).on_press(Msg::NewWorkspace);
+    let sidebar_entries_container =
+        widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(12.0);
+    let new_workspace_button = widget::button(widget::text("New Workspace"))
+        .on_press(Msg::NewWorkspace)
+        .width(iced::Length::Fill);
     let bar: cosmic::Element<_> = if amount != WorkspaceAmount::Dynamic {
         match layout {
             WorkspaceLayout::Vertical => {
@@ -137,10 +139,24 @@ fn workspaces_sidebar<'a>(
     } else {
         sidebar_entries_container.into()
     };
-    widget::container(bar)
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill)
-        .into()
+    widget::container(
+        widget::container(bar)
+            .width(iced::Length::Fill)
+            //.height(iced::Length::Fill)
+            .style(cosmic::theme::Container::custom(|theme| {
+                cosmic::iced_style::container::Appearance {
+                    text_color: Some(theme.cosmic().on_bg_color().into()),
+                    icon_color: Some(theme.cosmic().on_bg_color().into()),
+                    background: Some(iced::Color::from(theme.cosmic().background.base).into()),
+                    border_radius: (12.0).into(),
+                    border_width: 0.0,
+                    border_color: iced::Color::TRANSPARENT,
+                }
+            })),
+    )
+    .width(iced::Length::Fill)
+    .padding(24.0)
+    .into()
 }
 
 pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {

@@ -1,5 +1,8 @@
 use cctk::{
-    cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+    cosmic_protocols::{
+        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        workspace::v1::client::zcosmic_workspace_handle_v1,
+    },
     wayland_client::protocol::wl_output,
 };
 use cosmic::{
@@ -19,6 +22,12 @@ pub(crate) fn layer_surface<'a>(
     app: &'a App,
     surface: &'a LayerSurface,
 ) -> cosmic::Element<'a, Msg> {
+    let mut drop_target = None;
+    if let Some((workspace, output)) = &app.drop_target {
+        if output == &surface.output {
+            drop_target = Some(workspace);
+        }
+    }
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(
         app.workspaces
@@ -27,6 +36,7 @@ pub(crate) fn layer_surface<'a>(
         &surface.output,
         layout,
         app.conf.workspace_config.workspace_amount,
+        drop_target,
     );
     let toplevels = toplevel_previews(
         app.toplevels.iter().filter(|i| {
@@ -83,7 +93,15 @@ pub(crate) fn workspace_item<'a>(
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
+    is_drop_target: bool,
 ) -> cosmic::Element<'a, Msg> {
+    /* XXX
+    let mouse_interaction = if is_drop_target {
+        iced::mouse::Interaction::Crosshair
+    } else {
+        iced::mouse::Interaction::Idle
+    };
+    */
     /* TODO allow moving workspaces (needs compositor support)
     iced::widget::dnd_source(workspace_item(workspace, output))
         .on_drag(|size| {
@@ -99,6 +117,8 @@ fn workspace_sidebar_entry<'a>(
         .on_cancelled(Msg::SourceFinished)
         .into()
     */
+    //crate::widgets::mouse_interaction_wrapper(
+    //   mouse_interaction,
     iced::widget::dnd_listener(workspace_item(workspace, output))
         .on_enter(|actions, mime, pos| {
             Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
@@ -106,6 +126,7 @@ fn workspace_sidebar_entry<'a>(
         .on_exit(Msg::DndWorkspaceLeave)
         .on_drop(Msg::DndWorkspaceDrop)
         .on_data(Msg::DndWorkspaceData)
+        //)
         .into()
 }
 
@@ -114,9 +135,10 @@ fn workspaces_sidebar<'a>(
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
     amount: WorkspaceAmount,
+    drop_target: Option<&zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
-        .map(|w| workspace_sidebar_entry(w, output))
+        .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))
         .collect();
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,

@@ -9,6 +9,8 @@ mod image_bg;
 pub use image_bg::image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
+mod mouse_interaction_wrapper;
+pub use mouse_interaction_wrapper::mouse_interaction_wrapper;
 
 pub fn layout_wrapper<Msg, T: Widget<Msg, cosmic::Renderer>>(inner: T) -> LayoutWrapper<Msg, T> {
     LayoutWrapper {

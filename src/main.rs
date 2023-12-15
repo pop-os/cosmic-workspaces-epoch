@@ -494,10 +494,12 @@ impl Application for App {
                 // XXX close specific workspace
                 if let WorkspaceAmount::Static(n) = &mut self.conf.workspace_config.workspace_amount
                 {
-                    *n -= 1;
-                    self.conf
-                        .cosmic_comp_config
-                        .set("workspaces", &self.conf.workspace_config);
+                    if *n != 1 {
+                        *n -= 1;
+                        self.conf
+                            .cosmic_comp_config
+                            .set("workspaces", &self.conf.workspace_config);
+                    }
                 }
             }
             Msg::CloseToplevel(toplevel_handle) => {

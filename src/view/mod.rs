@@ -115,22 +115,29 @@ fn workspaces_sidebar<'a>(
     layout: WorkspaceLayout,
     amount: WorkspaceAmount,
 ) -> cosmic::Element<'a, Msg> {
-    let mut sidebar_entries: Vec<_> = workspaces
+    let sidebar_entries = workspaces
         .map(|w| workspace_sidebar_entry(w, output))
         .collect();
-    if amount != WorkspaceAmount::Dynamic {
-        sidebar_entries.push(
-            widget::button(widget::text("New Workspace"))
-                .on_press(Msg::NewWorkspace)
-                .into(),
-        );
-    }
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,
         WorkspaceLayout::Horizontal => Axis::Horizontal,
     };
     let sidebar_entries_container = crate::widgets::workspace_bar(sidebar_entries, axis);
-    widget::container(sidebar_entries_container)
+    let new_workspace_button =
+        widget::button(widget::text("New Workspace")).on_press(Msg::NewWorkspace);
+    let bar: cosmic::Element<_> = if amount != WorkspaceAmount::Dynamic {
+        match layout {
+            WorkspaceLayout::Vertical => {
+                column![sidebar_entries_container, new_workspace_button,].into()
+            }
+            WorkspaceLayout::Horizontal => {
+                row![sidebar_entries_container, new_workspace_button,].into()
+            }
+        }
+    } else {
+        sidebar_entries_container.into()
+    };
+    widget::container(bar)
         .width(iced::Length::Fill)
         .height(iced::Length::Fill)
         .into()

@@ -62,11 +62,11 @@ pub struct WorkspaceBar<'a, Msg> {
 
 impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
     fn width(&self) -> Length {
-        Length::Shrink
+        Length::Fill
     }
 
     fn height(&self) -> Length {
-        Length::Shrink
+        Length::Fill
     }
 
     fn layout(

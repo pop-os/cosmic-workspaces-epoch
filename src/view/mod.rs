@@ -76,7 +76,7 @@ pub(crate) fn workspace_item<'a>(
             .style(cosmic::theme::Button::Image)
             .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
-    .height(iced::Length::Fill)
+    //.height(iced::Length::Fill)
     .into()
 }
 

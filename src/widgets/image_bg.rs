@@ -1,3 +1,5 @@
+// Renders image behind widget, and otherwise passes through all behavior
+
 use cosmic::iced::{
     self,
     advanced::{
@@ -34,84 +36,49 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for ImageBg<'a, Msg> {
             fn children(&self) -> Vec<Tree>;
             fn width(&self) -> Length;
             fn height(&self) -> Length;
+            fn layout(
+                    &self,
+                    tree: &mut Tree,
+                    renderer: &cosmic::Renderer,
+                    limits: &layout::Limits,
+                ) -> layout::Node;
+            fn operate(
+                    &self,
+                    tree: &mut Tree,
+                    layout: Layout<'_>,
+                    renderer: &cosmic::Renderer,
+                    operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+                );
+            fn mouse_interaction(
+                &self,
+                tree: &Tree,
+                layout: Layout<'_>,
+                cursor: mouse::Cursor,
+                viewport: &Rectangle,
+                renderer: &cosmic::Renderer,
+            ) -> mouse::Interaction;
         }
 
         to self.content.as_widget_mut() {
             fn diff(&mut self, tree: &mut Tree);
+            fn on_event(
+                &mut self,
+                tree: &mut Tree,
+                event: Event,
+                layout: Layout<'_>,
+                cursor: mouse::Cursor,
+                renderer: &cosmic::Renderer,
+                clipboard: &mut dyn Clipboard,
+                shell: &mut Shell<'_, Msg>,
+                viewport: &Rectangle,
+            ) -> event::Status;
+            fn overlay<'b>(
+                &'b mut self,
+                tree: &'b mut Tree,
+                layout: Layout<'_>,
+                renderer: &cosmic::Renderer,
+            ) -> Option<overlay::Element<'b, Msg, cosmic::Renderer>>;
         }
-    }
-
-    fn layout(
-        &self,
-        tree: &mut Tree,
-        renderer: &cosmic::Renderer,
-        limits: &layout::Limits,
-    ) -> layout::Node {
-        let content = self.content.as_widget().layout(tree, renderer, limits);
-        //let size = limits.resolve(content.size());
-        let size = content.size();
-        layout::Node::with_children(size, vec![content])
-    }
-
-    fn operate(
-        &self,
-        tree: &mut Tree,
-        layout: Layout<'_>,
-        renderer: &cosmic::Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
-    ) {
-        operation.container(
-            None, // XXX id
-            layout.bounds(),
-            &mut |operation| {
-                self.content.as_widget().operate(
-                    tree,
-                    layout.children().next().unwrap(),
-                    renderer,
-                    operation,
-                );
-            },
-        );
-    }
-
-    fn on_event(
-        &mut self,
-        tree: &mut Tree,
-        event: Event,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        renderer: &cosmic::Renderer,
-        clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Msg>,
-        viewport: &Rectangle,
-    ) -> event::Status {
-        self.content.as_widget_mut().on_event(
-            tree,
-            event,
-            layout.children().next().unwrap(),
-            cursor,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
-        )
-    }
-
-    fn mouse_interaction(
-        &self,
-        tree: &Tree,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        viewport: &Rectangle,
-        renderer: &cosmic::Renderer,
-    ) -> mouse::Interaction {
-        self.content.as_widget().mouse_interaction(
-            tree,
-            layout.children().next().unwrap(),
-            cursor,
-            viewport,
-            renderer,
-        )
     }
 
     fn draw(
@@ -157,26 +124,8 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for ImageBg<'a, Msg> {
         );
         //});
 
-        self.content.draw(
-            state,
-            renderer,
-            theme,
-            style,
-            layout.children().next().unwrap(),
-            cursor,
-            viewport,
-        )
-    }
-
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'_>,
-        renderer: &cosmic::Renderer,
-    ) -> Option<overlay::Element<'b, Msg, cosmic::Renderer>> {
         self.content
-            .as_widget_mut()
-            .overlay(tree, layout.children().next().unwrap(), renderer)
+            .draw(state, renderer, theme, style, layout, cursor, viewport)
     }
 }
 

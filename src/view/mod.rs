@@ -171,8 +171,8 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
             )
             .style(cosmic::theme::Button::Image)
             .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
-        widget::text(&toplevel.info.title)
-            .horizontal_alignment(iced::alignment::Horizontal::Center)
+        widget::button(widget::text(&toplevel.info.title))
+            .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
     ]
     .width(iced::Length::Fill)
     .into()

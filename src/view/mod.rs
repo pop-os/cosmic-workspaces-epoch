@@ -229,6 +229,7 @@ fn toplevel_previews<'a>(
     .width(iced::Length::FillPortion(4))
     .height(iced::Length::Fill)
     .spacing(16)
+    .padding(12)
     .align_items(iced::Alignment::Center)
     .into()
 }

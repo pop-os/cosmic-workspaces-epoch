@@ -50,6 +50,7 @@ pub(crate) fn layer_surface<'a>(
             })
         }),
         &surface.output,
+        layout,
     );
     let container = match layout {
         WorkspaceLayout::Vertical => widget::cosmic_container::container(
@@ -61,7 +62,8 @@ pub(crate) fn layer_surface<'a>(
         WorkspaceLayout::Horizontal => widget::cosmic_container::container(
             column![sidebar, toplevels]
                 .spacing(12)
-                .height(iced::Length::Fill),
+                .height(iced::Length::Fill)
+                .width(iced::Length::Fill),
         ),
     };
     crate::widgets::image_bg(container).into()
@@ -173,22 +175,23 @@ fn workspaces_sidebar<'a>(
     } else {
         sidebar_entries_container.into()
     };
-    widget::container(
-        widget::container(bar)
-            .width(iced::Length::Fill)
-            //.height(iced::Length::Fill)
-            .style(cosmic::theme::Container::custom(|theme| {
-                cosmic::iced_style::container::Appearance {
-                    text_color: Some(theme.cosmic().on_bg_color().into()),
-                    icon_color: Some(theme.cosmic().on_bg_color().into()),
-                    background: Some(iced::Color::from(theme.cosmic().background.base).into()),
-                    border_radius: (12.0).into(),
-                    border_width: 0.0,
-                    border_color: iced::Color::TRANSPARENT,
-                }
-            })),
-    )
-    .width(iced::Length::Fill)
+    // Shrink?
+    let (width, height) = match layout {
+        WorkspaceLayout::Vertical => (iced::Length::Fill, iced::Length::Shrink),
+        WorkspaceLayout::Horizontal => (iced::Length::Shrink, iced::Length::Fill),
+    };
+    widget::container(widget::container(bar).width(width).height(height).style(
+        cosmic::theme::Container::custom(|theme| cosmic::iced_style::container::Appearance {
+            text_color: Some(theme.cosmic().on_bg_color().into()),
+            icon_color: Some(theme.cosmic().on_bg_color().into()),
+            background: Some(iced::Color::from(theme.cosmic().background.base).into()),
+            border_radius: (12.0).into(),
+            border_width: 0.0,
+            border_color: iced::Color::TRANSPARENT,
+        }),
+    ))
+    .width(width)
+    .height(height)
     .padding(24.0)
     .into()
 }
@@ -242,12 +245,17 @@ fn toplevel_previews_entry<'a>(
 fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
     output: &'a wl_output::WlOutput,
+    layout: WorkspaceLayout,
 ) -> cosmic::Element<'a, Msg> {
+    let (width, height) = match layout {
+        WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),
+        WorkspaceLayout::Horizontal => (iced::Length::Fill, iced::Length::FillPortion(4)),
+    };
     row(toplevels
         .map(|t| toplevel_previews_entry(t, output))
         .collect())
-    .width(iced::Length::FillPortion(4))
-    .height(iced::Length::Fill)
+    .width(width)
+    .height(height)
     .spacing(16)
     .padding(12)
     .align_items(iced::Alignment::Center)

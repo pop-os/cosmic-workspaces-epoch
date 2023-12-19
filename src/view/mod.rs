@@ -194,6 +194,13 @@ fn workspaces_sidebar<'a>(
 }
 
 pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
+    let label = widget::text(&toplevel.info.title);
+    let label = if let Some(icon) = &toplevel.icon {
+        row![widget::icon(widget::icon::from_path(icon.clone())), label].spacing(4)
+    } else {
+        row![label]
+    }
+    .padding(4);
     column![
         close_button(Msg::CloseToplevel(toplevel.handle.clone())),
         widget::button(capture_image(toplevel.img.as_ref()))
@@ -205,8 +212,7 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
             )
             .style(cosmic::theme::Button::Image)
             .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
-        widget::button(widget::text(&toplevel.info.title))
-            .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+        widget::button(label).on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
     ]
     .spacing(4)
     .align_items(iced::Alignment::Center)

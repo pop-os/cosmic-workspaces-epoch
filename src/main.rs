@@ -42,9 +42,11 @@ use once_cell::sync::Lazy;
 use std::{
     collections::{HashMap, HashSet},
     mem,
+    path::PathBuf,
     str::{self, FromStr},
 };
 
+mod desktop_info;
 mod view;
 mod wayland;
 mod widgets;
@@ -134,6 +136,7 @@ struct Toplevel {
     handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
     img: Option<wayland::CaptureImage>,
+    icon: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -436,6 +439,7 @@ impl Application for App {
                     wayland::Event::NewToplevel(handle, info) => {
                         println!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
+                            icon: desktop_info::icon_for_app_id(info.app_id.clone()),
                             handle,
                             info,
                             img: None,
@@ -445,6 +449,7 @@ impl Application for App {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
+                            toplevel.icon = desktop_info::icon_for_app_id(info.app_id.clone());
                             toplevel.info = info;
                         }
                     }

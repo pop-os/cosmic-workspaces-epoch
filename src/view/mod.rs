@@ -68,10 +68,14 @@ pub(crate) fn layer_surface<'a>(
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
-    widget::button(widget::icon::from_name("window-close-symbolic").size(16))
-        .style(cosmic::theme::Button::Destructive)
-        .on_press(on_press)
-        .into()
+    widget::container(
+        widget::button(widget::icon::from_name("window-close-symbolic").size(16))
+            .style(cosmic::theme::Button::Destructive)
+            .on_press(on_press),
+    )
+    .align_x(iced::alignment::Horizontal::Right)
+    .width(iced::Length::Fill)
+    .into()
 }
 
 pub(crate) fn workspace_item<'a>(
@@ -86,6 +90,7 @@ pub(crate) fn workspace_item<'a>(
             .style(cosmic::theme::Button::Image)
             .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
+    .spacing(4)
     //.height(iced::Length::Fill)
     .into()
 }
@@ -146,9 +151,16 @@ fn workspaces_sidebar<'a>(
     };
     let sidebar_entries_container =
         widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(12.0);
-    let new_workspace_button = widget::button(widget::text("New Workspace"))
-        .on_press(Msg::NewWorkspace)
-        .width(iced::Length::Fill);
+    let new_workspace_button = widget::button(
+        widget::container(row![
+            widget::icon::from_name("list-add-symbolic").symbolic(true),
+            widget::text("New Workspace")
+        ])
+        .width(iced::Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center),
+    )
+    .on_press(Msg::NewWorkspace)
+    .width(iced::Length::Fill);
     let bar: cosmic::Element<_> = if amount != WorkspaceAmount::Dynamic {
         match layout {
             WorkspaceLayout::Vertical => {
@@ -196,6 +208,8 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
         widget::button(widget::text(&toplevel.info.title))
             .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
     ]
+    .spacing(4)
+    .align_items(iced::Alignment::Center)
     .width(iced::Length::Fill)
     .into()
 }

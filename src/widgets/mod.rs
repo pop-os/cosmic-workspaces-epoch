@@ -1,5 +1,4 @@
 use cosmic::iced::{
-    self,
     advanced::{layout, mouse, renderer, widget::Tree, Layout, Widget},
     Length, Rectangle,
 };

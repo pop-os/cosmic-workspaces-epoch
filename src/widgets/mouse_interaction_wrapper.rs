@@ -1,16 +1,12 @@
 use cosmic::iced::{
-    self,
     advanced::{
-        layout::{self, flex::Axis},
-        mouse, overlay, renderer,
+        layout, mouse, overlay, renderer,
         widget::{tree, Operation, OperationOutputWrapper, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    widget::image::{FilterMethod, Handle},
-    ContentFit, Length, Point, Rectangle, Size, Vector,
+    Length, Rectangle,
 };
-use cosmic::iced_core::Renderer as _;
 
 use std::marker::PhantomData;
 

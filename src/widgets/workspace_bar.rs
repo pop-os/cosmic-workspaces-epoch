@@ -1,7 +1,6 @@
 // Custom varian of row/column
 
 use cosmic::iced::{
-    self,
     advanced::{
         layout::{self, flex::Axis},
         mouse, renderer,

@@ -36,7 +36,8 @@ use cosmic::{
     },
     iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
-use cosmic_comp_config::workspace::WorkspaceAmount;
+use cosmic_comp_config::{workspace::WorkspaceAmount, CosmicCompConfig};
+use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use cosmic_config::{ConfigGet, ConfigSet};
 use once_cell::sync::Lazy;
 use std::{
@@ -58,6 +59,16 @@ static WORKSPACE_MIME: Lazy<String> =
 
 static TOPLEVEL_MIME: Lazy<String> =
     Lazy::new(|| format!("text/x.cosmic-toplevel-id-{}", std::process::id()));
+
+/*
+#[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
+struct CompConfig {
+    workspaces: cosmic_comp_config::workspace::WorkspaceConfig,
+    input_default: cosmic_comp_config::input::InputConfig,
+    input_touchpad: cosmic_comp_config::input::InputConfig,
+    input_devices: HashMap<String, cosmic_comp_config::input::InputConfig>,
+}
+*/
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -120,6 +131,7 @@ enum Msg {
     DndWorkspaceData(String, Vec<u8>),
     SourceFinished,
     NewWorkspace,
+    CompConfig(CosmicCompConfig),
 }
 
 #[derive(Debug)]
@@ -174,10 +186,7 @@ struct Conf {
 impl Default for Conf {
     fn default() -> Self {
         let cosmic_comp_config = cosmic_config::Config::new("com.system76.CosmicComp", 1).unwrap();
-        let workspace_config = cosmic_comp_config.get("workspaces").unwrap_or_else(|err| {
-            eprintln!("Failed to read config 'worspaces': {}", err);
-            cosmic_comp_config::workspace::WorkspaceConfig::default()
-        });
+        let workspace_config = Default::default();
         Self {
             cosmic_comp_config,
             workspace_config,
@@ -593,6 +602,10 @@ impl Application for App {
                         .set("workspaces", &self.conf.workspace_config);
                 }
             }
+            Msg::CompConfig(c) => {
+                dbg!(&c);
+                self.conf.workspace_config = c.workspaces;
+            }
         }
 
         Command::none()
@@ -623,7 +636,19 @@ impl Application for App {
                 None
             }
         });
-        let mut subscriptions = vec![events];
+        let config_subscription = cosmic_config::config_subscription::<_, CosmicCompConfig>(
+            "config-sub",
+            "com.system76.CosmicComp".into(),
+            1,
+        )
+        .map(|(_, res)| match res {
+            Ok(c) => Msg::CompConfig(c),
+            Err((errs, c)) => {
+                log::error!("Failed to load compositor config: {:?}", errs);
+                Msg::CompConfig(c)
+            }
+        });
+        let mut subscriptions = vec![events, config_subscription];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(wayland::subscription(conn).map(Msg::Wayland));
         }

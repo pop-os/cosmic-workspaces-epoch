@@ -156,7 +156,7 @@ fn workspaces_sidebar<'a>(
     let new_workspace_button = widget::button(
         widget::container(row![
             widget::icon::from_name("list-add-symbolic").symbolic(true),
-            widget::text("New Workspace")
+            widget::text(fl!("new-workspace"))
         ])
         .width(iced::Length::Fill)
         .align_x(iced::alignment::Horizontal::Center),

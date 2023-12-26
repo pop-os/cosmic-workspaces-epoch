@@ -24,6 +24,12 @@ once_cell = "1.18.0"
 delegate = "0.11.0"
 itertools = "0.12.0"
 log = "0.4.20"
+i18n-embed-fl = "0.6.7"
+rust-embed = "6.6.1"
+
+[dependencies.i18n-embed]
+version = "0.13.9"
+features = ["fluent-system", "desktop-requester"]
 
 [profile.dev]
 # Not usable at opt-level 0, at least with software renderer

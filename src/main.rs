@@ -1,3 +1,6 @@
+// Copyright 2023 System76 <info@system76.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 #![allow(clippy::single_match)]
 
 use cctk::{
@@ -39,6 +42,7 @@ use cosmic::{
 use cosmic_comp_config::{workspace::WorkspaceAmount, CosmicCompConfig};
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use cosmic_config::{ConfigGet, ConfigSet};
+use i18n_embed::DesktopLanguageRequester;
 use once_cell::sync::Lazy;
 use std::{
     collections::{HashMap, HashSet},
@@ -48,9 +52,13 @@ use std::{
 };
 
 mod desktop_info;
+#[macro_use]
+mod localize;
 mod view;
 mod wayland;
 mod widgets;
+
+struct CosmicWorkspacesConfig {}
 
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
@@ -714,8 +722,18 @@ impl Application for App {
     }
 }
 
+fn init_localizer() {
+    let localizer = crate::localize::localizer();
+    let requested_languages = DesktopLanguageRequester::requested_languages();
+
+    if let Err(why) = localizer.select(&requested_languages) {
+        log::error!("error while loading fluent localizations: {}", why);
+    }
+}
+
 pub fn main() -> iced::Result {
     env_logger::init();
+    init_localizer();
 
     cosmic::app::run_single_instance::<App>(
         cosmic::app::Settings::default()

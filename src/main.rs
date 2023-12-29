@@ -41,7 +41,7 @@ use cosmic::{
 };
 use cosmic_comp_config::{workspace::WorkspaceAmount, CosmicCompConfig};
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
-use cosmic_config::{ConfigGet, ConfigSet};
+use cosmic_config::ConfigSet;
 use i18n_embed::DesktopLanguageRequester;
 use once_cell::sync::Lazy;
 use std::{
@@ -58,7 +58,11 @@ mod view;
 mod wayland;
 mod widgets;
 
-struct CosmicWorkspacesConfig {}
+#[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
+struct CosmicWorkspacesConfig {
+    show_workspace_number: bool,
+    show_workspace_name: bool,
+}
 
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
@@ -67,16 +71,6 @@ static WORKSPACE_MIME: Lazy<String> =
 
 static TOPLEVEL_MIME: Lazy<String> =
     Lazy::new(|| format!("text/x.cosmic-toplevel-id-{}", std::process::id()));
-
-/*
-#[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
-struct CompConfig {
-    workspaces: cosmic_comp_config::workspace::WorkspaceConfig,
-    input_default: cosmic_comp_config::input::InputConfig,
-    input_touchpad: cosmic_comp_config::input::InputConfig,
-    input_devices: HashMap<String, cosmic_comp_config::input::InputConfig>,
-}
-*/
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -140,6 +134,7 @@ enum Msg {
     SourceFinished,
     NewWorkspace,
     CompConfig(CosmicCompConfig),
+    Config(CosmicWorkspacesConfig),
 }
 
 #[derive(Debug)]
@@ -189,15 +184,16 @@ enum DragSurface {
 struct Conf {
     cosmic_comp_config: cosmic_config::Config,
     workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
+    config: CosmicWorkspacesConfig,
 }
 
 impl Default for Conf {
     fn default() -> Self {
         let cosmic_comp_config = cosmic_config::Config::new("com.system76.CosmicComp", 1).unwrap();
-        let workspace_config = Default::default();
         Self {
             cosmic_comp_config,
-            workspace_config,
+            workspace_config: Default::default(),
+            config: Default::default(),
         }
     }
 }
@@ -610,8 +606,10 @@ impl Application for App {
                         .set("workspaces", &self.conf.workspace_config);
                 }
             }
+            Msg::Config(c) => {
+                self.conf.config = c;
+            }
             Msg::CompConfig(c) => {
-                dbg!(&c);
                 self.conf.workspace_config = c.workspaces;
             }
         }
@@ -644,8 +642,20 @@ impl Application for App {
                 None
             }
         });
-        let config_subscription = cosmic_config::config_subscription::<_, CosmicCompConfig>(
+        let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(
             "config-sub",
+            "com.system76.CosmicComp".into(),
+            1,
+        )
+        .map(|(_, res)| match res {
+            Ok(c) => Msg::Config(c),
+            Err((errs, c)) => {
+                log::error!("Failed to load workspaces config: {:?}", errs);
+                Msg::Config(c)
+            }
+        });
+        let comp_config_subscription = cosmic_config::config_subscription::<_, CosmicCompConfig>(
+            "comp-config-sub",
             "com.system76.CosmicComp".into(),
             1,
         )
@@ -656,7 +666,7 @@ impl Application for App {
                 Msg::CompConfig(c)
             }
         });
-        let mut subscriptions = vec![events, config_subscription];
+        let mut subscriptions = vec![events, config_subscription, comp_config_subscription];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(wayland::subscription(conn).map(Msg::Wayland));
         }

@@ -644,7 +644,7 @@ impl Application for App {
         });
         let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(
             "config-sub",
-            "com.system76.CosmicComp".into(),
+            "com.system76.CosmicWorkspaces".into(),
             1,
         )
         .map(|(_, res)| match res {

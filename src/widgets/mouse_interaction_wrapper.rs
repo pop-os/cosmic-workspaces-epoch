@@ -1,7 +1,7 @@
 use cosmic::iced::{
     advanced::{
         layout, mouse, overlay, renderer,
-        widget::{tree, Operation, OperationOutputWrapper, Tree},
+        widget::{tree, Id, Operation, OperationOutputWrapper, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
@@ -58,6 +58,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for MouseInteractionWrapper<'a, Msg>
                 cursor: mouse::Cursor,
                 viewport: &Rectangle,
             );
+            fn id(&self) -> Option<Id>;
         }
 
         to self.content.as_widget_mut() {
@@ -79,6 +80,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for MouseInteractionWrapper<'a, Msg>
                 layout: Layout<'_>,
                 renderer: &cosmic::Renderer,
             ) -> Option<overlay::Element<'b, Msg, cosmic::Renderer>>;
+            fn set_id(&mut self, id: Id);
         }
     }
 

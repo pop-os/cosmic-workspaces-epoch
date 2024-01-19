@@ -1,5 +1,5 @@
-// Custom varian of row/column
-// Gives each child widget a maximim size on main axis of total/n
+// TODO rename
+// combine widgets
 
 use cosmic::iced::{
     advanced::{
@@ -43,30 +43,31 @@ impl AxisExt for Axis {
     }
 }
 
-pub fn workspace_bar<'a, Msg>(
+pub fn workspace_item<'a, Msg>(
     children: Vec<cosmic::Element<'a, Msg>>,
     axis: Axis,
-) -> WorkspaceBar<'a, Msg> {
-    WorkspaceBar {
+) -> WorkspaceItem<'a, Msg> {
+    WorkspaceItem {
         axis,
         children,
         _msg: PhantomData,
     }
 }
 
-pub struct WorkspaceBar<'a, Msg> {
+pub struct WorkspaceItem<'a, Msg> {
     axis: Axis,
     children: Vec<cosmic::Element<'a, Msg>>,
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
+impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceItem<'a, Msg> {
     fn width(&self) -> Length {
         Length::Fill
     }
 
     fn height(&self) -> Length {
-        Length::Fill
+        // TODO Make depend on orientation or drop that option
+        Length::Shrink
     }
 
     fn layout(
@@ -75,25 +76,19 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        /*
-        layout::flex::resolve(
-            layout::flex::Axis::Vertical,
-            renderer,
-            &limits,
-            iced::Padding::ZERO,
-            0.0, // spacing
-            iced::Alignment::Start,
-            &self.children,
-            &mut tree.children,
-        )
-        */
-
-        if self.children.is_empty() {
-            return layout::Node::new(limits.min());
-        }
-
-        let max_main = self.axis.main(limits.max()) / self.children().len() as f32;
+        let max_main = self.axis.main(limits.max());
         let max_cross = self.axis.cross(limits.max());
+
+        // XXX cleaner solution
+        // Get layout of main widget, to set overall cross axis size
+        let (max_width, max_height) = self.axis.pack(max_main, max_cross);
+        let child_limits = layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
+        let layout = self.children[1].layout(tree, renderer, &child_limits);
+
+        let max_cross = self.axis.cross(layout.size());
+
+        // XXX sill allocating maximum main axis?
+        // - what was it doing before?
         let mut total_main = 0.0;
         let nodes = self
             .children
@@ -104,7 +99,9 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
                 let mut layout = child.layout(tree, renderer, &child_limits);
-                let (x, y) = self.axis.pack(total_main, 0.0);
+                // Center on cross axis
+                let cross = ((max_cross - self.axis.cross(layout.size())) / 2.).max(0.);
+                let (x, y) = self.axis.pack(total_main, cross);
                 layout.move_to(Point::new(x, y));
                 total_main += self.axis.main(layout.size());
                 layout
@@ -220,8 +217,8 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
     }
 }
 
-impl<'a, Msg: 'static> From<WorkspaceBar<'a, Msg>> for cosmic::Element<'a, Msg> {
-    fn from(widget: WorkspaceBar<'a, Msg>) -> Self {
+impl<'a, Msg: 'static> From<WorkspaceItem<'a, Msg>> for cosmic::Element<'a, Msg> {
+    fn from(widget: WorkspaceItem<'a, Msg>) -> Self {
         cosmic::Element::new(widget)
     }
 }

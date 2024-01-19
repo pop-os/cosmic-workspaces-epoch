@@ -1,5 +1,10 @@
 use cosmic::iced::{
-    advanced::{layout, mouse, renderer, widget::Tree, Layout, Widget},
+    advanced::{
+        layout, mouse, overlay, renderer,
+        widget::{tree, Id, Operation, OperationOutputWrapper, Tree},
+        Clipboard, Layout, Shell, Widget,
+    },
+    event::{self, Event},
     Length, Rectangle,
 };
 use std::marker::PhantomData;
@@ -8,32 +13,28 @@ mod image_bg;
 pub use image_bg::image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
+mod workspace_item;
+pub use workspace_item::workspace_item;
 mod mouse_interaction_wrapper;
 pub use mouse_interaction_wrapper::mouse_interaction_wrapper;
 
-pub fn layout_wrapper<Msg, T: Widget<Msg, cosmic::Renderer>>(inner: T) -> LayoutWrapper<Msg, T> {
+trait Foo {}
+
+pub fn layout_wrapper<'a, Msg, T: Into<cosmic::Element<'a, Msg>>>(
+    inner: T,
+) -> LayoutWrapper<'a, Msg> {
     LayoutWrapper {
-        inner,
+        content: inner.into(),
         _msg: PhantomData,
     }
 }
 
-pub struct LayoutWrapper<Msg, T: Widget<Msg, cosmic::Renderer>> {
-    inner: T,
+pub struct LayoutWrapper<'a, Msg> {
+    content: cosmic::Element<'a, Msg>,
     _msg: PhantomData<Msg>,
 }
 
-impl<Msg, T: Widget<Msg, cosmic::Renderer>> Widget<Msg, cosmic::Renderer>
-    for LayoutWrapper<Msg, T>
-{
-    fn width(&self) -> Length {
-        self.inner.width()
-    }
-
-    fn height(&self) -> Length {
-        self.inner.height()
-    }
-
+impl<'a, Msg> Widget<Msg, cosmic::Renderer> for LayoutWrapper<'a, Msg> {
     fn layout(
         &self,
         tree: &mut Tree,
@@ -41,32 +42,70 @@ impl<Msg, T: Widget<Msg, cosmic::Renderer>> Widget<Msg, cosmic::Renderer>
         limits: &layout::Limits,
     ) -> layout::Node {
         dbg!(limits);
-        dbg!(self.inner.layout(tree, renderer, limits))
+        dbg!(self.content.as_widget().layout(tree, renderer, limits))
     }
 
-    fn draw(
-        &self,
-        state: &Tree,
-        renderer: &mut cosmic::Renderer,
-        theme: &cosmic::Theme,
-        style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        viewport: &Rectangle,
-    ) {
-        self.inner
-            .draw(state, renderer, theme, style, layout, cursor, viewport)
-    }
+    delegate::delegate! {
+        to self.content.as_widget() {
+            fn tag(&self) -> tree::Tag;
+            fn state(&self) -> tree::State;
+            fn children(&self) -> Vec<Tree>;
+            fn width(&self) -> Length;
+            fn height(&self) -> Length;
+            fn operate(
+                    &self,
+                    tree: &mut Tree,
+                    layout: Layout<'_>,
+                    renderer: &cosmic::Renderer,
+                    operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+                );
+            fn draw(
+                &self,
+                state: &Tree,
+                renderer: &mut cosmic::Renderer,
+                theme: &cosmic::Theme,
+                style: &renderer::Style,
+                layout: Layout<'_>,
+                cursor: mouse::Cursor,
+                viewport: &Rectangle,
+            );
+            fn mouse_interaction(
+                &self,
+                _tree: &Tree,
+                _layout: Layout<'_>,
+                _cursor: mouse::Cursor,
+                _viewport: &Rectangle,
+                _renderer: &cosmic::Renderer,
+            ) -> mouse::Interaction;
+            fn id(&self) -> Option<Id>;
+        }
 
-    fn children(&self) -> Vec<Tree> {
-        self.inner.children()
+        to self.content.as_widget_mut() {
+            fn diff(&mut self, tree: &mut Tree);
+            fn on_event(
+                &mut self,
+                tree: &mut Tree,
+                event: Event,
+                layout: Layout<'_>,
+                cursor: mouse::Cursor,
+                renderer: &cosmic::Renderer,
+                clipboard: &mut dyn Clipboard,
+                shell: &mut Shell<'_, Msg>,
+                viewport: &Rectangle,
+            ) -> event::Status;
+            fn overlay<'b>(
+                &'b mut self,
+                tree: &'b mut Tree,
+                layout: Layout<'_>,
+                renderer: &cosmic::Renderer,
+            ) -> Option<overlay::Element<'b, Msg, cosmic::Renderer>>;
+            fn set_id(&mut self, id: Id);
+        }
     }
 }
 
-impl<'a, Msg: 'a, T: Widget<Msg, cosmic::Renderer> + 'a> From<LayoutWrapper<Msg, T>>
-    for cosmic::Element<'a, Msg>
-{
-    fn from(widget: LayoutWrapper<Msg, T>) -> Self {
+impl<'a, Msg: 'a> From<LayoutWrapper<'a, Msg>> for cosmic::Element<'a, Msg> {
+    fn from(widget: LayoutWrapper<'a, Msg>) -> Self {
         cosmic::Element::new(widget)
     }
 }

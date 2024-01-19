@@ -205,22 +205,28 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
         row![label]
     }
     .padding(4);
-    column![
-        close_button(Msg::CloseToplevel(toplevel.handle.clone())),
-        widget::button(capture_image(toplevel.img.as_ref()))
-            .selected(
-                toplevel
-                    .info
-                    .state
-                    .contains(&zcosmic_toplevel_handle_v1::State::Activated)
-            )
-            .style(cosmic::theme::Button::Image)
-            .on_press(Msg::ActivateToplevel(toplevel.handle.clone())),
-        widget::button(label).on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
-    ]
-    .spacing(4)
-    .align_items(iced::Alignment::Center)
-    .width(iced::Length::Fill)
+    crate::widgets::workspace_item(
+        vec![
+            close_button(Msg::CloseToplevel(toplevel.handle.clone())).into(),
+            widget::button(capture_image(toplevel.img.as_ref()))
+                .selected(
+                    toplevel
+                        .info
+                        .state
+                        .contains(&zcosmic_toplevel_handle_v1::State::Activated),
+                )
+                .style(cosmic::theme::Button::Image)
+                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+                .into(),
+            widget::button(label)
+                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+                .into(),
+        ],
+        Axis::Vertical,
+    )
+    //.spacing(4)
+    //.align_items(iced::Alignment::Center)
+    //.width(iced::Length::Fill)
     .into()
 }
 
@@ -252,15 +258,16 @@ fn toplevel_previews<'a>(
         WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),
         WorkspaceLayout::Horizontal => (iced::Length::Fill, iced::Length::FillPortion(4)),
     };
-    row(toplevels
+    let entries = toplevels
         .map(|t| toplevel_previews_entry(t, output))
-        .collect())
-    .width(width)
-    .height(height)
-    .spacing(16)
-    .padding(12)
-    .align_items(iced::Alignment::Center)
-    .into()
+        .collect();
+    row(entries)
+        .width(width)
+        .height(height)
+        .spacing(16)
+        .padding(12)
+        .align_items(iced::Alignment::Center)
+        .into()
 }
 
 fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {

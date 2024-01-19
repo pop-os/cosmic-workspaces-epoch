@@ -40,8 +40,8 @@ use cosmic::{
     iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
 use cosmic_comp_config::{workspace::WorkspaceAmount, CosmicCompConfig};
-use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use cosmic_config::ConfigSet;
+use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
 use once_cell::sync::Lazy;
 use std::{
@@ -647,24 +647,22 @@ impl Application for App {
             "com.system76.CosmicWorkspaces".into(),
             1,
         )
-        .map(|(_, res)| match res {
-            Ok(c) => Msg::Config(c),
-            Err((errs, c)) => {
-                log::error!("Failed to load workspaces config: {:?}", errs);
-                Msg::Config(c)
+        .map(|update| {
+            if !update.errors.is_empty() {
+                log::error!("Failed to load workspaces config: {:?}", update.errors);
             }
+            Msg::Config(update.config)
         });
         let comp_config_subscription = cosmic_config::config_subscription::<_, CosmicCompConfig>(
             "comp-config-sub",
             "com.system76.CosmicComp".into(),
             1,
         )
-        .map(|(_, res)| match res {
-            Ok(c) => Msg::CompConfig(c),
-            Err((errs, c)) => {
-                log::error!("Failed to load compositor config: {:?}", errs);
-                Msg::CompConfig(c)
+        .map(|update| {
+            if !update.errors.is_empty() {
+                log::error!("Failed to load compositor config: {:?}", update.errors);
             }
+            Msg::CompConfig(update.config)
         });
         let mut subscriptions = vec![events, config_subscription, comp_config_subscription];
         if let Some(conn) = self.conn.clone() {

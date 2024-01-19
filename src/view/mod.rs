@@ -261,12 +261,14 @@ fn toplevel_previews<'a>(
     let entries = toplevels
         .map(|t| toplevel_previews_entry(t, output))
         .collect();
-    row(entries)
+    //row(entries)
+    widget::container(crate::widgets::toplevels(entries))
+        .align_x(iced::alignment::Horizontal::Center)
         .width(width)
         .height(height)
-        .spacing(16)
+        //.spacing(16)
         .padding(12)
-        .align_items(iced::Alignment::Center)
+        //.align_items(iced::Alignment::Center)
         .into()
 }
 

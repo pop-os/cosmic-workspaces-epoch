@@ -17,6 +17,8 @@ mod workspace_item;
 pub use workspace_item::workspace_item;
 mod mouse_interaction_wrapper;
 pub use mouse_interaction_wrapper::mouse_interaction_wrapper;
+mod toplevels;
+pub use toplevels::toplevels;
 
 trait Foo {}
 

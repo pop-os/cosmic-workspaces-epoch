@@ -82,7 +82,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for Toplevels<'a, Msg> {
         // XXX sill allocating maximum main axis?
         // - what was it doing before?
         let mut total_main = 0.0;
-        let first = false;
+        let mut first = true;
         let nodes = self
             .children
             .iter()
@@ -91,6 +91,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for Toplevels<'a, Msg> {
                 if !first {
                     total_main += spacing as f32;
                 }
+                first = false;
                 let (max_width, max_height) = self.axis.pack(max_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));

@@ -73,10 +73,23 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for Toplevels<'a, Msg> {
         // TODO configurable
         let spacing = 16;
 
-        // TODO scaling
-        let total_spacing = 0.max(spacing * (self.children.len() - 1)) as f32;
-        let max_main =
-            (self.axis.main(limits.max()) - total_spacing) / self.children().len() as f32;
+        // Get total requested main axis length if widget could have all the space
+        let total_spacing = spacing * (self.children.len() - 1).max(0);
+        let requested_mains = self
+            .children
+            .iter()
+            .zip(tree.children.iter_mut())
+            .map(|(child, tree)| {
+                let child_limits = layout::Limits::new(Size::ZERO, limits.max());
+                let mut layout = child.layout(tree, renderer, &child_limits);
+                self.axis.main(layout.size())
+            })
+            .collect::<Vec<_>>();
+        let requested_main_total: f32 = requested_mains.iter().sum::<f32>() + total_spacing as f32;
+
+        let scale_factor = (self.axis.main(limits.max()) / requested_main_total).min(1.0);
+        dbg!(scale_factor);
+
         let max_cross = self.axis.cross(limits.max());
 
         // XXX sill allocating maximum main axis?
@@ -87,11 +100,15 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for Toplevels<'a, Msg> {
             .children
             .iter()
             .zip(tree.children.iter_mut())
-            .map(|(child, tree)| {
+            .zip(requested_mains.iter())
+            .map(|((child, tree), requested_main)| {
                 if !first {
                     total_main += spacing as f32;
                 }
                 first = false;
+
+                let max_main = requested_main * scale_factor;
+
                 let (max_width, max_height) = self.axis.pack(max_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));

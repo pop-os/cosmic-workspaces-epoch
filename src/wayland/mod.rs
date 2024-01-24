@@ -149,7 +149,7 @@ impl AppData {
             let matches = self.matches_capture_filter(source);
             let running = capture.running();
             if matches {
-                capture.start(&self.conn);
+                capture.start(&self.screencopy_state.screencopy_manager, &self.qh);
             } else {
                 capture.stop();
             }
@@ -165,7 +165,7 @@ impl AppData {
                 let capture =
                     Capture::new(source, &self.screencopy_state.screencopy_manager, &self.qh);
                 if matches {
-                    capture.start(&self.conn);
+                    capture.start(&self.screencopy_state.screencopy_manager, &self.qh);
                 }
                 capture
             });

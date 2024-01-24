@@ -34,9 +34,7 @@ impl ScreencopyHandler for AppData {
 
         drop(buffer);
 
-        if !capture.running() {
-            capture.attach_buffer_and_commit(conn);
-        }
+        capture.attach_buffer_and_commit(conn);
     }
 
     fn ready(
@@ -72,8 +70,6 @@ impl ScreencopyHandler for AppData {
             }
         };
 
-        capture.set_capturing(false);
-
         drop(buffer);
 
         // Capture again on damage
@@ -90,7 +86,6 @@ impl ScreencopyHandler for AppData {
         // TODO
         println!("Failed");
         if let Some(capture) = Capture::for_session(session) {
-            capture.set_capturing(false);
             capture.stop();
         }
     }

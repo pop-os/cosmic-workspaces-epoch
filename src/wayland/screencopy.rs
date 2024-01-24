@@ -19,11 +19,10 @@ impl ScreencopyHandler for AppData {
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
         buffer_infos: &[BufferInfo],
     ) {
-        let capture = Capture::for_session(session).unwrap();
-        if !capture.running() {
+        let Some(capture) = Capture::for_session(session) else {
             session.destroy();
             return;
-        }
+        };
 
         let mut buffer = capture.buffer.lock().unwrap();
         // Create new buffer if none, or different format
@@ -53,11 +52,10 @@ impl ScreencopyHandler for AppData {
         _qh: &QueueHandle<Self>,
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     ) {
-        let capture = Capture::for_session(session).unwrap();
-        if !capture.running() {
+        let Some(capture) = Capture::for_session(session) else {
             session.destroy();
             return;
-        }
+        };
 
         let mut buffer = capture.buffer.lock().unwrap();
         if buffer.is_none() {
@@ -95,8 +93,6 @@ impl ScreencopyHandler for AppData {
         println!("Failed");
         if let Some(capture) = Capture::for_session(session) {
             capture.cancel();
-        } else {
-            println!("Capture not found?")
         }
         session.destroy();
     }

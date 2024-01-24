@@ -11,7 +11,7 @@ use cosmic::cctk;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, Weak,
 };
 
 use super::{AppData, Buffer};
@@ -49,10 +49,16 @@ impl Capture {
         }
     }
 
+    // Returns `None` if capture is no longer active
+    // (or if `session` wasn't created with `SessionData`)
     pub fn for_session(
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
-    ) -> Option<&Arc<Self>> {
-        Some(&session.data::<SessionData>()?.capture)
+    ) -> Option<Arc<Self>> {
+        session
+            .data::<SessionData>()?
+            .capture
+            .upgrade()
+            .filter(|c| c.running())
     }
 
     pub fn running(&self) -> bool {
@@ -79,7 +85,7 @@ impl Capture {
 
         let udata = SessionData {
             session_data: Default::default(),
-            capture: self.clone(),
+            capture: Arc::downgrade(self),
         };
         match &self.source {
             CaptureSource::Toplevel(toplevel) => {
@@ -105,7 +111,7 @@ impl Capture {
 
 struct SessionData {
     session_data: ScreencopySessionData,
-    capture: Arc<Capture>,
+    capture: Weak<Capture>,
 }
 
 impl ScreencopySessionDataExt for SessionData {

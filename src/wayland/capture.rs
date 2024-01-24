@@ -5,7 +5,7 @@ use cctk::{
         workspace::v1::client::zcosmic_workspace_handle_v1,
     },
     screencopy::{ScreencopySessionData, ScreencopySessionDataExt},
-    wayland_client::{protocol::wl_output, Proxy, QueueHandle},
+    wayland_client::{protocol::wl_output, Connection, Proxy, QueueHandle},
 };
 use cosmic::cctk;
 
@@ -37,75 +37,119 @@ pub struct Capture {
     pub source: CaptureSource,
     first_frame: AtomicBool,
     running: AtomicBool,
+    capturing: AtomicBool,
+    session: zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
 }
 
 impl Capture {
-    pub fn new(source: CaptureSource) -> Capture {
-        Capture {
-            buffer: Mutex::new(None),
-            source,
-            first_frame: AtomicBool::new(true),
-            running: AtomicBool::new(false),
-        }
+    pub fn new(
+        source: CaptureSource,
+        manager: &zcosmic_screencopy_manager_v1::ZcosmicScreencopyManagerV1,
+        qh: &QueueHandle<AppData>,
+    ) -> Arc<Capture> {
+        Arc::new_cyclic(|weak_capture| {
+            let udata = SessionData {
+                session_data: Default::default(),
+                capture: weak_capture.clone(),
+            };
+
+            let session = match &source {
+                CaptureSource::Toplevel(toplevel) => manager.capture_toplevel(
+                    toplevel,
+                    zcosmic_screencopy_manager_v1::CursorMode::Hidden,
+                    qh,
+                    udata,
+                ),
+                CaptureSource::Workspace(workspace, output) => manager.capture_workspace(
+                    workspace,
+                    output,
+                    zcosmic_screencopy_manager_v1::CursorMode::Hidden,
+                    qh,
+                    udata,
+                ),
+            };
+
+            Capture {
+                buffer: Mutex::new(None),
+                source,
+                first_frame: AtomicBool::new(true),
+                running: AtomicBool::new(false),
+                capturing: AtomicBool::new(false),
+                session,
+            }
+        })
     }
 
-    // Returns `None` if capture is no longer active
+    // Returns `None` if capture is destroyed
     // (or if `session` wasn't created with `SessionData`)
     pub fn for_session(
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     ) -> Option<Arc<Self>> {
-        session
-            .data::<SessionData>()?
-            .capture
-            .upgrade()
-            .filter(|c| c.running())
+        session.data::<SessionData>()?.capture.upgrade()
     }
 
     pub fn running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
 
+    // Buffer is currently attached and commited for capture by server
+    pub fn capturing(&self) -> bool {
+        self.capturing.load(Ordering::SeqCst)
+    }
+
+    pub fn set_capturing(&self, value: bool) {
+        if value {
+            self.first_frame.store(false, Ordering::SeqCst);
+        }
+        self.capturing.store(value, Ordering::SeqCst);
+    }
+
     pub fn first_frame(&self) -> bool {
         self.first_frame.load(Ordering::SeqCst)
     }
 
-    pub fn cancel(&self) {
-        self.running.store(false, Ordering::SeqCst);
-        *self.buffer.lock().unwrap() = None;
+    // Start capturing frames
+    pub fn start(&self, conn: &Connection) {
+        let already_running = self.running.swap(true, Ordering::SeqCst);
+        let have_buffer = self.buffer.lock().unwrap().is_some();
+        if have_buffer && !already_running {
+            self.attach_buffer_and_commit(conn);
+        }
     }
 
-    pub fn capture(
-        self: &Arc<Self>,
-        manager: &zcosmic_screencopy_manager_v1::ZcosmicScreencopyManagerV1,
-        qh: &QueueHandle<AppData>,
-    ) {
-        // Mark as running. If already running, this is not the first frame.
-        let already_running = self.running.swap(true, Ordering::SeqCst);
-        self.first_frame.store(!already_running, Ordering::SeqCst);
+    // Stop capturing. Can be started again with `start`
+    pub fn stop(&self) {
+        self.running.store(false, Ordering::SeqCst);
+        self.first_frame.store(true, Ordering::SeqCst);
+        // TODO: Reallocate buffers on re-start
+        // *self.buffer.lock().unwrap() = None;
+    }
 
-        let udata = SessionData {
-            session_data: Default::default(),
-            capture: Arc::downgrade(self),
-        };
-        match &self.source {
-            CaptureSource::Toplevel(toplevel) => {
-                manager.capture_toplevel(
-                    toplevel,
-                    zcosmic_screencopy_manager_v1::CursorMode::Hidden,
-                    qh,
-                    udata,
-                );
-            }
-            CaptureSource::Workspace(workspace, output) => {
-                manager.capture_workspace(
-                    workspace,
-                    output,
-                    zcosmic_screencopy_manager_v1::CursorMode::Hidden,
-                    qh,
-                    udata,
-                );
-            }
+    pub fn attach_buffer_and_commit(&self, conn: &Connection) {
+        let buffer = self.buffer.lock().unwrap();
+        let buffer = buffer.as_ref().unwrap();
+
+        let node = buffer
+            .node()
+            .and_then(|x| x.to_str().map(|x| x.to_string()));
+
+        self.session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
+        if self.first_frame() {
+            self.session
+                .commit(zcosmic_screencopy_session_v1::Options::empty());
+        } else {
+            self.session
+                .commit(zcosmic_screencopy_session_v1::Options::OnDamage);
         }
+        conn.flush().unwrap();
+
+        self.set_capturing(true);
+    }
+}
+
+impl Drop for Capture {
+    fn drop(&mut self) {
+        self.session.destroy();
     }
 }
 

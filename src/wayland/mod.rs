@@ -1,10 +1,6 @@
-// Workspaces Info, Toplevel Info
-// Capture
-// - subscribe to all workspaces, to start with? All that are associated with an output should be
-// shown on one.
-//   * Need output name to compare?
+// A thread handles screencopy, and other wayland protocols, returning information as a
+// subscription.
 
-// TODO: Way to activate workspace, toplevel? Close? Move?
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
@@ -99,6 +95,7 @@ pub enum Cmd {
 }
 
 pub struct AppData {
+    conn: Connection,
     qh: QueueHandle<Self>,
     dmabuf_state: DmabufState,
     registry_state: RegistryState,
@@ -151,10 +148,10 @@ impl AppData {
         for (source, capture) in self.captures.borrow_mut().iter_mut() {
             let matches = self.matches_capture_filter(source);
             let running = capture.running();
-            if running && !matches {
-                capture.cancel();
-            } else if !running & matches {
-                capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
+            if matches {
+                capture.start(&self.conn);
+            } else {
+                capture.stop();
             }
         }
     }
@@ -165,9 +162,10 @@ impl AppData {
             .entry(source.clone())
             .or_insert_with(|| {
                 let matches = self.matches_capture_filter(&source);
-                let capture = Arc::new(Capture::new(source));
+                let capture =
+                    Capture::new(source, &self.screencopy_state.screencopy_manager, &self.qh);
                 if matches {
-                    capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
+                    capture.start(&self.conn);
                 }
                 capture
             });
@@ -175,7 +173,7 @@ impl AppData {
 
     fn remove_capture_source(&self, source: CaptureSource) {
         if let Some(capture) = self.captures.borrow_mut().remove(&source) {
-            capture.cancel();
+            capture.stop();
         }
     }
 }
@@ -240,6 +238,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
 
     let registry_state = RegistryState::new(&globals);
     let mut app_data = AppData {
+        conn: conn.clone(),
         qh: qh.clone(),
         dmabuf_state,
         workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state

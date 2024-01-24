@@ -20,7 +20,6 @@ impl ScreencopyHandler for AppData {
         buffer_infos: &[BufferInfo],
     ) {
         let Some(capture) = Capture::for_session(session) else {
-            session.destroy();
             return;
         };
 
@@ -32,30 +31,26 @@ impl ScreencopyHandler for AppData {
         {
             *buffer = Some(self.create_buffer(buffer_infos));
         }
-        let buffer = buffer.as_ref().unwrap();
 
-        let node = buffer
-            .node()
-            .and_then(|x| x.to_str().map(|x| x.to_string()));
-        session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
-        if capture.first_frame() {
-            session.commit(zcosmic_screencopy_session_v1::Options::empty());
-        } else {
-            session.commit(zcosmic_screencopy_session_v1::Options::OnDamage);
+        drop(buffer);
+
+        if !capture.running() {
+            capture.attach_buffer_and_commit(conn);
         }
-        conn.flush().unwrap();
     }
 
     fn ready(
         &mut self,
-        _conn: &Connection,
+        conn: &Connection,
         _qh: &QueueHandle<Self>,
         session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     ) {
         let Some(capture) = Capture::for_session(session) else {
-            session.destroy();
             return;
         };
+        if !capture.running() {
+            return;
+        }
 
         let mut buffer = capture.buffer.lock().unwrap();
         if buffer.is_none() {
@@ -76,10 +71,13 @@ impl ScreencopyHandler for AppData {
                 ));
             }
         };
-        session.destroy();
+
+        capture.set_capturing(false);
+
+        drop(buffer);
 
         // Capture again on damage
-        capture.capture(&self.screencopy_state.screencopy_manager, &self.qh);
+        capture.attach_buffer_and_commit(conn);
     }
 
     fn failed(
@@ -92,8 +90,8 @@ impl ScreencopyHandler for AppData {
         // TODO
         println!("Failed");
         if let Some(capture) = Capture::for_session(session) {
-            capture.cancel();
+            capture.set_capturing(false);
+            capture.stop();
         }
-        session.destroy();
     }
 }

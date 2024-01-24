@@ -322,7 +322,6 @@ impl App {
         if let Some(sender) = self.wayland_cmd_sender.as_ref() {
             let mut capture_filter = wayland::CaptureFilter::default();
             if self.visible {
-                // XXX handle on wrong connection
                 capture_filter.workspaces_on_outputs =
                     self.outputs.iter().map(|x| x.handle.clone()).collect();
                 capture_filter.toplevels_on_workspaces = self

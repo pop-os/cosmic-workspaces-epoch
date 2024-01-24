@@ -27,7 +27,6 @@ pub enum CaptureSource {
 
 #[derive(Clone, Debug, Default)]
 pub struct CaptureFilter {
-    // TODO: Use `WlOutput` when one Wayland connection is used
     pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
     pub toplevels_on_workspaces: Vec<zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
 }

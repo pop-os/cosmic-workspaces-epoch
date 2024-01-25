@@ -8,10 +8,7 @@ use cctk::{
 };
 use cosmic::cctk;
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 
 use super::{AppData, ScreencopySession, SessionData};
 

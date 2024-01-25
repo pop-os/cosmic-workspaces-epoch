@@ -35,7 +35,7 @@ pub struct Capture {
     pub buffer: Mutex<Option<Buffer>>,
     pub source: CaptureSource,
     first_frame: AtomicBool,
-    session: Mutex<Option<zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1>>,
+    pub session: Mutex<Option<zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1>>,
 }
 
 impl Capture {
@@ -62,6 +62,10 @@ impl Capture {
 
     pub fn running(&self) -> bool {
         self.session.lock().unwrap().is_some()
+    }
+
+    pub fn unset_first_frame(&self) {
+        self.first_frame.store(false, Ordering::SeqCst);
     }
 
     pub fn first_frame(&self) -> bool {
@@ -107,26 +111,6 @@ impl Capture {
             session.destroy();
         }
         *self.buffer.lock().unwrap() = None;
-    }
-
-    pub fn attach_buffer_and_commit(&self, conn: &Connection) {
-        let session = self.session.lock().unwrap();
-        let buffer = self.buffer.lock().unwrap();
-        let (Some(session), Some(buffer)) = (session.as_ref(), buffer.as_ref()) else {
-            return;
-        };
-
-        let node = buffer
-            .node()
-            .and_then(|x| x.to_str().map(|x| x.to_string()));
-
-        session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
-        if self.first_frame() {
-            session.commit(zcosmic_screencopy_session_v1::Options::empty());
-        } else {
-            session.commit(zcosmic_screencopy_session_v1::Options::OnDamage);
-        }
-        conn.flush().unwrap();
     }
 }
 

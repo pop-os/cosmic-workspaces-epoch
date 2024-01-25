@@ -7,6 +7,27 @@ use cosmic::cctk;
 
 use super::{AppData, Capture, CaptureImage, CaptureSource, Event};
 
+fn attach_buffer_and_commit(capture: &Capture, conn: &Connection) {
+    let session = capture.session.lock().unwrap();
+    let buffer = capture.buffer.lock().unwrap();
+    let (Some(session), Some(buffer)) = (session.as_ref(), buffer.as_ref()) else {
+        return;
+    };
+
+    let node = buffer
+        .node()
+        .and_then(|x| x.to_str().map(|x| x.to_string()));
+
+    session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
+    if capture.first_frame() {
+        session.commit(zcosmic_screencopy_session_v1::Options::empty());
+        capture.unset_first_frame();
+    } else {
+        session.commit(zcosmic_screencopy_session_v1::Options::OnDamage);
+    }
+    conn.flush().unwrap();
+}
+
 impl ScreencopyHandler for AppData {
     fn screencopy_state(&mut self) -> &mut ScreencopyState {
         &mut self.screencopy_state
@@ -34,7 +55,7 @@ impl ScreencopyHandler for AppData {
 
         drop(buffer);
 
-        capture.attach_buffer_and_commit(conn);
+        attach_buffer_and_commit(&capture, conn);
     }
 
     fn ready(
@@ -73,7 +94,7 @@ impl ScreencopyHandler for AppData {
         drop(buffer);
 
         // Capture again on damage
-        capture.attach_buffer_and_commit(conn);
+        attach_buffer_and_commit(&capture, conn);
     }
 
     fn failed(

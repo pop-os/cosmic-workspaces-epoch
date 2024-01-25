@@ -16,6 +16,7 @@ use super::{AppData, Buffer, Capture, CaptureImage, CaptureSource, Event};
 pub struct ScreencopySession {
     buffer: Option<Buffer>,
     session: zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
+    first_frame: bool,
 }
 
 impl ScreencopySession {
@@ -48,10 +49,11 @@ impl ScreencopySession {
         Self {
             buffer: None,
             session,
+            first_frame: true,
         }
     }
 
-    fn attach_buffer_and_commit(&self, capture: &Capture, conn: &Connection) {
+    fn attach_buffer_and_commit(&mut self, capture: &Capture, conn: &Connection) {
         let Some(buffer) = self.buffer.as_ref() else {
             return;
         };
@@ -61,10 +63,10 @@ impl ScreencopySession {
             .and_then(|x| x.to_str().map(|x| x.to_string()));
 
         self.session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
-        if capture.first_frame() {
+        if self.first_frame {
             self.session
                 .commit(zcosmic_screencopy_session_v1::Options::empty());
-            capture.unset_first_frame();
+            self.first_frame = false;
         } else {
             self.session
                 .commit(zcosmic_screencopy_session_v1::Options::OnDamage);
@@ -133,9 +135,6 @@ impl ScreencopyHandler for AppData {
         let Some(capture) = Capture::for_session(session) else {
             return;
         };
-        if !capture.running() {
-            return;
-        }
         let mut session = capture.session.lock().unwrap();
         let Some(session) = session.as_mut() else {
             return;

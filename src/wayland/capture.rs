@@ -32,7 +32,6 @@ pub struct CaptureFilter {
 
 pub struct Capture {
     pub source: CaptureSource,
-    first_frame: AtomicBool,
     pub session: Mutex<Option<ScreencopySession>>,
 }
 
@@ -40,7 +39,6 @@ impl Capture {
     pub fn new(source: CaptureSource) -> Arc<Capture> {
         Arc::new(Capture {
             source,
-            first_frame: AtomicBool::new(true),
             session: Mutex::new(None),
         })
     }
@@ -53,18 +51,6 @@ impl Capture {
         session.data::<SessionData>()?.capture.upgrade()
     }
 
-    pub fn running(&self) -> bool {
-        self.session.lock().unwrap().is_some()
-    }
-
-    pub fn unset_first_frame(&self) {
-        self.first_frame.store(false, Ordering::SeqCst);
-    }
-
-    pub fn first_frame(&self) -> bool {
-        self.first_frame.load(Ordering::SeqCst)
-    }
-
     // Start capturing frames
     pub fn start(
         self: &Arc<Self>,
@@ -73,7 +59,6 @@ impl Capture {
     ) {
         let mut session = self.session.lock().unwrap();
         if session.is_none() {
-            self.first_frame.store(true, Ordering::SeqCst);
             *session = Some(ScreencopySession::new(self, manager, qh));
         }
     }

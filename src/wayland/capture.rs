@@ -4,17 +4,16 @@ use cctk::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         workspace::v1::client::zcosmic_workspace_handle_v1,
     },
-    screencopy::{ScreencopySessionData, ScreencopySessionDataExt},
-    wayland_client::{protocol::wl_output, Connection, Proxy, QueueHandle},
+    wayland_client::{protocol::wl_output, Proxy, QueueHandle},
 };
 use cosmic::cctk;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex, Weak,
+    Arc, Mutex,
 };
 
-use super::{AppData, Buffer};
+use super::{AppData, ScreencopySession, SessionData};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum CaptureSource {
@@ -32,20 +31,14 @@ pub struct CaptureFilter {
 }
 
 pub struct Capture {
-    pub buffer: Mutex<Option<Buffer>>,
     pub source: CaptureSource,
     first_frame: AtomicBool,
-    pub session: Mutex<Option<zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1>>,
+    pub session: Mutex<Option<ScreencopySession>>,
 }
 
 impl Capture {
-    pub fn new(
-        source: CaptureSource,
-        manager: &zcosmic_screencopy_manager_v1::ZcosmicScreencopyManagerV1,
-        qh: &QueueHandle<AppData>,
-    ) -> Arc<Capture> {
+    pub fn new(source: CaptureSource) -> Arc<Capture> {
         Arc::new(Capture {
-            buffer: Mutex::new(None),
             source,
             first_frame: AtomicBool::new(true),
             session: Mutex::new(None),
@@ -81,56 +74,12 @@ impl Capture {
         let mut session = self.session.lock().unwrap();
         if session.is_none() {
             self.first_frame.store(true, Ordering::SeqCst);
-
-            let udata = SessionData {
-                session_data: Default::default(),
-                capture: Arc::downgrade(self),
-            };
-
-            *session = Some(match &self.source {
-                CaptureSource::Toplevel(toplevel) => manager.capture_toplevel(
-                    toplevel,
-                    zcosmic_screencopy_manager_v1::CursorMode::Hidden,
-                    qh,
-                    udata,
-                ),
-                CaptureSource::Workspace(workspace, output) => manager.capture_workspace(
-                    workspace,
-                    output,
-                    zcosmic_screencopy_manager_v1::CursorMode::Hidden,
-                    qh,
-                    udata,
-                ),
-            });
+            *session = Some(ScreencopySession::new(self, manager, qh));
         }
     }
 
     // Stop capturing. Can be started again with `start`
     pub fn stop(&self) {
-        if let Some(session) = self.session.lock().unwrap().take() {
-            session.destroy();
-        }
-        *self.buffer.lock().unwrap() = None;
+        self.session.lock().unwrap().take();
     }
 }
-
-impl Drop for Capture {
-    fn drop(&mut self) {
-        if let Some(session) = self.session.lock().unwrap().as_ref() {
-            session.destroy();
-        }
-    }
-}
-
-struct SessionData {
-    session_data: ScreencopySessionData,
-    capture: Weak<Capture>,
-}
-
-impl ScreencopySessionDataExt for SessionData {
-    fn screencopy_session_data(&self) -> &ScreencopySessionData {
-        &self.session_data
-    }
-}
-
-cctk::delegate_screencopy!(AppData, session: [SessionData]);

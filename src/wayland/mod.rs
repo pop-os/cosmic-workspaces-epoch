@@ -46,6 +46,7 @@ mod capture;
 use capture::{Capture, CaptureSource};
 mod dmabuf;
 mod screencopy;
+use screencopy::{ScreencopySession, SessionData};
 mod toplevel;
 mod workspace;
 
@@ -147,7 +148,6 @@ impl AppData {
     fn invalidate_capture_filter(&self) {
         for (source, capture) in self.captures.borrow_mut().iter_mut() {
             let matches = self.matches_capture_filter(source);
-            let running = capture.running();
             if matches {
                 capture.start(&self.screencopy_state.screencopy_manager, &self.qh);
             } else {
@@ -162,8 +162,7 @@ impl AppData {
             .entry(source.clone())
             .or_insert_with(|| {
                 let matches = self.matches_capture_filter(&source);
-                let capture =
-                    Capture::new(source, &self.screencopy_state.screencopy_manager, &self.qh);
+                let capture = Capture::new(source);
                 if matches {
                     capture.start(&self.screencopy_state.screencopy_manager, &self.qh);
                 }

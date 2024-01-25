@@ -1,31 +1,95 @@
-use cctk::{
-    cosmic_protocols::screencopy::v1::client::zcosmic_screencopy_session_v1,
-    screencopy::{BufferInfo, ScreencopyHandler, ScreencopyState},
+use cosmic::cctk::{
+    self,
+    cosmic_protocols::screencopy::v1::client::{
+        zcosmic_screencopy_manager_v1, zcosmic_screencopy_session_v1,
+    },
+    screencopy::{
+        BufferInfo, ScreencopyHandler, ScreencopySessionData, ScreencopySessionDataExt,
+        ScreencopyState,
+    },
     wayland_client::{Connection, QueueHandle, WEnum},
 };
-use cosmic::cctk;
+use std::sync::{Arc, Weak};
 
-use super::{AppData, Capture, CaptureImage, CaptureSource, Event};
+use super::{AppData, Buffer, Capture, CaptureImage, CaptureSource, Event};
 
-fn attach_buffer_and_commit(capture: &Capture, conn: &Connection) {
-    let session = capture.session.lock().unwrap();
-    let buffer = capture.buffer.lock().unwrap();
-    let (Some(session), Some(buffer)) = (session.as_ref(), buffer.as_ref()) else {
-        return;
-    };
+pub struct ScreencopySession {
+    buffer: Option<Buffer>,
+    session: zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
+}
 
-    let node = buffer
-        .node()
-        .and_then(|x| x.to_str().map(|x| x.to_string()));
+impl ScreencopySession {
+    pub fn new(
+        capture: &Arc<Capture>,
+        manager: &zcosmic_screencopy_manager_v1::ZcosmicScreencopyManagerV1,
+        qh: &QueueHandle<AppData>,
+    ) -> Self {
+        let udata = SessionData {
+            session_data: Default::default(),
+            capture: Arc::downgrade(capture),
+        };
 
-    session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
-    if capture.first_frame() {
-        session.commit(zcosmic_screencopy_session_v1::Options::empty());
-        capture.unset_first_frame();
-    } else {
-        session.commit(zcosmic_screencopy_session_v1::Options::OnDamage);
+        let session = match &capture.source {
+            CaptureSource::Toplevel(toplevel) => manager.capture_toplevel(
+                toplevel,
+                zcosmic_screencopy_manager_v1::CursorMode::Hidden,
+                qh,
+                udata,
+            ),
+            CaptureSource::Workspace(workspace, output) => manager.capture_workspace(
+                workspace,
+                output,
+                zcosmic_screencopy_manager_v1::CursorMode::Hidden,
+                qh,
+                udata,
+            ),
+        };
+
+        Self {
+            buffer: None,
+            session,
+        }
     }
-    conn.flush().unwrap();
+
+    fn attach_buffer_and_commit(&self, capture: &Capture, conn: &Connection) {
+        let Some(buffer) = self.buffer.as_ref() else {
+            return;
+        };
+
+        let node = buffer
+            .node()
+            .and_then(|x| x.to_str().map(|x| x.to_string()));
+
+        self.session.attach_buffer(&buffer.buffer, node, 0); // XXX age?
+        if capture.first_frame() {
+            self.session
+                .commit(zcosmic_screencopy_session_v1::Options::empty());
+            capture.unset_first_frame();
+        } else {
+            self.session
+                .commit(zcosmic_screencopy_session_v1::Options::OnDamage);
+        }
+        conn.flush().unwrap();
+    }
+}
+
+impl Drop for ScreencopySession {
+    fn drop(&mut self) {
+        self.session.destroy();
+    }
+}
+
+pub struct SessionData {
+    session_data: ScreencopySessionData,
+    // Weak reference so session can be destroyed when all strong references
+    // are dropped.
+    pub capture: Weak<Capture>,
+}
+
+impl ScreencopySessionDataExt for SessionData {
+    fn screencopy_session_data(&self) -> &ScreencopySessionData {
+        &self.session_data
+    }
 }
 
 impl ScreencopyHandler for AppData {
@@ -43,19 +107,21 @@ impl ScreencopyHandler for AppData {
         let Some(capture) = Capture::for_session(session) else {
             return;
         };
+        let mut session = capture.session.lock().unwrap();
+        let Some(session) = session.as_mut() else {
+            return;
+        };
 
-        let mut buffer = capture.buffer.lock().unwrap();
         // Create new buffer if none, or different format
-        if !buffer
+        if !session
+            .buffer
             .as_ref()
             .map_or(false, |x| buffer_infos.contains(&x.buffer_info))
         {
-            *buffer = Some(self.create_buffer(buffer_infos));
+            session.buffer = Some(self.create_buffer(buffer_infos));
         }
 
-        drop(buffer);
-
-        attach_buffer_and_commit(&capture, conn);
+        session.attach_buffer_and_commit(&capture, conn);
     }
 
     fn ready(
@@ -70,13 +136,16 @@ impl ScreencopyHandler for AppData {
         if !capture.running() {
             return;
         }
+        let mut session = capture.session.lock().unwrap();
+        let Some(session) = session.as_mut() else {
+            return;
+        };
 
-        let mut buffer = capture.buffer.lock().unwrap();
-        if buffer.is_none() {
+        if session.buffer.is_none() {
             eprintln!("Error: No capture buffer?");
             return;
         }
-        let img = unsafe { buffer.as_mut().unwrap().to_image() };
+        let img = unsafe { session.buffer.as_mut().unwrap().to_image() };
         let image = CaptureImage { img };
         match &capture.source {
             CaptureSource::Toplevel(toplevel) => {
@@ -91,10 +160,8 @@ impl ScreencopyHandler for AppData {
             }
         };
 
-        drop(buffer);
-
         // Capture again on damage
-        attach_buffer_and_commit(&capture, conn);
+        session.attach_buffer_and_commit(&capture, conn);
     }
 
     fn failed(
@@ -111,3 +178,5 @@ impl ScreencopyHandler for AppData {
         }
     }
 }
+
+cctk::delegate_screencopy!(AppData, session: [SessionData]);

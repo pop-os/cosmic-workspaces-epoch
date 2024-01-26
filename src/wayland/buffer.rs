@@ -9,7 +9,7 @@ use cctk::{
 };
 use cosmic::cctk;
 use cosmic::iced::widget::image;
-use memmap2::MmapMut;
+use memmap2::Mmap;
 use rustix::{io::Errno, shm::ShmOFlags};
 use std::{
     os::fd::{AsFd, OwnedFd},
@@ -68,7 +68,6 @@ fn create_memfile() -> rustix::io::Result<OwnedFd> {
 enum BufferBacking {
     Shm {
         fd: OwnedFd,
-        mmap: MmapMut,
     },
     Dmabuf {
         fd: OwnedFd,
@@ -81,10 +80,14 @@ pub struct Buffer {
     backing: BufferBacking,
     pub buffer: wl_buffer::WlBuffer,
     pub buffer_info: BufferInfo,
+    mmap: Mmap,
 }
 
 impl AppData {
-    fn create_shm_backing(&self, buffer_info: &BufferInfo) -> (BufferBacking, wl_buffer::WlBuffer) {
+    fn create_shm_backing(
+        &self,
+        buffer_info: &BufferInfo,
+    ) -> (BufferBacking, Mmap, wl_buffer::WlBuffer) {
         let fd = create_memfile().unwrap(); // XXX?
         rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64);
 
@@ -106,9 +109,9 @@ impl AppData {
             (),
         );
 
-        let mmap = unsafe { MmapMut::map_mut(&fd).unwrap() };
+        let mmap = unsafe { Mmap::map(&fd).unwrap() };
 
-        (BufferBacking::Shm { fd, mmap }, buffer)
+        (BufferBacking::Shm { fd }, mmap, buffer)
     }
 
     #[allow(dead_code)]
@@ -116,7 +119,7 @@ impl AppData {
         &self,
         buffer_info: &BufferInfo,
         needs_linear: bool,
-    ) -> anyhow::Result<Option<(BufferBacking, wl_buffer::WlBuffer)>> {
+    ) -> anyhow::Result<Option<(BufferBacking, Mmap, wl_buffer::WlBuffer)>> {
         let (Some((node, gbm)), Some(feedback)) =
             (self.gbm.as_ref(), self.dmabuf_feedback.as_ref())
         else {
@@ -179,12 +182,16 @@ impl AppData {
             )
             .0;
 
+        // Is there any cost to mmapping dma memory if it isn't accessed?
+        let mmap = unsafe { Mmap::map(&fd).unwrap() };
+
         Ok(Some((
             BufferBacking::Dmabuf {
                 fd,
                 node: node.clone(),
                 stride,
             },
+            mmap,
             buffer,
         )))
     }
@@ -199,9 +206,10 @@ impl AppData {
             .find(|x| x.type_ == WEnum::Value(BufferType::Dmabuf) && x.format == format)
         {
             match self.create_gbm_backing(buffer_info, true) {
-                Ok(Some((backing, buffer))) => {
+                Ok(Some((backing, mmap, buffer))) => {
                     return Buffer {
                         backing,
+                        mmap,
                         buffer,
                         buffer_info: buffer_info.clone(),
                     };
@@ -218,9 +226,10 @@ impl AppData {
             .iter()
             .find(|x| x.type_ == WEnum::Value(BufferType::WlShm) && x.format == format)
             .unwrap();
-        let (backing, buffer) = self.create_shm_backing(buffer_info);
+        let (backing, mmap, buffer) = self.create_shm_backing(buffer_info);
         Buffer {
             backing,
+            mmap,
             buffer,
             buffer_info: buffer_info.clone(),
         }
@@ -232,18 +241,16 @@ impl Buffer {
     // XXX is this at all a performance issue?
     #[allow(clippy::wrong_self_convention)]
     pub unsafe fn to_image(&mut self) -> image::Handle {
-        let pixels = match &mut self.backing {
-            BufferBacking::Shm { mmap, .. } => mmap.to_vec(),
+        let pixels = match &self.backing {
+            BufferBacking::Shm { .. } => self.mmap.to_vec(),
             // NOTE: Only will work with linear modifier
             BufferBacking::Dmabuf {
                 fd,
                 node: _,
                 stride,
             } => {
-                // XXX Error handling?
-                let mmap = memmap2::Mmap::map(&*fd).unwrap();
                 if self.buffer_info.stride == self.buffer_info.width * 4 {
-                    mmap.to_vec()
+                    self.mmap.to_vec()
                 } else {
                     let width = self.buffer_info.width as usize;
                     let height = self.buffer_info.height as usize;
@@ -252,7 +259,7 @@ impl Buffer {
                     let mut pixels = vec![0; height * output_stride];
                     for y in 0..height {
                         pixels[y * output_stride..y * output_stride + output_stride]
-                            .copy_from_slice(&mmap[y * stride..y * stride + output_stride]);
+                            .copy_from_slice(&self.mmap[y * stride..y * stride + output_stride]);
                     }
                     pixels
                 }

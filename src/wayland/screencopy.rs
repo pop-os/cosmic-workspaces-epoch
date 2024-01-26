@@ -10,14 +10,15 @@ use cosmic::cctk::{
     wayland_client::{Connection, QueueHandle, WEnum},
 };
 use std::{
-    mem,
+    array,
     sync::{Arc, Weak},
 };
 
 use super::{AppData, Buffer, Capture, CaptureImage, CaptureSource, Event};
 
 pub struct ScreencopySession {
-    buffers: Option<(Buffer, Buffer)>,
+    // swapchain buffers
+    buffers: Option<[Buffer; 2]>,
     session: zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
     first_frame: bool,
 }
@@ -57,11 +58,11 @@ impl ScreencopySession {
     }
 
     fn attach_buffer_and_commit(&mut self, capture: &Capture, conn: &Connection) {
-        let Some((front, back)) = self.buffers.as_mut() else {
+        let Some(back) = self.buffers.as_mut().and_then(|x| x.last()) else {
             return;
         };
 
-        let node = front.node().and_then(|x| x.to_str().map(|x| x.to_string()));
+        let node = back.node().and_then(|x| x.to_str().map(|x| x.to_string()));
 
         self.session.attach_buffer(&back.buffer, node, 0); // XXX age?
         if self.first_frame {
@@ -116,13 +117,10 @@ impl ScreencopyHandler for AppData {
         };
 
         // Create new buffer if none, or different format
-        if !session.buffers.as_ref().map_or(false, |(front, _)| {
-            buffer_infos.contains(&front.buffer_info)
+        if !session.buffers.as_ref().map_or(false, |buffers| {
+            buffer_infos.contains(&buffers[0].buffer_info)
         }) {
-            session.buffers = Some((
-                self.create_buffer(buffer_infos),
-                self.create_buffer(buffer_infos),
-            ));
+            session.buffers = Some(array::from_fn(|_| self.create_buffer(buffer_infos)));
         }
 
         session.attach_buffer_and_commit(&capture, conn);
@@ -147,13 +145,13 @@ impl ScreencopyHandler for AppData {
             return;
         }
 
-        let (front, back) = session.buffers.as_mut().unwrap();
-        mem::swap(front, back);
+        // swap buffers
+        session.buffers.as_mut().unwrap().rotate_left(1);
 
         // Capture again on damage
         session.attach_buffer_and_commit(&capture, conn);
 
-        let (front, _) = session.buffers.as_mut().unwrap();
+        let front = session.buffers.as_mut().unwrap().first_mut().unwrap();
         let img = unsafe { front.to_image() };
         let image = CaptureImage { img };
         match &capture.source {

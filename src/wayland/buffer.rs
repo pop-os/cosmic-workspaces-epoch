@@ -66,14 +66,8 @@ fn create_memfile() -> rustix::io::Result<OwnedFd> {
 }
 
 enum BufferBacking {
-    Shm {
-        fd: OwnedFd,
-    },
-    Dmabuf {
-        fd: OwnedFd,
-        node: PathBuf,
-        stride: u32,
-    },
+    Shm { fd: OwnedFd },
+    Dmabuf { fd: OwnedFd, stride: u32 },
 }
 
 pub struct Buffer {
@@ -81,6 +75,7 @@ pub struct Buffer {
     pub buffer: wl_buffer::WlBuffer,
     pub buffer_info: BufferInfo,
     mmap: Mmap,
+    node: Option<PathBuf>,
 }
 
 impl AppData {
@@ -113,6 +108,7 @@ impl AppData {
             mmap,
             buffer,
             buffer_info: buffer_info.clone(),
+            node: None,
         }
     }
 
@@ -188,14 +184,11 @@ impl AppData {
         let mmap = unsafe { Mmap::map(&fd).unwrap() };
 
         Ok(Some(Buffer {
-            backing: BufferBacking::Dmabuf {
-                fd,
-                node: node.clone(),
-                stride,
-            },
+            backing: BufferBacking::Dmabuf { fd, stride },
             mmap,
             buffer,
             buffer_info: buffer_info.clone(),
+            node: Some(node.clone()),
         }))
     }
 
@@ -236,11 +229,7 @@ impl Buffer {
         let pixels = match &self.backing {
             BufferBacking::Shm { .. } => self.mmap.to_vec(),
             // NOTE: Only will work with linear modifier
-            BufferBacking::Dmabuf {
-                fd,
-                node: _,
-                stride,
-            } => {
+            BufferBacking::Dmabuf { fd, stride } => {
                 if self.buffer_info.stride == self.buffer_info.width * 4 {
                     self.mmap.to_vec()
                 } else {
@@ -261,10 +250,7 @@ impl Buffer {
     }
 
     pub fn node(&self) -> Option<&Path> {
-        match &self.backing {
-            BufferBacking::Shm { .. } => None,
-            BufferBacking::Dmabuf { node, .. } => Some(node),
-        }
+        self.node.as_deref()
     }
 }
 

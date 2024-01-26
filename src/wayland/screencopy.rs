@@ -58,7 +58,7 @@ impl ScreencopySession {
     }
 
     fn attach_buffer_and_commit(&mut self, capture: &Capture, conn: &Connection) {
-        let Some(back) = self.buffers.as_mut().and_then(|x| x.last()) else {
+        let Some(back) = self.buffers.as_ref().map(|x| &x[1]) else {
             return;
         };
 

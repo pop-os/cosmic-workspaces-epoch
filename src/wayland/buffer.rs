@@ -84,10 +84,7 @@ pub struct Buffer {
 }
 
 impl AppData {
-    fn create_shm_backing(
-        &self,
-        buffer_info: &BufferInfo,
-    ) -> (BufferBacking, Mmap, wl_buffer::WlBuffer) {
+    fn create_shm_buffer(&self, buffer_info: &BufferInfo) -> Buffer {
         let fd = create_memfile().unwrap(); // XXX?
         rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64);
 
@@ -111,15 +108,20 @@ impl AppData {
 
         let mmap = unsafe { Mmap::map(&fd).unwrap() };
 
-        (BufferBacking::Shm { fd }, mmap, buffer)
+        Buffer {
+            backing: BufferBacking::Shm { fd },
+            mmap,
+            buffer,
+            buffer_info: buffer_info.clone(),
+        }
     }
 
     #[allow(dead_code)]
-    fn create_gbm_backing(
+    fn create_gbm_buffer(
         &self,
         buffer_info: &BufferInfo,
         needs_linear: bool,
-    ) -> anyhow::Result<Option<(BufferBacking, Mmap, wl_buffer::WlBuffer)>> {
+    ) -> anyhow::Result<Option<Buffer>> {
         let (Some((node, gbm)), Some(feedback)) =
             (self.gbm.as_ref(), self.dmabuf_feedback.as_ref())
         else {
@@ -185,15 +187,16 @@ impl AppData {
         // Is there any cost to mmapping dma memory if it isn't accessed?
         let mmap = unsafe { Mmap::map(&fd).unwrap() };
 
-        Ok(Some((
-            BufferBacking::Dmabuf {
+        Ok(Some(Buffer {
+            backing: BufferBacking::Dmabuf {
                 fd,
                 node: node.clone(),
                 stride,
             },
             mmap,
             buffer,
-        )))
+            buffer_info: buffer_info.clone(),
+        }))
     }
 
     pub fn create_buffer(&self, buffer_infos: &[BufferInfo]) -> Buffer {
@@ -205,14 +208,9 @@ impl AppData {
             .iter()
             .find(|x| x.type_ == WEnum::Value(BufferType::Dmabuf) && x.format == format)
         {
-            match self.create_gbm_backing(buffer_info, true) {
-                Ok(Some((backing, mmap, buffer))) => {
-                    return Buffer {
-                        backing,
-                        mmap,
-                        buffer,
-                        buffer_info: buffer_info.clone(),
-                    };
+            match self.create_gbm_buffer(buffer_info, true) {
+                Ok(Some(buffer)) => {
+                    return buffer;
                 }
                 Ok(None) => {}
                 Err(err) => eprintln!("Failed to create gbm buffer: {}", err),
@@ -226,13 +224,7 @@ impl AppData {
             .iter()
             .find(|x| x.type_ == WEnum::Value(BufferType::WlShm) && x.format == format)
             .unwrap();
-        let (backing, mmap, buffer) = self.create_shm_backing(buffer_info);
-        Buffer {
-            backing,
-            mmap,
-            buffer,
-            buffer_info: buffer_info.clone(),
-        }
+        self.create_shm_buffer(buffer_info)
     }
 }
 

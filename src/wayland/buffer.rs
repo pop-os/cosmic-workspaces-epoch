@@ -82,12 +82,22 @@ impl AppData {
         };
         let format = gbm::Format::try_from(buffer_info.format)?;
         let modifier = gbm::Modifier::try_from(format_info.modifier)?;
-        let bo = gbm.create_buffer_object_with_modifiers::<()>(
-            buffer_info.width,
-            buffer_info.height,
-            format,
-            [modifier].into_iter(),
-        )?;
+        let bo = if modifier != gbm::Modifier::Invalid {
+            gbm.create_buffer_object_with_modifiers::<()>(
+                buffer_info.width,
+                buffer_info.height,
+                format,
+                [modifier].into_iter(),
+            )?
+        } else {
+            // TODO make sure this isn't used across different GPUs
+            gbm.create_buffer_object::<()>(
+                buffer_info.width,
+                buffer_info.height,
+                format,
+                gbm::BufferObjectFlags::empty(),
+            )?
+        };
 
         let fd = bo.fd()?;
         let stride = bo.stride()?;

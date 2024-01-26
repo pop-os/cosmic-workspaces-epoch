@@ -150,6 +150,10 @@ impl ScreencopyHandler for AppData {
         let (front, back) = session.buffers.as_mut().unwrap();
         mem::swap(front, back);
 
+        // Capture again on damage
+        session.attach_buffer_and_commit(&capture, conn);
+
+        let (front, _) = session.buffers.as_mut().unwrap();
         let img = unsafe { front.to_image() };
         let image = CaptureImage { img };
         match &capture.source {
@@ -164,9 +168,6 @@ impl ScreencopyHandler for AppData {
                 ));
             }
         };
-
-        // Capture again on damage
-        session.attach_buffer_and_commit(&capture, conn);
     }
 
     fn failed(

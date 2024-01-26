@@ -112,6 +112,7 @@ pub struct AppData {
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
     gbm: Option<(PathBuf, gbm::Device<fs::File>)>,
+    scheduler: calloop::futures::Scheduler<()>,
 }
 
 impl AppData {
@@ -235,37 +236,37 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let dmabuf_state = DmabufState::new(&globals, &qh);
     dmabuf_state.get_default_feedback(&qh).unwrap();
 
-    let registry_state = RegistryState::new(&globals);
-    let mut app_data = AppData {
-        conn: conn.clone(),
-        qh: qh.clone(),
-        dmabuf_state,
-        workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
-        toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
-        toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
-        screencopy_state: ScreencopyState::new(&globals, &qh),
-        registry_state,
-        seat_state: SeatState::new(&globals, &qh),
-        shm_state: Shm::bind(&globals, &qh).unwrap(),
-        sender,
-        seats: Vec::new(),
-        capture_filter: CaptureFilter::default(),
-        captures: RefCell::new(HashMap::new()),
-        dmabuf_feedback: None,
-        gbm: None,
-    };
-
-    app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
-    app_data.send_event(Event::ToplevelManager(
-        app_data.toplevel_manager_state.manager.clone(),
-    ));
-    if let Ok(manager) = app_data.workspace_state.workspace_manager().get() {
-        app_data.send_event(Event::WorkspaceManager(manager.clone()));
-    }
-
-    // XXX also monitor cmd sender? Use calloop?
     thread::spawn(move || {
-        //event_queue.blocking_dispatch(&mut app_data).unwrap();
+        let (executor, scheduler) = calloop::futures::executor().unwrap();
+
+        let registry_state = RegistryState::new(&globals);
+        let mut app_data = AppData {
+            conn: conn.clone(),
+            qh: qh.clone(),
+            dmabuf_state,
+            workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
+            toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
+            toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
+            screencopy_state: ScreencopyState::new(&globals, &qh),
+            registry_state,
+            seat_state: SeatState::new(&globals, &qh),
+            shm_state: Shm::bind(&globals, &qh).unwrap(),
+            sender,
+            seats: Vec::new(),
+            capture_filter: CaptureFilter::default(),
+            captures: RefCell::new(HashMap::new()),
+            dmabuf_feedback: None,
+            gbm: None,
+            scheduler,
+        };
+
+        app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
+        app_data.send_event(Event::ToplevelManager(
+            app_data.toplevel_manager_state.manager.clone(),
+        ));
+        if let Ok(manager) = app_data.workspace_state.workspace_manager().get() {
+            app_data.send_event(Event::WorkspaceManager(manager.clone()));
+        }
 
         let (cmd_sender, cmd_channel) = calloop::channel::channel();
         app_data.send_event(Event::CmdSender(cmd_sender));
@@ -282,6 +283,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
                 }
             })
             .unwrap();
+        event_loop.handle().insert_source(executor, |(), _, _| {});
 
         loop {
             event_loop.dispatch(None, &mut app_data).unwrap();

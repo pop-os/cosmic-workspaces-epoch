@@ -74,7 +74,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for Toplevels<'a, Msg> {
         let spacing = 16;
 
         // Get total requested main axis length if widget could have all the space
-        let total_spacing = spacing * (self.children.len() - 1).max(0);
+        let total_spacing = spacing * (self.children.len().saturating_sub(1)).max(0);
         let requested_mains = self
             .children
             .iter()

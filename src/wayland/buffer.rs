@@ -3,23 +3,72 @@ use cctk::{
     screencopy::BufferInfo,
     sctk::shm::raw::RawPool,
     wayland_client::{
-        protocol::{wl_buffer, wl_shm},
+        protocol::{wl_buffer, wl_shm, wl_shm_pool},
         Connection, Dispatch, QueueHandle, WEnum,
     },
 };
 use cosmic::cctk;
 use cosmic::iced::widget::image;
+use memmap2::MmapMut;
+use rustix::{io::Errno, shm::ShmOFlags};
 use std::{
     os::fd::{AsFd, OwnedFd},
     path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
 
 use super::AppData;
 
+#[cfg(target_os = "linux")]
+fn create_memfd() -> rustix::io::Result<OwnedFd> {
+    let fd = rustix::io::retry_on_intr(|| {
+        rustix::fs::memfd_create(
+            "cosmic-workspaces-shm",
+            rustix::fs::MemfdFlags::CLOEXEC | rustix::fs::MemfdFlags::ALLOW_SEALING,
+        )
+    })?;
+    let _ = rustix::fs::fcntl_add_seals(
+        &fd,
+        rustix::fs::SealFlags::SHRINK | rustix::fs::SealFlags::SEAL,
+    );
+    Ok(fd)
+}
+
+fn create_memfile() -> rustix::io::Result<OwnedFd> {
+    #[cfg(target_os = "linux")]
+    if let Ok(fd) = create_memfd() {
+        return Ok(fd);
+    }
+
+    loop {
+        let flags = ShmOFlags::CREATE | ShmOFlags::EXCL | ShmOFlags::RDWR;
+
+        let time = SystemTime::now();
+        let name = format!(
+            "/cosmic-workspaces-shm-{}",
+            time.duration_since(UNIX_EPOCH).unwrap().subsec_nanos()
+        );
+
+        match rustix::shm::shm_open(&name, flags, 0600.into()) {
+            Ok(fd) => match rustix::shm::shm_unlink(&name) {
+                Ok(_) => return Ok(fd),
+                Err(errno) => {
+                    return Err(errno.into());
+                }
+            },
+            Err(Errno::EXIST | Errno::EXIST) => {
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+}
+
 enum BufferBacking {
     Shm {
-        pool: RawPool,
+        fd: OwnedFd,
+        mmap: MmapMut,
     },
     Dmabuf {
         fd: OwnedFd,
@@ -36,11 +85,15 @@ pub struct Buffer {
 
 impl AppData {
     fn create_shm_backing(&self, buffer_info: &BufferInfo) -> (BufferBacking, wl_buffer::WlBuffer) {
-        let mut pool = RawPool::new(
-            (buffer_info.stride * buffer_info.height) as usize,
-            &self.shm_state,
-        )
-        .unwrap();
+        let fd = create_memfile().unwrap(); // XXX?
+        rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64);
+
+        let pool = self.shm_state.wl_shm().create_pool(
+            fd.as_fd(),
+            buffer_info.stride as i32 * buffer_info.height as i32,
+            &self.qh,
+            (),
+        );
 
         let format = wl_shm::Format::try_from(buffer_info.format).unwrap();
         let buffer = pool.create_buffer(
@@ -49,11 +102,13 @@ impl AppData {
             buffer_info.height as i32,
             buffer_info.stride as i32,
             format,
-            (),
             &self.qh,
+            (),
         );
 
-        (BufferBacking::Shm { pool }, buffer)
+        let mmap = unsafe { MmapMut::map_mut(&fd).unwrap() };
+
+        (BufferBacking::Shm { fd, mmap }, buffer)
     }
 
     #[allow(dead_code)]
@@ -178,7 +233,7 @@ impl Buffer {
     #[allow(clippy::wrong_self_convention)]
     pub unsafe fn to_image(&mut self) -> image::Handle {
         let pixels = match &mut self.backing {
-            BufferBacking::Shm { pool } => pool.mmap().to_vec(),
+            BufferBacking::Shm { mmap, .. } => mmap.to_vec(),
             // NOTE: Only will work with linear modifier
             BufferBacking::Dmabuf {
                 fd,
@@ -233,5 +288,17 @@ impl Dispatch<wl_buffer::WlBuffer, ()> for AppData {
             wl_buffer::Event::Release => {}
             _ => unreachable!(),
         }
+    }
+}
+
+impl Dispatch<wl_shm_pool::WlShmPool, ()> for AppData {
+    fn event(
+        _app_data: &mut Self,
+        _shm: &wl_shm_pool::WlShmPool,
+        _event: wl_shm_pool::Event,
+        _: &(),
+        _: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
     }
 }

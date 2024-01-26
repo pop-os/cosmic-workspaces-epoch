@@ -938,6 +938,7 @@ dependencies = [
  "memmap2 0.9.4",
  "once_cell",
  "rust-embed",
+ "rustix 0.38.30",
  "tokio",
  "wayland-protocols 0.31.0",
  "zbus",

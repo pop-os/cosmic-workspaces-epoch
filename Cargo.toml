@@ -26,6 +26,7 @@ itertools = "0.12.0"
 log = "0.4.20"
 i18n-embed-fl = "0.7.0"
 rust-embed = "8.1.0"
+rustix = { version = "0.38.30", features  = ["fs"] }
 
 [dependencies.i18n-embed]
 version = "0.14.1"

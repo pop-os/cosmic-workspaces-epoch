@@ -60,13 +60,12 @@ pub struct WorkspaceBar<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
-    fn width(&self) -> Length {
-        Length::Fill
-    }
-
-    fn height(&self) -> Length {
-        Length::Fill
+impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
+    fn size(&self) -> Size<Length> {
+        Size {
+            width: Length::Fill,
+            height: Length::Fill,
+        }
     }
 
     fn layout(
@@ -103,9 +102,9 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
                 let (max_width, max_height) = self.axis.pack(max_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-                let mut layout = child.layout(tree, renderer, &child_limits);
+                let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
                 let (x, y) = self.axis.pack(total_main, 0.0);
-                layout.move_to(Point::new(x, y));
+                layout = layout.move_to(Point::new(x, y));
                 total_main += self.axis.main(layout.size());
                 layout
             })

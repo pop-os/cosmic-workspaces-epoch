@@ -26,14 +26,14 @@ pub struct ImageBg<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Renderer> for ImageBg<'a, Msg> {
+impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'a, Msg> {
     delegate::delegate! {
         to self.content.as_widget() {
             fn tag(&self) -> tree::Tag;
             fn state(&self) -> tree::State;
             fn children(&self) -> Vec<Tree>;
-            fn width(&self) -> Length;
-            fn height(&self) -> Length;
+            fn size(&self) -> Size<Length>;
+            fn size_hint(&self) -> Size<Length>;
             fn layout(
                     &self,
                     tree: &mut Tree,
@@ -75,7 +75,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for ImageBg<'a, Msg> {
                 tree: &'b mut Tree,
                 layout: Layout<'_>,
                 renderer: &cosmic::Renderer,
-            ) -> Option<overlay::Element<'b, Msg, cosmic::Renderer>>;
+            ) -> Option<overlay::Element<'b, Msg, cosmic::Theme, cosmic::Renderer>>;
         }
     }
 
@@ -123,6 +123,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for ImageBg<'a, Msg> {
         //});
 
         self.content
+            .as_widget()
             .draw(state, renderer, theme, style, layout, cursor, viewport)
     }
 }

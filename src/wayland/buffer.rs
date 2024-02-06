@@ -1,7 +1,6 @@
 use cctk::{
     cosmic_protocols::screencopy::v1::client::zcosmic_screencopy_session_v1::BufferType,
     screencopy::BufferInfo,
-    sctk::shm::raw::RawPool,
     wayland_client::{
         protocol::{wl_buffer, wl_shm, wl_shm_pool},
         Connection, Dispatch, QueueHandle, WEnum,

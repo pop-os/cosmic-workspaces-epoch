@@ -24,7 +24,7 @@ use cosmic::{
     iced::{
         self,
         event::wayland::{Event as WaylandEvent, OutputEvent},
-        keyboard::KeyCode,
+        keyboard::key::{Key, Named},
         wayland::{
             actions::data_device::{DataFromMimeType, DndIcon},
             data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
@@ -632,8 +632,9 @@ impl Application for App {
             {
                 Some(Msg::WaylandEvent(evt))
             } else if let iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
-                key_code: KeyCode::Escape,
+                key: Key::Named(Named::Escape),
                 modifiers: _,
+                location: _,
             }) = evt
             {
                 Some(Msg::Close)

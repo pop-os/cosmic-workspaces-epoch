@@ -62,17 +62,16 @@ pub struct WorkspaceItem<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceItem<'a, Msg> {
-    fn width(&self) -> Length {
-        //Length::Fill
-        // XXX doesn't work when used in standard `row` widget
-        // But fixes allocation of `dnd_source` wrapping this, within `Workspaces` row
-        Length::Shrink
-    }
-
-    fn height(&self) -> Length {
-        // TODO Make depend on orientation or drop that option
-        Length::Shrink
+impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceItem<'a, Msg> {
+    fn size(&self) -> Size<Length> {
+        Size {
+            // width: Length::Fill
+            // XXX doesn't work when used in standard `row` widget
+            // But fixes allocation of `dnd_source` wrapping this, within `Workspaces` row
+            width: Length::Shrink,
+            // TODO Make depend on orientation or drop that option
+            height: Length::Shrink,
+        }
     }
 
     fn layout(
@@ -88,7 +87,9 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceItem<'a, Msg> {
         // Get layout of main widget, to set overall cross axis size
         let (max_width, max_height) = self.axis.pack(max_main, max_cross);
         let child_limits = layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-        let layout = self.children[1].layout(tree, renderer, &child_limits);
+        let layout = self.children[1]
+            .as_widget()
+            .layout(tree, renderer, &child_limits);
 
         let max_cross = self.axis.cross(layout.size());
 
@@ -103,11 +104,11 @@ impl<'a, Msg> Widget<Msg, cosmic::Renderer> for WorkspaceItem<'a, Msg> {
                 let (max_width, max_height) = self.axis.pack(max_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-                let mut layout = child.layout(tree, renderer, &child_limits);
+                let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
                 // Center on cross axis
                 let cross = ((max_cross - self.axis.cross(layout.size())) / 2.).max(0.);
                 let (x, y) = self.axis.pack(total_main, cross);
-                layout.move_to(Point::new(x, y));
+                layout = layout.move_to(Point::new(x, y));
                 total_main += self.axis.main(layout.size());
                 layout
             })

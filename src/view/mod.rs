@@ -11,7 +11,9 @@ use cosmic::{
         self,
         advanced::layout::flex::Axis,
         widget::{column, row},
+        Border,
     },
+    iced_core::Shadow,
     widget,
 };
 use cosmic_comp_config::workspace::{WorkspaceAmount, WorkspaceLayout};
@@ -186,9 +188,12 @@ fn workspaces_sidebar<'a>(
             text_color: Some(theme.cosmic().on_bg_color().into()),
             icon_color: Some(theme.cosmic().on_bg_color().into()),
             background: Some(iced::Color::from(theme.cosmic().background.base).into()),
-            border_radius: (12.0).into(),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
+            border: Border {
+                radius: (12.0).into(),
+                width: 0.0,
+                color: iced::Color::TRANSPARENT,
+            },
+            shadow: Shadow::default(),
         }),
     ))
     .width(width)

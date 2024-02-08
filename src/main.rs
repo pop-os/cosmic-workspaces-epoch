@@ -39,7 +39,7 @@ use cosmic::{
     },
     iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
-use cosmic_comp_config::{workspace::WorkspaceAmount, CosmicCompConfig};
+use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::ConfigSet;
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
@@ -509,6 +509,7 @@ impl Application for App {
             }
             Msg::CloseWorkspace(_workspace_handle) => {
                 // XXX close specific workspace
+                /*
                 if let WorkspaceAmount::Static(n) = &mut self.conf.workspace_config.workspace_amount
                 {
                     if *n != 1 {
@@ -518,6 +519,7 @@ impl Application for App {
                             .set("workspaces", &self.conf.workspace_config);
                     }
                 }
+                */
             }
             Msg::CloseToplevel(toplevel_handle) => {
                 // TODO confirmation?
@@ -597,6 +599,7 @@ impl Application for App {
                 }
             }
             Msg::NewWorkspace => {
+                /*
                 if let WorkspaceAmount::Static(n) = &mut self.conf.workspace_config.workspace_amount
                 {
                     *n += 1;
@@ -604,6 +607,7 @@ impl Application for App {
                         .cosmic_comp_config
                         .set("workspaces", &self.conf.workspace_config);
                 }
+                */
             }
             Msg::Config(c) => {
                 self.conf.config = c;

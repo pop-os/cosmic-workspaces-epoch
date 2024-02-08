@@ -16,7 +16,7 @@ use cosmic::{
     iced_core::Shadow,
     widget,
 };
-use cosmic_comp_config::workspace::{WorkspaceAmount, WorkspaceLayout};
+use cosmic_comp_config::workspace::WorkspaceLayout;
 
 use crate::{wayland::CaptureImage, App, DragSurface, LayerSurface, Msg, Toplevel, Workspace};
 
@@ -37,7 +37,6 @@ pub(crate) fn layer_surface<'a>(
             .filter(|i| i.outputs.contains(&surface.output)),
         &surface.output,
         layout,
-        app.conf.workspace_config.workspace_amount,
         drop_target,
     );
     let toplevels = toplevel_previews(
@@ -144,7 +143,6 @@ fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
-    amount: WorkspaceAmount,
     drop_target: Option<&zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
@@ -166,6 +164,7 @@ fn workspaces_sidebar<'a>(
     )
     .on_press(Msg::NewWorkspace)
     .width(iced::Length::Fill);
+    /*
     let bar: cosmic::Element<_> = if amount != WorkspaceAmount::Dynamic {
         match layout {
             WorkspaceLayout::Vertical => {
@@ -178,24 +177,30 @@ fn workspaces_sidebar<'a>(
     } else {
         sidebar_entries_container.into()
     };
+    */
     // Shrink?
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (iced::Length::Fill, iced::Length::Shrink),
         WorkspaceLayout::Horizontal => (iced::Length::Shrink, iced::Length::Fill),
     };
-    widget::container(widget::container(bar).width(width).height(height).style(
-        cosmic::theme::Container::custom(|theme| cosmic::iced_style::container::Appearance {
-            text_color: Some(theme.cosmic().on_bg_color().into()),
-            icon_color: Some(theme.cosmic().on_bg_color().into()),
-            background: Some(iced::Color::from(theme.cosmic().background.base).into()),
-            border: Border {
-                radius: (12.0).into(),
-                width: 0.0,
-                color: iced::Color::TRANSPARENT,
-            },
-            shadow: Shadow::default(),
-        }),
-    ))
+    widget::container(
+        widget::container(sidebar_entries_container)
+            .width(width)
+            .height(height)
+            .style(cosmic::theme::Container::custom(|theme| {
+                cosmic::iced_style::container::Appearance {
+                    text_color: Some(theme.cosmic().on_bg_color().into()),
+                    icon_color: Some(theme.cosmic().on_bg_color().into()),
+                    background: Some(iced::Color::from(theme.cosmic().background.base).into()),
+                    border: Border {
+                        radius: (12.0).into(),
+                        width: 0.0,
+                        color: iced::Color::TRANSPARENT,
+                    },
+                    shadow: Shadow::default(),
+                }
+            })),
+    )
     .width(width)
     .height(height)
     .padding(24.0)

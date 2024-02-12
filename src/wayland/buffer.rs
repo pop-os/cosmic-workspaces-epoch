@@ -123,26 +123,30 @@ impl AppData {
             return Ok(None);
         };
         let formats = feedback.format_table();
-        let Some(format_info) = feedback
+
+        let modifiers = feedback
             .tranches()
             .iter()
             .flat_map(|x| &x.formats)
             .filter_map(|x| formats.get(*x as usize))
-            .find(|x| {
+            .filter(|x| {
                 x.format == buffer_info.format
                     && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
             })
-        else {
+            .filter_map(|x| gbm::Modifier::try_from(x.modifier).ok())
+            .collect::<Vec<_>>();
+
+        if modifiers.is_empty() {
             return Ok(None);
         };
         let format = gbm::Format::try_from(buffer_info.format)?;
-        let modifier = gbm::Modifier::try_from(format_info.modifier)?;
-        let bo = if modifier != gbm::Modifier::Invalid {
+        //dbg!(format, modifiers);
+        let bo = if !modifiers.iter().all(|x| *x == gbm::Modifier::Invalid) {
             gbm.create_buffer_object_with_modifiers::<()>(
                 buffer_info.width,
                 buffer_info.height,
                 format,
-                [modifier].into_iter(),
+                modifiers.iter().copied(),
             )?
         } else {
             // TODO make sure this isn't used across different GPUs
@@ -157,6 +161,7 @@ impl AppData {
         let fd = bo.fd()?;
         let stride = bo.stride()?;
         let params = self.dmabuf_state.create_params(&self.qh)?;
+        let modifier = bo.modifier()?;
         for i in 0..bo.plane_count()? as i32 {
             let plane_fd = bo.fd_for_plane(i)?;
             let plane_offset = bo.offset(i)?;

@@ -34,6 +34,8 @@ $(BIN): Cargo.toml Cargo.lock src/main.rs vendor-check
 install:
 	install -Dm0755 target/$(TARGET)/$(BIN) $(DESTDIR)$(bindir)/$(BIN)
 	install -Dm0644 data/$(APPID).desktop $(DESTDIR)$(datadir)/applications/$(APPID).desktop
+	install -Dm0644 data/$(APPID).svg $(DESTDIR)$(datadir)/icons/hicolor/scalable/apps/$(APPID).svg
+
 
 ## Cargo Vendoring
 

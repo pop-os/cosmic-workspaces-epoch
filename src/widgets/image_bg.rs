@@ -11,6 +11,7 @@ use cosmic::iced::{
     widget::image::{FilterMethod, Handle},
     ContentFit, Length, Rectangle, Size, Vector,
 };
+use cosmic::iced_core::Renderer;
 
 use std::marker::PhantomData;
 
@@ -112,19 +113,18 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'a, Msg> 
             ..bounds
         };
 
-        // layer?
-        //renderer.with_layer(bounds, |renderer| {
         renderer.draw(
             handle.clone(),
             FilterMethod::default(),
             drawing_bounds + offset,
             [0.0, 0.0, 0.0, 0.0],
         );
-        //});
 
-        self.content
-            .as_widget()
-            .draw(state, renderer, theme, style, layout, cursor, viewport)
+        renderer.with_layer(bounds, |renderer| {
+            self.content
+                .as_widget()
+                .draw(state, renderer, theme, style, layout, cursor, viewport)
+        });
     }
 }
 

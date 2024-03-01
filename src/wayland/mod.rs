@@ -1,6 +1,7 @@
 // A thread handles screencopy, and other wayland protocols, returning information as a
 // subscription.
 
+use calloop_wayland_source::WaylandSource;
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
@@ -11,7 +12,6 @@ use cctk::{
     sctk::{
         self,
         dmabuf::{DmabufFeedback, DmabufState},
-        reexports::calloop_wayland_source::WaylandSource,
         registry::{ProvidesRegistryState, RegistryState},
         seat::{SeatHandler, SeatState},
         shm::{Shm, ShmHandler},

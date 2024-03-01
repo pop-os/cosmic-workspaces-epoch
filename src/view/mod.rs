@@ -14,6 +14,7 @@ use cosmic::{
         Border,
     },
     iced_core::Shadow,
+    iced_sctk::subsurface_widget::Subsurface,
     widget,
 };
 use cosmic_comp_config::workspace::WorkspaceLayout;
@@ -284,7 +285,7 @@ fn toplevel_previews<'a>(
 
 fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {
     if let Some(image) = image {
-        widget::Image::new(image.img.clone()).into()
+        Subsurface::new(image.width, image.height, &image.wl_buffer).into()
     } else {
         widget::Image::new(widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])).into()
     }

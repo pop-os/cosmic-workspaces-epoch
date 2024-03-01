@@ -8,11 +8,13 @@ use cctk::{
 };
 use cosmic::cctk;
 use cosmic::iced::widget::image;
+use cosmic::iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf, SubsurfaceBuffer};
 use memmap2::Mmap;
 use rustix::{io::Errno, shm::ShmOFlags};
 use std::{
     os::fd::{AsFd, OwnedFd},
     path::{Path, PathBuf},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
@@ -70,10 +72,9 @@ enum BufferBacking {
 }
 
 pub struct Buffer {
-    backing: BufferBacking,
+    pub backing: Arc<BufferSource>,
     pub buffer: wl_buffer::WlBuffer,
     pub buffer_info: BufferInfo,
-    mmap: Mmap,
     node: Option<PathBuf>,
 }
 
@@ -89,6 +90,12 @@ impl AppData {
             (),
         );
 
+        pool.destroy();
+
+        // XXX
+        let fd = rustix::fs::memfd_create("shm-buffer", rustix::fs::MemfdFlags::CLOEXEC).unwrap();
+        rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64).unwrap();
+
         let format = wl_shm::Format::try_from(buffer_info.format).unwrap();
         let buffer = pool.create_buffer(
             0,
@@ -100,11 +107,18 @@ impl AppData {
             (),
         );
 
-        let mmap = unsafe { Mmap::map(&fd).unwrap() };
-
         Buffer {
-            backing: BufferBacking::Shm { fd },
-            mmap,
+            backing: Arc::new(
+                Shmbuf {
+                    fd,
+                    offset: 0,
+                    width: buffer_info.width as i32,
+                    height: buffer_info.height as i32,
+                    stride: buffer_info.stride as i32,
+                    format,
+                }
+                .into(),
+            ),
             buffer,
             buffer_info: buffer_info.clone(),
             node: None,
@@ -158,8 +172,8 @@ impl AppData {
             )?
         };
 
-        let fd = bo.fd()?;
-        let stride = bo.stride()?;
+        let mut planes = Vec::new();
+
         let params = self.dmabuf_state.create_params(&self.qh)?;
         let modifier = bo.modifier()?;
         for i in 0..bo.plane_count()? as i32 {
@@ -173,6 +187,12 @@ impl AppData {
                 plane_stride,
                 modifier.into(),
             );
+            planes.push(Plane {
+                fd: plane_fd,
+                plane_idx: i as u32,
+                offset: plane_offset,
+                stride: plane_stride,
+            });
         }
         let buffer = params
             .create_immed(
@@ -184,12 +204,17 @@ impl AppData {
             )
             .0;
 
-        // Is there any cost to mmapping dma memory if it isn't accessed?
-        let mmap = unsafe { Mmap::map(&fd).unwrap() };
-
         Ok(Some(Buffer {
-            backing: BufferBacking::Dmabuf { fd, stride },
-            mmap,
+            backing: Arc::new(
+                Dmabuf {
+                    width: buffer_info.width as i32,
+                    height: buffer_info.height as i32,
+                    planes,
+                    format: buffer_info.format,
+                    modifier: modifier.into(),
+                }
+                .into(),
+            ),
             buffer,
             buffer_info: buffer_info.clone(),
             node: Some(node.clone()),
@@ -200,12 +225,11 @@ impl AppData {
         // XXX Handle other formats?
         let format = wl_shm::Format::Abgr8888.into();
 
-        /*
         if let Some(buffer_info) = buffer_infos
             .iter()
             .find(|x| x.type_ == WEnum::Value(BufferType::Dmabuf) && x.format == format)
         {
-            match self.create_gbm_buffer(buffer_info, true) {
+            match self.create_gbm_buffer(buffer_info, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }
@@ -213,7 +237,6 @@ impl AppData {
                 Err(err) => eprintln!("Failed to create gbm buffer: {}", err),
             }
         }
-        */
 
         // Fallback to shm buffer
         // Assume format is already known to be valid
@@ -226,33 +249,6 @@ impl AppData {
 }
 
 impl Buffer {
-    // Buffer must be released by server for safety
-    // XXX is this at all a performance issue?
-    #[allow(clippy::wrong_self_convention)]
-    pub unsafe fn to_image(&mut self) -> image::Handle {
-        let pixels = match &self.backing {
-            BufferBacking::Shm { .. } => self.mmap.to_vec(),
-            // NOTE: Only will work with linear modifier
-            BufferBacking::Dmabuf { fd, stride } => {
-                if self.buffer_info.stride == self.buffer_info.width * 4 {
-                    self.mmap.to_vec()
-                } else {
-                    let width = self.buffer_info.width as usize;
-                    let height = self.buffer_info.height as usize;
-                    let stride = *stride as usize;
-                    let output_stride = width * 4;
-                    let mut pixels = vec![0; height * output_stride];
-                    for y in 0..height {
-                        pixels[y * output_stride..y * output_stride + output_stride]
-                            .copy_from_slice(&self.mmap[y * stride..y * stride + output_stride]);
-                    }
-                    pixels
-                }
-            }
-        };
-        image::Handle::from_pixels(self.buffer_info.width, self.buffer_info.height, pixels)
-    }
-
     pub fn node(&self) -> Option<&Path> {
         self.node.as_deref()
     }

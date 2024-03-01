@@ -33,6 +33,10 @@ calloop-wayland-source = "0.3.0"
 version = "0.14.1"
 features = ["fluent-system", "desktop-requester"]
 
+[features]
+default = ["wgpu"]
+wgpu = ["libcosmic/wgpu"]
+
 [profile.dev]
 # Not usable at opt-level 0, at least with software renderer
 opt-level = 1

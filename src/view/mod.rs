@@ -88,7 +88,6 @@ pub(crate) fn workspace_item<'a>(
 ) -> cosmic::Element<'a, Msg> {
     let image = capture_image(workspace.img_for_output.get(output));
     column![
-        close_button(Msg::CloseWorkspace(workspace.handle.clone())),
         // TODO editable name?
         widget::button(column![image, widget::text(&workspace.name)])
             .selected(workspace.is_active)

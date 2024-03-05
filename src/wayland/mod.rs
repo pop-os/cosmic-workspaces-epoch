@@ -20,7 +20,7 @@ use cctk::{
     toplevel_management::ToplevelManagerState,
     wayland_client::{
         globals::registry_queue_init,
-        protocol::{wl_buffer, wl_output, wl_seat},
+        protocol::{wl_output, wl_seat},
         Connection, QueueHandle,
     },
     workspace::WorkspaceState,
@@ -99,7 +99,6 @@ pub enum Cmd {
 }
 
 pub struct AppData {
-    conn: Connection,
     qh: QueueHandle<Self>,
     dmabuf_state: DmabufState,
     registry_state: RegistryState,
@@ -244,7 +243,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
 
         let registry_state = RegistryState::new(&globals);
         let mut app_data = AppData {
-            conn: conn.clone(),
             qh: qh.clone(),
             dmabuf_state,
             workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
@@ -286,7 +284,10 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
                 }
             })
             .unwrap();
-        event_loop.handle().insert_source(executor, |(), _, _| {});
+        event_loop
+            .handle()
+            .insert_source(executor, |(), _, _| {})
+            .unwrap();
 
         loop {
             event_loop.dispatch(None, &mut app_data).unwrap();

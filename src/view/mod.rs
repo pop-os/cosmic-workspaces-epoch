@@ -102,7 +102,7 @@ pub(crate) fn workspace_item<'a>(
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
-    is_drop_target: bool,
+    _is_drop_target: bool,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -154,6 +154,7 @@ fn workspaces_sidebar<'a>(
     };
     let sidebar_entries_container =
         widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(12.0);
+    /*
     let new_workspace_button = widget::button(
         widget::container(row![
             widget::icon::from_name("list-add-symbolic").symbolic(true),
@@ -164,7 +165,6 @@ fn workspaces_sidebar<'a>(
     )
     .on_press(Msg::NewWorkspace)
     .width(iced::Length::Fill);
-    /*
     let bar: cosmic::Element<_> = if amount != WorkspaceAmount::Dynamic {
         match layout {
             WorkspaceLayout::Vertical => {

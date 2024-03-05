@@ -14,6 +14,7 @@ pub fn icon_for_app_id(app_id: String) -> Option<PathBuf> {
     )
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 struct DesktopInfo {
     id: String,

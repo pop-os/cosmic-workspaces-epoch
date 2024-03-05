@@ -7,9 +7,7 @@ use cctk::{
     },
 };
 use cosmic::cctk;
-use cosmic::iced::widget::image;
-use cosmic::iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf, SubsurfaceBuffer};
-use memmap2::Mmap;
+use cosmic::iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf};
 use rustix::{io::Errno, shm::ShmOFlags};
 use std::{
     os::fd::{AsFd, OwnedFd},
@@ -58,17 +56,13 @@ fn create_memfile() -> rustix::io::Result<OwnedFd> {
                     return Err(errno.into());
                 }
             },
+            #[allow(unreachable_patterns)]
             Err(Errno::EXIST | Errno::EXIST) => {
                 continue;
             }
             Err(err) => return Err(err.into()),
         }
     }
-}
-
-enum BufferBacking {
-    Shm { fd: OwnedFd },
-    Dmabuf { fd: OwnedFd, stride: u32 },
 }
 
 pub struct Buffer {
@@ -81,7 +75,7 @@ pub struct Buffer {
 impl AppData {
     fn create_shm_buffer(&self, buffer_info: &BufferInfo) -> Buffer {
         let fd = create_memfile().unwrap(); // XXX?
-        rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64);
+        rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64).unwrap();
 
         let pool = self.shm_state.wl_shm().create_pool(
             fd.as_fd(),

@@ -40,7 +40,6 @@ use cosmic::{
     iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
 };
 use cosmic_comp_config::CosmicCompConfig;
-use cosmic_config::ConfigSet;
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
 use once_cell::sync::Lazy;
@@ -117,6 +116,7 @@ enum Msg {
     Close,
     Closed(SurfaceId),
     ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
+    #[allow(dead_code)]
     CloseWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
     ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
@@ -132,6 +132,7 @@ enum Msg {
     DndWorkspaceDrop,
     DndWorkspaceData(String, Vec<u8>),
     SourceFinished,
+    #[allow(dead_code)]
     NewWorkspace,
     CompConfig(CosmicCompConfig),
     Config(CosmicWorkspacesConfig),
@@ -555,7 +556,7 @@ impl Application for App {
                     );
                 }
             }
-            Msg::DndWorkspaceEnter(handle, output, action, mimes, (_x, _y)) => {
+            Msg::DndWorkspaceEnter(handle, output, _action, mimes, (_x, _y)) => {
                 self.drop_target = Some((handle, output));
                 // XXX
                 // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
@@ -581,17 +582,14 @@ impl Application for App {
                         .ok()
                         .and_then(|s| u32::from_str(s).ok());
                     if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
-                        if let Some(toplevel) = self.toplevels.iter().find(|t| &t.handle == handle)
-                        {
-                            if let Some(drop_target) = &self.drop_target {
-                                if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
-                                    if toplevel_manager.version() >= 2 {
-                                        toplevel_manager.move_to_workspace(
-                                            handle,
-                                            &drop_target.0,
-                                            &drop_target.1,
-                                        );
-                                    }
+                        if let Some(drop_target) = &self.drop_target {
+                            if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
+                                if toplevel_manager.version() >= 2 {
+                                    toplevel_manager.move_to_workspace(
+                                        handle,
+                                        &drop_target.0,
+                                        &drop_target.1,
+                                    );
                                 }
                             }
                         }

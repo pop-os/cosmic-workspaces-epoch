@@ -80,7 +80,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'a, Msg
             .zip(tree.children.iter_mut())
             .map(|(child, tree)| {
                 let child_limits = layout::Limits::new(Size::ZERO, limits.max());
-                let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
+                let layout = child.as_widget().layout(tree, renderer, &child_limits);
                 self.axis.main(layout.size())
             })
             .collect::<Vec<_>>();
@@ -122,7 +122,6 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'a, Msg
 
         let (total_width, total_height) = self.axis.pack(total_main, max_cross);
         let size = Size::new(total_width, total_height);
-        limits;
         layout::Node::with_children(size, nodes)
     }
 

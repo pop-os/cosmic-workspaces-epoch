@@ -34,10 +34,10 @@ impl DmabufHandler for AppData {
                     self.gbm = Some(gbm);
                 }
                 Ok(None) => {
-                    eprintln!("Gbm main device '{}' not found", feedback.main_device());
+                    log::error!("Gbm main device '{}' not found", feedback.main_device());
                 }
                 Err(err) => {
-                    eprintln!("Failed to open gbm main device: {}", err);
+                    log::error!("Failed to open gbm main device: {}", err);
                 }
             }
         }
@@ -72,7 +72,7 @@ fn find_gbm_device(dev: u64) -> io::Result<Option<(PathBuf, gbm::Device<fs::File
         let i = i?;
         if i.metadata()?.rdev() == dev {
             let file = fs::File::options().read(true).write(true).open(i.path())?;
-            eprintln!("Opened gbm main device '{}'", i.path().display());
+            log::info!("Opened gbm main device '{}'", i.path().display());
             return Ok(Some((i.path(), gbm::Device::new(file)?)));
         }
     }

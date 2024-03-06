@@ -450,7 +450,7 @@ impl Application for App {
                         self.update_capture_filter();
                     }
                     wayland::Event::NewToplevel(handle, info) => {
-                        println!("New toplevel: {info:?}");
+                        log::debug!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
                             icon: desktop_info::icon_for_app_id(info.app_id.clone()),
                             handle,
@@ -709,7 +709,7 @@ impl Application for App {
                 }
             }
         }
-        println!("NO VIEW");
+        log::info!("NO VIEW");
         text("workspaces").into()
     }
 

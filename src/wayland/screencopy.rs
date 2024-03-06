@@ -147,7 +147,7 @@ impl ScreencopyHandler for AppData {
         };
 
         if session.buffers.is_none() {
-            eprintln!("Error: No capture buffers?");
+            log::error!("No capture buffers?");
             return;
         }
 
@@ -205,7 +205,7 @@ impl ScreencopyHandler for AppData {
         _reason: WEnum<zcosmic_screencopy_session_v1::FailureReason>,
     ) {
         // TODO
-        println!("Failed");
+        log::error!("Screencopy failed");
         if let Some(capture) = Capture::for_session(session) {
             capture.stop();
         }

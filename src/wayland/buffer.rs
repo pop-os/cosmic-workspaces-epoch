@@ -228,7 +228,7 @@ impl AppData {
                     return buffer;
                 }
                 Ok(None) => {}
-                Err(err) => eprintln!("Failed to create gbm buffer: {}", err),
+                Err(err) => log::error!("Failed to create gbm buffer: {}", err),
             }
         }
 

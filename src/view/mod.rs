@@ -55,13 +55,13 @@ pub(crate) fn layer_surface<'a>(
         layout,
     );
     let container = match layout {
-        WorkspaceLayout::Vertical => widget::cosmic_container::container(
+        WorkspaceLayout::Vertical => widget::layer_container(
             row![sidebar, toplevels]
                 .spacing(12)
                 .height(iced::Length::Fill)
                 .width(iced::Length::Fill),
         ),
-        WorkspaceLayout::Horizontal => widget::cosmic_container::container(
+        WorkspaceLayout::Horizontal => widget::layer_container(
             column![sidebar, toplevels]
                 .spacing(12)
                 .height(iced::Length::Fill)

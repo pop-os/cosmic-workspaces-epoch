@@ -1,9 +1,10 @@
 use cctk::{
     cosmic_protocols::{
-        screencopy::v1::client::{zcosmic_screencopy_manager_v1, zcosmic_screencopy_session_v1},
+        screencopy::v2::client::{zcosmic_screencopy_manager_v2, zcosmic_screencopy_session_v2},
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         workspace::v1::client::zcosmic_workspace_handle_v1,
     },
+    screencopy::ScreencopyState,
     wayland_client::{protocol::wl_output, Proxy, QueueHandle},
 };
 use cosmic::cctk;
@@ -43,20 +44,16 @@ impl Capture {
     // Returns `None` if capture is destroyed
     // (or if `session` wasn't created with `SessionData`)
     pub fn for_session(
-        session: &zcosmic_screencopy_session_v1::ZcosmicScreencopySessionV1,
+        session: &zcosmic_screencopy_session_v2::ZcosmicScreencopySessionV2,
     ) -> Option<Arc<Self>> {
         session.data::<SessionData>()?.capture.upgrade()
     }
 
     // Start capturing frames
-    pub fn start(
-        self: &Arc<Self>,
-        manager: &zcosmic_screencopy_manager_v1::ZcosmicScreencopyManagerV1,
-        qh: &QueueHandle<AppData>,
-    ) {
+    pub fn start(self: &Arc<Self>, screencopy_state: &ScreencopyState, qh: &QueueHandle<AppData>) {
         let mut session = self.session.lock().unwrap();
         if session.is_none() {
-            *session = Some(ScreencopySession::new(self, manager, qh));
+            *session = Some(ScreencopySession::new(self, screencopy_state, qh));
         }
     }
 

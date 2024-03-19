@@ -1,6 +1,5 @@
 use cctk::{
-    cosmic_protocols::screencopy::v1::client::zcosmic_screencopy_session_v1::BufferType,
-    screencopy::BufferInfo,
+    screencopy::Formats,
     wayland_client::{
         protocol::{wl_buffer, wl_shm, wl_shm_pool},
         Connection, Dispatch, QueueHandle, WEnum,
@@ -68,34 +67,30 @@ fn create_memfile() -> rustix::io::Result<OwnedFd> {
 pub struct Buffer {
     pub backing: Arc<BufferSource>,
     pub buffer: wl_buffer::WlBuffer,
-    pub buffer_info: BufferInfo,
     node: Option<PathBuf>,
+    pub size: (u32, u32),
 }
 
 impl AppData {
-    fn create_shm_buffer(&self, buffer_info: &BufferInfo) -> Buffer {
+    fn create_shm_buffer(&self, format: u32, (width, height): (u32, u32)) -> Buffer {
         let fd = create_memfile().unwrap(); // XXX?
-        rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64).unwrap();
+        rustix::fs::ftruncate(&fd, width as u64 * height as u64 * 4).unwrap();
 
         let pool = self.shm_state.wl_shm().create_pool(
             fd.as_fd(),
-            buffer_info.stride as i32 * buffer_info.height as i32,
+            width as i32 * height as i32 * 4,
             &self.qh,
             (),
         );
 
         pool.destroy();
 
-        // XXX
-        let fd = rustix::fs::memfd_create("shm-buffer", rustix::fs::MemfdFlags::CLOEXEC).unwrap();
-        rustix::fs::ftruncate(&fd, buffer_info.stride as u64 * buffer_info.height as u64).unwrap();
-
-        let format = wl_shm::Format::try_from(buffer_info.format).unwrap();
+        let format = wl_shm::Format::try_from(format).unwrap();
         let buffer = pool.create_buffer(
             0,
-            buffer_info.width as i32,
-            buffer_info.height as i32,
-            buffer_info.stride as i32,
+            width as i32,
+            height as i32,
+            width as i32 * 4,
             format,
             &self.qh,
             (),
@@ -106,23 +101,24 @@ impl AppData {
                 Shmbuf {
                     fd,
                     offset: 0,
-                    width: buffer_info.width as i32,
-                    height: buffer_info.height as i32,
-                    stride: buffer_info.stride as i32,
+                    width: width as i32,
+                    height: height as i32,
+                    stride: width as i32 * 4,
                     format,
                 }
                 .into(),
             ),
             buffer,
-            buffer_info: buffer_info.clone(),
             node: None,
+            size: (width, height),
         }
     }
 
     #[allow(dead_code)]
     fn create_gbm_buffer(
         &self,
-        buffer_info: &BufferInfo,
+        format: u32,
+        (width, height): (u32, u32),
         needs_linear: bool,
     ) -> anyhow::Result<Option<Buffer>> {
         let (Some((node, gbm)), Some(feedback)) =
@@ -138,7 +134,7 @@ impl AppData {
             .flat_map(|x| &x.formats)
             .filter_map(|x| formats.get(*x as usize))
             .filter(|x| {
-                x.format == buffer_info.format
+                x.format == format
                     && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
             })
             .filter_map(|x| gbm::Modifier::try_from(x.modifier).ok())
@@ -147,21 +143,21 @@ impl AppData {
         if modifiers.is_empty() {
             return Ok(None);
         };
-        let format = gbm::Format::try_from(buffer_info.format)?;
+        let gbm_format = gbm::Format::try_from(format)?;
         //dbg!(format, modifiers);
         let bo = if !modifiers.iter().all(|x| *x == gbm::Modifier::Invalid) {
             gbm.create_buffer_object_with_modifiers::<()>(
-                buffer_info.width,
-                buffer_info.height,
-                format,
+                width,
+                height,
+                gbm_format,
                 modifiers.iter().copied(),
             )?
         } else {
             // TODO make sure this isn't used across different GPUs
             gbm.create_buffer_object::<()>(
-                buffer_info.width,
-                buffer_info.height,
-                format,
+                width,
+                height,
+                gbm_format,
                 gbm::BufferObjectFlags::empty(),
             )?
         };
@@ -190,9 +186,9 @@ impl AppData {
         }
         let buffer = params
             .create_immed(
-                buffer_info.width as i32,
-                buffer_info.height as i32,
-                buffer_info.format,
+                width as i32,
+                height as i32,
+                format,
                 zwp_linux_buffer_params_v1::Flags::empty(),
                 &self.qh,
             )
@@ -201,29 +197,26 @@ impl AppData {
         Ok(Some(Buffer {
             backing: Arc::new(
                 Dmabuf {
-                    width: buffer_info.width as i32,
-                    height: buffer_info.height as i32,
+                    width: width as i32,
+                    height: height as i32,
                     planes,
-                    format: buffer_info.format,
+                    format,
                     modifier: modifier.into(),
                 }
                 .into(),
             ),
             buffer,
-            buffer_info: buffer_info.clone(),
             node: Some(node.clone()),
+            size: (width, height),
         }))
     }
 
-    pub fn create_buffer(&self, buffer_infos: &[BufferInfo]) -> Buffer {
+    pub fn create_buffer(&self, formats: &Formats) -> Buffer {
         // XXX Handle other formats?
-        let format = wl_shm::Format::Abgr8888.into();
+        let format = u32::from(wl_shm::Format::Abgr8888);
 
-        if let Some(buffer_info) = buffer_infos
-            .iter()
-            .find(|x| x.type_ == WEnum::Value(BufferType::Dmabuf) && x.format == format)
-        {
-            match self.create_gbm_buffer(buffer_info, false) {
+        if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
+            match self.create_gbm_buffer(format, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }
@@ -234,11 +227,8 @@ impl AppData {
 
         // Fallback to shm buffer
         // Assume format is already known to be valid
-        let buffer_info = buffer_infos
-            .iter()
-            .find(|x| x.type_ == WEnum::Value(BufferType::WlShm) && x.format == format)
-            .unwrap();
-        self.create_shm_buffer(buffer_info)
+        assert!(formats.shm_formats.contains(&format));
+        self.create_shm_buffer(format, formats.buffer_size)
     }
 }
 

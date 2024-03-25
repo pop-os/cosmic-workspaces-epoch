@@ -152,7 +152,7 @@ impl AppData {
         for (source, capture) in self.captures.borrow_mut().iter_mut() {
             let matches = self.matches_capture_filter(source);
             if matches {
-                capture.start(&self.screencopy_state.screencopy_manager, &self.qh);
+                capture.start(&self.screencopy_state, &self.qh);
             } else {
                 capture.stop();
             }
@@ -167,7 +167,7 @@ impl AppData {
                 let matches = self.matches_capture_filter(&source);
                 let capture = Capture::new(source);
                 if matches {
-                    capture.start(&self.screencopy_state.screencopy_manager, &self.qh);
+                    capture.start(&self.screencopy_state, &self.qh);
                 }
                 capture
             });

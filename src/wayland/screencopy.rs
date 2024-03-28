@@ -234,10 +234,10 @@ impl ScreencopyHandler for AppData {
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
         screencopy_frame: &zcosmic_screencopy_frame_v2::ZcosmicScreencopyFrameV2,
-        _reason: WEnum<zcosmic_screencopy_frame_v2::FailureReason>,
+        reason: WEnum<zcosmic_screencopy_frame_v2::FailureReason>,
     ) {
         // TODO
-        log::error!("Screencopy failed");
+        log::error!("Screencopy failed: {:?}", reason);
         let session = &screencopy_frame.data::<FrameData>().unwrap().session;
         if let Some(capture) = Capture::for_session(session) {
             capture.stop();

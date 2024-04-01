@@ -114,7 +114,7 @@ impl AppData {
         }
     }
 
-    #[allow(dead_code)]
+    #[cfg(not(feature = "force-shm-screencopy"))]
     fn create_gbm_buffer(
         &self,
         format: u32,
@@ -215,6 +215,7 @@ impl AppData {
         // XXX Handle other formats?
         let format = u32::from(wl_shm::Format::Abgr8888);
 
+        #[cfg(not(feature = "force-shm-screencopy"))]
         if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
             match self.create_gbm_buffer(format, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {

@@ -87,6 +87,8 @@ pub struct CaptureImage {
     pub width: u32,
     pub height: u32,
     pub wl_buffer: SubsurfaceBuffer,
+    #[cfg(feature = "no-subsurfaces")]
+    pub image: cosmic::widget::image::Handle,
 }
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {

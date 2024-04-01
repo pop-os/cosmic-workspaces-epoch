@@ -284,7 +284,14 @@ fn toplevel_previews<'a>(
 
 fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {
     if let Some(image) = image {
-        Subsurface::new(image.width, image.height, &image.wl_buffer).into()
+        #[cfg(feature = "no-subsurfaces")]
+        {
+            widget::Image::new(image.image.clone()).into()
+        }
+        #[cfg(not(feature = "no-subsurfaces"))]
+        {
+            Subsurface::new(image.width, image.height, &image.wl_buffer).into()
+        }
     } else {
         widget::Image::new(widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])).into()
     }

@@ -208,12 +208,16 @@ impl ScreencopyHandler for AppData {
         let front = session.buffers.as_mut().unwrap().first_mut().unwrap();
         let (buffer, release) = SubsurfaceBuffer::new(front.backing.clone());
         session.release = Some(release);
-        // let img = unsafe { front.to_image() };
-        // let image = CaptureImage { img };
         let image = CaptureImage {
             wl_buffer: buffer,
             width: front.size.0,
             height: front.size.1,
+            #[cfg(feature = "no-subsurfaces")]
+            image: cosmic::widget::image::Handle::from_pixels(
+                front.size.0,
+                front.size.1,
+                front.mmap.to_vec(),
+            ),
         };
         match &capture.source {
             CaptureSource::Toplevel(toplevel) => {

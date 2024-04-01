@@ -69,6 +69,8 @@ pub struct Buffer {
     pub buffer: wl_buffer::WlBuffer,
     node: Option<PathBuf>,
     pub size: (u32, u32),
+    #[cfg(feature = "no-subsurfaces")]
+    pub mmap: memmap2::Mmap,
 }
 
 impl AppData {
@@ -96,6 +98,9 @@ impl AppData {
 
         pool.destroy();
 
+        #[cfg(feature = "no-subsurfaces")]
+        let mmap = unsafe { memmap2::Mmap::map(&fd).unwrap() };
+
         Buffer {
             backing: Arc::new(
                 Shmbuf {
@@ -109,6 +114,8 @@ impl AppData {
                 .into(),
             ),
             buffer,
+            #[cfg(feature = "no-subsurfaces")]
+            mmap,
             node: None,
             size: (width, height),
         }

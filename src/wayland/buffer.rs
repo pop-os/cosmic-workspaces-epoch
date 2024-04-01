@@ -83,8 +83,6 @@ impl AppData {
             (),
         );
 
-        pool.destroy();
-
         let format = wl_shm::Format::try_from(format).unwrap();
         let buffer = pool.create_buffer(
             0,
@@ -95,6 +93,8 @@ impl AppData {
             &self.qh,
             (),
         );
+
+        pool.destroy();
 
         Buffer {
             backing: Arc::new(

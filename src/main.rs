@@ -747,7 +747,6 @@ pub fn main() -> iced::Result {
 
     cosmic::app::run_single_instance::<App>(
         cosmic::app::Settings::default()
-            .antialiasing(true)
             .no_main_window(true)
             .exit_on_close(false),
         Args::parse(),

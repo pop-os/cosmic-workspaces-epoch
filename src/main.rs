@@ -359,7 +359,9 @@ impl Application for App {
 
     fn update(&mut self, message: Msg) -> Command<cosmic::app::Message<Msg>> {
         match message {
-            Msg::SourceFinished => {}
+            Msg::SourceFinished => {
+                self.drag_surface = None;
+            }
             Msg::WaylandEvent(evt) => match evt {
                 WaylandEvent::Output(evt, output) => {
                     // TODO: Less hacky way to get connection from iced-sctk

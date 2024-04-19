@@ -31,6 +31,10 @@ pub(crate) fn layer_surface<'a>(
             drop_target = Some(workspace);
         }
     }
+    let mut drag_toplevel = None;
+    if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &app.drag_surface {
+        drag_toplevel = Some(handle);
+    }
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(
         app.workspaces
@@ -53,6 +57,7 @@ pub(crate) fn layer_surface<'a>(
         }),
         &surface.output,
         layout,
+        drag_toplevel,
     );
     let container = match layout {
         WorkspaceLayout::Vertical => widget::layer_container(
@@ -243,8 +248,12 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
 fn toplevel_previews_entry<'a>(
     toplevel: &'a Toplevel,
     output: &'a wl_output::WlOutput,
+    is_being_dragged: bool,
 ) -> cosmic::Element<'a, Msg> {
-    iced::widget::dnd_source(toplevel_preview(toplevel))
+    // Dragged window still takes up space until moved, but isn't rendered while drag surface is
+    // shown.
+    let preview = crate::widgets::visibility_wrapper(toplevel_preview(toplevel), !is_being_dragged);
+    iced::widget::dnd_source(preview)
         .on_drag(|size| {
             Msg::StartDrag(
                 size,
@@ -263,13 +272,14 @@ fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
+    drag_toplevel: Option<&'a zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),
         WorkspaceLayout::Horizontal => (iced::Length::Fill, iced::Length::FillPortion(4)),
     };
     let entries = toplevels
-        .map(|t| toplevel_previews_entry(t, output))
+        .map(|t| toplevel_previews_entry(t, output, drag_toplevel == Some(&t.handle)))
         .collect();
     //row(entries)
     widget::container(crate::widgets::toplevels(entries))

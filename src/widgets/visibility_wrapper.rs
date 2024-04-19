@@ -1,3 +1,6 @@
+//! If `visible` is set to `true`, behaves exactly as wrapped widget. If `false`,
+//! takes the same space but does not draw.
+
 use cosmic::iced::{
     advanced::{
         layout, mouse, overlay, renderer,
@@ -9,44 +12,24 @@ use cosmic::iced::{
 };
 use std::marker::PhantomData;
 
-mod image_bg;
-pub use image_bg::image_bg;
-mod workspace_bar;
-pub use workspace_bar::workspace_bar;
-mod workspace_item;
-pub use workspace_item::workspace_item;
-mod mouse_interaction_wrapper;
-pub use mouse_interaction_wrapper::mouse_interaction_wrapper;
-mod toplevels;
-pub use toplevels::toplevels;
-mod visibility_wrapper;
-pub use visibility_wrapper::visibility_wrapper;
-
-pub fn layout_wrapper<'a, Msg, T: Into<cosmic::Element<'a, Msg>>>(
+pub fn visibility_wrapper<'a, Msg, T: Into<cosmic::Element<'a, Msg>>>(
     inner: T,
-) -> LayoutWrapper<'a, Msg> {
-    LayoutWrapper {
+    visible: bool,
+) -> VisibilityWrapper<'a, Msg> {
+    VisibilityWrapper {
         content: inner.into(),
+        visible,
         _msg: PhantomData,
     }
 }
 
-pub struct LayoutWrapper<'a, Msg> {
+pub struct VisibilityWrapper<'a, Msg> {
     content: cosmic::Element<'a, Msg>,
+    visible: bool,
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a, Msg> {
-    fn layout(
-        &self,
-        tree: &mut Tree,
-        renderer: &cosmic::Renderer,
-        limits: &layout::Limits,
-    ) -> layout::Node {
-        dbg!(limits);
-        dbg!(self.content.as_widget().layout(tree, renderer, limits))
-    }
-
+impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for VisibilityWrapper<'a, Msg> {
     delegate::delegate! {
         to self.content.as_widget() {
             fn tag(&self) -> tree::Tag;
@@ -54,6 +37,12 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
             fn children(&self) -> Vec<Tree>;
             fn size(&self) -> Size<Length>;
             fn size_hint(&self) -> Size<Length>;
+            fn layout(
+                    &self,
+                    tree: &mut Tree,
+                    renderer: &cosmic::Renderer,
+                    limits: &layout::Limits,
+                ) -> layout::Node;
             fn operate(
                     &self,
                     tree: &mut Tree,
@@ -61,16 +50,6 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
                     renderer: &cosmic::Renderer,
                     operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
                 );
-            fn draw(
-                &self,
-                state: &Tree,
-                renderer: &mut cosmic::Renderer,
-                theme: &cosmic::Theme,
-                style: &renderer::Style,
-                layout: Layout<'_>,
-                cursor: mouse::Cursor,
-                viewport: &Rectangle,
-            );
             fn mouse_interaction(
                 &self,
                 _tree: &Tree,
@@ -104,10 +83,28 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
             fn set_id(&mut self, id: Id);
         }
     }
+
+    fn draw(
+        &self,
+        state: &Tree,
+        renderer: &mut cosmic::Renderer,
+        theme: &cosmic::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        if self.visible {
+            self.content
+                .as_widget()
+                .draw(state, renderer, theme, style, layout, cursor, viewport);
+        }
+    }
 }
 
-impl<'a, Msg: 'a> From<LayoutWrapper<'a, Msg>> for cosmic::Element<'a, Msg> {
-    fn from(widget: LayoutWrapper<'a, Msg>) -> Self {
+impl<'a, Msg: 'a> From<VisibilityWrapper<'a, Msg>> for cosmic::Element<'a, Msg> {
+    fn from(widget: VisibilityWrapper<'a, Msg>) -> Self {
         cosmic::Element::new(widget)
     }
+
 }

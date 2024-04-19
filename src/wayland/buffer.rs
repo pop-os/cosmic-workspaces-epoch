@@ -2,7 +2,7 @@ use cctk::{
     screencopy::Formats,
     wayland_client::{
         protocol::{wl_buffer, wl_shm, wl_shm_pool},
-        Connection, Dispatch, QueueHandle, WEnum,
+        Connection, Dispatch, QueueHandle,
     },
 };
 use cosmic::cctk;
@@ -223,7 +223,8 @@ impl AppData {
         let format = u32::from(wl_shm::Format::Abgr8888);
 
         #[cfg(not(feature = "force-shm-screencopy"))]
-        if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
+        if let Some((_, _modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
+            // TODO Restrict modifiers
             match self.create_gbm_buffer(format, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
@@ -241,6 +242,8 @@ impl AppData {
 }
 
 impl Buffer {
+    // Use this when dmabuf/screencopy has a way to specify node
+    #[allow(dead_code)]
     pub fn node(&self) -> Option<&Path> {
         self.node.as_deref()
     }

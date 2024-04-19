@@ -114,7 +114,6 @@ enum Msg {
     WaylandEvent(WaylandEvent),
     Wayland(wayland::Event),
     Close,
-    Closed(SurfaceId),
     ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
     #[allow(dead_code)]
     CloseWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
@@ -183,16 +182,13 @@ enum DragSurface {
 }
 
 struct Conf {
-    cosmic_comp_config: cosmic_config::Config,
     workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
     config: CosmicWorkspacesConfig,
 }
 
 impl Default for Conf {
     fn default() -> Self {
-        let cosmic_comp_config = cosmic_config::Config::new("com.system76.CosmicComp", 1).unwrap();
         Self {
-            cosmic_comp_config,
             workspace_config: Default::default(),
             config: Default::default(),
         }
@@ -492,7 +488,6 @@ impl Application for App {
             Msg::Close => {
                 return self.hide();
             }
-            Msg::Closed(_) => {}
             Msg::ActivateWorkspace(workspace_handle) => {
                 let workspace_manager = self.workspace_manager.as_ref().unwrap();
                 workspace_handle.activate();
@@ -715,8 +710,8 @@ impl Application for App {
         text("workspaces").into()
     }
 
-    fn on_close_requested(&self, id: SurfaceId) -> Option<Msg> {
-        Some(Msg::Closed(id))
+    fn on_close_requested(&self, _id: SurfaceId) -> Option<Msg> {
+        None
     }
 
     fn core(&self) -> &cosmic::app::Core {

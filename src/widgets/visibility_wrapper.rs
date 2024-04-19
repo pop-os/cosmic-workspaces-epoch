@@ -106,5 +106,4 @@ impl<'a, Msg: 'a> From<VisibilityWrapper<'a, Msg>> for cosmic::Element<'a, Msg> 
     fn from(widget: VisibilityWrapper<'a, Msg>) -> Self {
         cosmic::Element::new(widget)
     }
-
 }

@@ -1,14 +1,7 @@
 use cosmic::cctk::{
     self,
-    cosmic_protocols::{
-        image_source::v1::client::{
-            zcosmic_toplevel_image_source_manager_v1::ZcosmicToplevelImageSourceManagerV1,
-            zcosmic_workspace_image_source_manager_v1::ZcosmicWorkspaceImageSourceManagerV1,
-        },
-        screencopy::v2::client::{
-            zcosmic_screencopy_frame_v2, zcosmic_screencopy_manager_v2,
-            zcosmic_screencopy_session_v2,
-        },
+    cosmic_protocols::screencopy::v2::client::{
+        zcosmic_screencopy_frame_v2, zcosmic_screencopy_manager_v2, zcosmic_screencopy_session_v2,
     },
     screencopy::{
         capture, Formats, Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
@@ -45,16 +38,11 @@ impl ScreencopySession {
                 .as_ref()
                 .unwrap()
                 .create_source(toplevel, qh, ()),
-            CaptureSource::Workspace(workspace, output) => screencopy_state
+            CaptureSource::Workspace(workspace, _output) => screencopy_state
                 .workspace_source_manager
                 .as_ref()
                 .unwrap()
-                .create_source(
-                    workspace,
-                    // output,
-                    qh,
-                    (),
-                ),
+                .create_source(workspace, qh, ()),
         };
 
         let udata = SessionData {
@@ -167,7 +155,7 @@ impl ScreencopyHandler for AppData {
         conn: &Connection,
         qh: &QueueHandle<Self>,
         screencopy_frame: &zcosmic_screencopy_frame_v2::ZcosmicScreencopyFrameV2,
-        frame: Frame,
+        _frame: Frame,
     ) {
         let session = &screencopy_frame.data::<FrameData>().unwrap().session;
         let Some(capture) = Capture::for_session(session) else {

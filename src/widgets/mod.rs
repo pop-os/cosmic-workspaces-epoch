@@ -22,6 +22,8 @@ pub use toplevels::toplevels;
 mod visibility_wrapper;
 pub use visibility_wrapper::visibility_wrapper;
 
+// Widget for debugging
+#[allow(dead_code)]
 pub fn layout_wrapper<'a, Msg, T: Into<cosmic::Element<'a, Msg>>>(
     inner: T,
 ) -> LayoutWrapper<'a, Msg> {

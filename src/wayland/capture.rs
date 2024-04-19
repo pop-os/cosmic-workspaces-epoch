@@ -1,6 +1,6 @@
 use cctk::{
     cosmic_protocols::{
-        screencopy::v2::client::{zcosmic_screencopy_manager_v2, zcosmic_screencopy_session_v2},
+        screencopy::v2::client::zcosmic_screencopy_session_v2,
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         workspace::v1::client::zcosmic_workspace_handle_v1,
     },

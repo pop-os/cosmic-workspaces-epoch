@@ -32,61 +32,77 @@ pub struct VisibilityWrapper<'a, Msg> {
 impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for VisibilityWrapper<'a, Msg> {
     delegate::delegate! {
         to self.content.as_widget() {
-            fn tag(&self) -> tree::Tag;
-            fn state(&self) -> tree::State;
-            fn children(&self) -> Vec<Tree>;
             fn size(&self) -> Size<Length>;
             fn size_hint(&self) -> Size<Length>;
-            fn layout(
-                    &self,
-                    tree: &mut Tree,
-                    renderer: &cosmic::Renderer,
-                    limits: &layout::Limits,
-                ) -> layout::Node;
-            fn operate(
-                    &self,
-                    tree: &mut Tree,
-                    layout: Layout<'_>,
-                    renderer: &cosmic::Renderer,
-                    operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
-                );
-            fn mouse_interaction(
-                &self,
-                _tree: &Tree,
-                _layout: Layout<'_>,
-                _cursor: mouse::Cursor,
-                _viewport: &Rectangle,
-                _renderer: &cosmic::Renderer,
-            ) -> mouse::Interaction;
-            fn id(&self) -> Option<Id>;
         }
+    }
 
-        to self.content.as_widget_mut() {
-            fn diff(&mut self, tree: &mut Tree);
-            fn on_event(
-                &mut self,
-                tree: &mut Tree,
-                event: Event,
-                layout: Layout<'_>,
-                cursor: mouse::Cursor,
-                renderer: &cosmic::Renderer,
-                clipboard: &mut dyn Clipboard,
-                shell: &mut Shell<'_, Msg>,
-                viewport: &Rectangle,
-            ) -> event::Status;
-            fn overlay<'b>(
-                &'b mut self,
-                tree: &'b mut Tree,
-                layout: Layout<'_>,
-                renderer: &cosmic::Renderer,
-            ) -> Option<overlay::Element<'b, Msg, cosmic::Theme, cosmic::Renderer>>;
-            fn set_id(&mut self, id: Id);
-        }
+    fn operate(
+        &self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &cosmic::Renderer,
+        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+    ) {
+        self.content
+            .as_widget()
+            .operate(&mut tree.children[0], layout, renderer, operation);
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &cosmic::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Msg>,
+        viewport: &Rectangle,
+    ) -> event::Status {
+        self.content.as_widget_mut().on_event(
+            &mut tree.children[0],
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        )
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &cosmic::Renderer,
+    ) -> mouse::Interaction {
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout,
+            cursor,
+            viewport,
+            renderer,
+        )
+    }
+
+    fn layout(
+        &self,
+        tree: &mut Tree,
+        renderer: &cosmic::Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.content
+            .as_widget()
+            .layout(&mut tree.children[0], renderer, limits)
     }
 
     fn draw(
         &self,
-        state: &Tree,
+        tree: &Tree,
         renderer: &mut cosmic::Renderer,
         theme: &cosmic::Theme,
         style: &renderer::Style,
@@ -95,10 +111,24 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for VisibilityWrapper
         viewport: &Rectangle,
     ) {
         if self.visible {
-            self.content
-                .as_widget()
-                .draw(state, renderer, theme, style, layout, cursor, viewport);
+            self.content.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                style,
+                layout,
+                cursor,
+                viewport,
+            );
         }
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&mut self, tree: &mut Tree) {
+        tree.diff_children(&mut [&mut self.content]);
     }
 }
 

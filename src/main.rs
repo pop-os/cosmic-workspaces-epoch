@@ -6,14 +6,13 @@
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-        workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
+        workspace::v1::client::zcosmic_workspace_handle_v1,
     },
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     toplevel_info::ToplevelInfo,
     wayland_client::{
         backend::ObjectId,
-        protocol::{wl_data_device_manager::DndAction, wl_output, wl_seat},
+        protocol::{wl_data_device_manager::DndAction, wl_output},
         Connection, Proxy, WEnum,
     },
 };
@@ -202,9 +201,6 @@ struct App {
     workspaces: Vec<Workspace>,
     toplevels: Vec<Toplevel>,
     conn: Option<Connection>,
-    workspace_manager: Option<zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1>,
-    toplevel_manager: Option<zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1>,
-    seats: Vec<wl_seat::WlSeat>,
     visible: bool,
     wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
     drag_surface: Option<(SurfaceId, DragSurface, Size)>,
@@ -315,21 +311,25 @@ impl App {
         )
     }
 
-    fn update_capture_filter(&self) {
+    fn send_wayland_cmd(&self, cmd: wayland::Cmd) {
         if let Some(sender) = self.wayland_cmd_sender.as_ref() {
-            let mut capture_filter = wayland::CaptureFilter::default();
-            if self.visible {
-                capture_filter.workspaces_on_outputs =
-                    self.outputs.iter().map(|x| x.handle.clone()).collect();
-                capture_filter.toplevels_on_workspaces = self
-                    .workspaces
-                    .iter()
-                    .filter(|x| x.is_active)
-                    .map(|x| x.handle.clone())
-                    .collect();
-            }
-            let _ = sender.send(wayland::Cmd::CaptureFilter(capture_filter));
+            sender.send(cmd).unwrap();
         }
+    }
+
+    fn update_capture_filter(&self) {
+        let mut capture_filter = wayland::CaptureFilter::default();
+        if self.visible {
+            capture_filter.workspaces_on_outputs =
+                self.outputs.iter().map(|x| x.handle.clone()).collect();
+            capture_filter.toplevels_on_workspaces = self
+                .workspaces
+                .iter()
+                .filter(|x| x.is_active)
+                .map(|x| x.handle.clone())
+                .collect();
+        }
+        self.send_wayland_cmd(wayland::Cmd::CaptureFilter(capture_filter));
     }
 }
 
@@ -416,12 +416,6 @@ impl Application for App {
                     wayland::Event::CmdSender(sender) => {
                         self.wayland_cmd_sender = Some(sender);
                     }
-                    wayland::Event::ToplevelManager(manager) => {
-                        self.toplevel_manager = Some(manager);
-                    }
-                    wayland::Event::WorkspaceManager(manager) => {
-                        self.workspace_manager = Some(manager);
-                    }
                     wayland::Event::Workspaces(workspaces) => {
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
@@ -480,30 +474,17 @@ impl Application for App {
                             toplevel.img = Some(image);
                         }
                     }
-                    wayland::Event::Seats(seats) => {
-                        self.seats = seats;
-                    }
                 }
             }
             Msg::Close => {
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
-                let workspace_manager = self.workspace_manager.as_ref().unwrap();
-                workspace_handle.activate();
-                workspace_manager.commit();
-                let _ = self.conn.as_ref().unwrap().flush();
+                self.send_wayland_cmd(wayland::Cmd::ActivateWorkspace(workspace_handle));
             }
             Msg::ActivateToplevel(toplevel_handle) => {
-                if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
-                    if !self.seats.is_empty() {
-                        for seat in &self.seats {
-                            toplevel_manager.activate(&toplevel_handle, seat);
-                        }
-                        let _ = self.conn.as_ref().unwrap().flush();
-                        return self.hide();
-                    }
-                }
+                self.send_wayland_cmd(wayland::Cmd::ActivateToplevel(toplevel_handle));
+                return self.hide();
             }
             Msg::CloseWorkspace(_workspace_handle) => {
                 // XXX close specific workspace
@@ -521,9 +502,7 @@ impl Application for App {
             }
             Msg::CloseToplevel(toplevel_handle) => {
                 // TODO confirmation?
-                if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
-                    toplevel_manager.close(&toplevel_handle);
-                }
+                self.send_wayland_cmd(wayland::Cmd::CloseToplevel(toplevel_handle));
             }
             Msg::StartDrag(size, drag_surface) => {
                 let (wl_id, output, mime_type) = match &drag_surface {
@@ -580,15 +559,11 @@ impl Application for App {
                         .and_then(|s| u32::from_str(s).ok());
                     if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
                         if let Some(drop_target) = &self.drop_target {
-                            if let Some(toplevel_manager) = self.toplevel_manager.as_ref() {
-                                if toplevel_manager.version() >= 2 {
-                                    toplevel_manager.move_to_workspace(
-                                        handle,
-                                        &drop_target.0,
-                                        &drop_target.1,
-                                    );
-                                }
-                            }
+                            self.send_wayland_cmd(wayland::Cmd::MoveToplevelToWorkspace(
+                                handle.clone(),
+                                drop_target.0.clone(),
+                                drop_target.1.clone(),
+                            ));
                         }
                     }
                 }

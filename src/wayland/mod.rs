@@ -5,8 +5,7 @@ use calloop_wayland_source::WaylandSource;
 use cctk::{
     cosmic_protocols::{
         toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-        workspace::v1::client::{zcosmic_workspace_handle_v1, zcosmic_workspace_manager_v1},
+        workspace::v1::client::zcosmic_workspace_handle_v1,
     },
     screencopy::ScreencopyState,
     sctk::{
@@ -21,7 +20,7 @@ use cctk::{
     wayland_client::{
         globals::registry_queue_init,
         protocol::{wl_output, wl_seat},
-        Connection, QueueHandle,
+        Connection, Proxy, QueueHandle,
     },
     workspace::WorkspaceState,
 };
@@ -58,8 +57,6 @@ pub use capture::CaptureFilter;
 #[derive(Clone, Debug)]
 pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
-    ToplevelManager(zcosmic_toplevel_manager_v1::ZcosmicToplevelManagerV1),
-    WorkspaceManager(zcosmic_workspace_manager_v1::ZcosmicWorkspaceManagerV1),
     Workspaces(Vec<(HashSet<wl_output::WlOutput>, cctk::workspace::Workspace)>),
     WorkspaceCapture(
         zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
@@ -79,7 +76,6 @@ pub enum Event {
         zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
         CaptureImage,
     ),
-    Seats(Vec<wl_seat::WlSeat>),
 }
 
 #[derive(Clone, Debug)]
@@ -98,6 +94,14 @@ pub fn subscription(conn: Connection) -> iced::Subscription<Event> {
 #[derive(Debug)]
 pub enum Cmd {
     CaptureFilter(CaptureFilter),
+    ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
+    CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
+    MoveToplevelToWorkspace(
+        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        wl_output::WlOutput,
+    ),
+    ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
 }
 
 pub struct AppData {
@@ -130,6 +134,33 @@ impl AppData {
             Cmd::CaptureFilter(filter) => {
                 self.capture_filter = filter;
                 self.invalidate_capture_filter();
+            }
+            Cmd::ActivateToplevel(toplevel_handle) => {
+                if !self.seats.is_empty() {
+                    for seat in &self.seats {
+                        self.toplevel_manager_state
+                            .manager
+                            .activate(&toplevel_handle, seat);
+                    }
+                }
+            }
+            Cmd::CloseToplevel(toplevel_handle) => {
+                self.toplevel_manager_state.manager.close(&toplevel_handle);
+            }
+            Cmd::MoveToplevelToWorkspace(toplevel_handle, workspace_handle, output) => {
+                if self.toplevel_manager_state.manager.version() >= 2 {
+                    self.toplevel_manager_state.manager.move_to_workspace(
+                        &toplevel_handle,
+                        &workspace_handle,
+                        &output,
+                    );
+                }
+            }
+            Cmd::ActivateWorkspace(workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    workspace_handle.activate();
+                    workspace_manager.commit();
+                }
             }
         }
     }
@@ -197,14 +228,12 @@ impl SeatHandler for AppData {
 
     fn new_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
         self.seats.push(seat);
-        self.send_event(Event::Seats(self.seats.clone()));
     }
 
     fn remove_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
         if let Some(idx) = self.seats.iter().position(|i| i == &seat) {
             self.seats.remove(idx);
         }
-        self.send_event(Event::Seats(self.seats.clone()));
     }
 
     fn new_capability(
@@ -262,14 +291,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             gbm: None,
             scheduler,
         };
-
-        app_data.send_event(Event::Seats(app_data.seat_state.seats().collect()));
-        app_data.send_event(Event::ToplevelManager(
-            app_data.toplevel_manager_state.manager.clone(),
-        ));
-        if let Ok(manager) = app_data.workspace_state.workspace_manager().get() {
-            app_data.send_event(Event::WorkspaceManager(manager.clone()));
-        }
 
         let (cmd_sender, cmd_channel) = calloop::channel::channel();
         app_data.send_event(Event::CmdSender(cmd_sender));

@@ -22,12 +22,6 @@ pub enum CaptureSource {
     ),
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct CaptureFilter {
-    pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
-    pub toplevels_on_workspaces: Vec<zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
-}
-
 pub struct Capture {
     pub source: CaptureSource,
     pub session: Mutex<Option<ScreencopySession>>,

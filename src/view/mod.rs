@@ -1,8 +1,5 @@
 use cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        workspace::v1::client::zcosmic_workspace_handle_v1,
-    },
+    cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
     wayland_client::protocol::wl_output,
 };
 use cosmic::{
@@ -19,7 +16,10 @@ use cosmic::{
 };
 use cosmic_comp_config::workspace::WorkspaceLayout;
 
-use crate::{wayland::CaptureImage, App, DragSurface, LayerSurface, Msg, Toplevel, Workspace};
+use crate::{
+    backend::{self, CaptureImage},
+    App, DragSurface, LayerSurface, Msg, Toplevel, Workspace,
+};
 
 pub(crate) fn layer_surface<'a>(
     app: &'a App,
@@ -148,7 +148,7 @@ fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
-    drop_target: Option<&zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1>,
+    drop_target: Option<&backend::ZcosmicWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
         .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))
@@ -272,7 +272,7 @@ fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
-    drag_toplevel: Option<&'a zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1>,
+    drag_toplevel: Option<&'a backend::ZcosmicToplevelHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),

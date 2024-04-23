@@ -3,10 +3,6 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        workspace::v1::client::zcosmic_workspace_handle_v1,
-    },
     screencopy::ScreencopyState,
     sctk::{
         self,
@@ -15,12 +11,10 @@ use cctk::{
         seat::{SeatHandler, SeatState},
         shm::{Shm, ShmHandler},
     },
-    toplevel_info::{ToplevelInfo, ToplevelInfoState},
+    toplevel_info::ToplevelInfoState,
     toplevel_management::ToplevelManagerState,
     wayland_client::{
-        globals::registry_queue_init,
-        protocol::{wl_output, wl_seat},
-        Connection, Proxy, QueueHandle,
+        globals::registry_queue_init, protocol::wl_seat, Connection, Proxy, QueueHandle,
     },
     workspace::WorkspaceState,
 };
@@ -29,16 +23,8 @@ use cosmic::iced::{
     self,
     futures::{executor::block_on, FutureExt, SinkExt},
 };
-use cosmic::iced_sctk::subsurface_widget::SubsurfaceBuffer;
 use futures_channel::mpsc;
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    fs,
-    path::PathBuf,
-    sync::Arc,
-    thread,
-};
+use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, sync::Arc, thread};
 
 mod buffer;
 use buffer::Buffer;
@@ -50,58 +36,10 @@ use screencopy::{ScreencopySession, SessionData};
 mod toplevel;
 mod workspace;
 
-pub use capture::CaptureFilter;
-
-// TODO define subscription for a particular output/workspace/toplevel (but we want to rate limit?)
-
-#[derive(Clone, Debug)]
-pub enum Event {
-    CmdSender(calloop::channel::Sender<Cmd>),
-    Workspaces(Vec<(HashSet<wl_output::WlOutput>, cctk::workspace::Workspace)>),
-    WorkspaceCapture(
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-        CaptureImage,
-    ),
-    NewToplevel(
-        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        ToplevelInfo,
-    ),
-    UpdateToplevel(
-        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        ToplevelInfo,
-    ),
-    CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
-    ToplevelCapture(
-        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        CaptureImage,
-    ),
-}
-
-#[derive(Clone, Debug)]
-pub struct CaptureImage {
-    pub width: u32,
-    pub height: u32,
-    pub wl_buffer: SubsurfaceBuffer,
-    #[cfg(feature = "no-subsurfaces")]
-    pub image: cosmic::widget::image::Handle,
-}
+use super::{CaptureFilter, CaptureImage, Cmd, Event};
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {
     iced::subscription::run_with_id("wayland-sub", async { start(conn) }.flatten_stream())
-}
-
-#[derive(Debug)]
-pub enum Cmd {
-    CaptureFilter(CaptureFilter),
-    ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
-    CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
-    MoveToplevelToWorkspace(
-        zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-    ),
-    ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
 }
 
 pub struct AppData {

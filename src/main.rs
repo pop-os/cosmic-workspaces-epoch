@@ -4,14 +4,9 @@
 #![allow(clippy::single_match)]
 
 use cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        workspace::v1::client::zcosmic_workspace_handle_v1,
-    },
+    cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1,
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
-    toplevel_info::ToplevelInfo,
     wayland_client::{
-        backend::ObjectId,
         protocol::{wl_data_device_manager::DndAction, wl_output},
         Connection, Proxy, WEnum,
     },
@@ -52,8 +47,10 @@ use std::{
 mod desktop_info;
 #[macro_use]
 mod localize;
+mod backend;
 mod view;
-mod wayland;
+use backend::{ToplevelInfo, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1};
+mod utils;
 mod widgets;
 
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
@@ -94,14 +91,13 @@ impl CosmicFlags for Args {
 }
 
 struct WlDndId {
-    id: ObjectId,
     mime_type: &'static str,
 }
 
 impl DataFromMimeType for WlDndId {
     fn from_mime_type(&self, mime_type: &str) -> Option<Vec<u8>> {
         if mime_type == self.mime_type {
-            Some(self.id.protocol_id().to_string().into_bytes())
+            Some(Vec::new())
         } else {
             None
         }
@@ -111,16 +107,16 @@ impl DataFromMimeType for WlDndId {
 #[derive(Clone, Debug)]
 enum Msg {
     WaylandEvent(WaylandEvent),
-    Wayland(wayland::Event),
+    Wayland(backend::Event),
     Close,
-    ActivateWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
+    ActivateWorkspace(ZcosmicWorkspaceHandleV1),
     #[allow(dead_code)]
-    CloseWorkspace(zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1),
-    ActivateToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
-    CloseToplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
+    CloseWorkspace(ZcosmicWorkspaceHandleV1),
+    ActivateToplevel(ZcosmicToplevelHandleV1),
+    CloseToplevel(ZcosmicToplevelHandleV1),
     StartDrag(Size, DragSurface),
     DndWorkspaceEnter(
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
         DndAction,
         Vec<String>,
@@ -139,17 +135,17 @@ enum Msg {
 #[derive(Debug)]
 struct Workspace {
     name: String,
-    img_for_output: HashMap<wl_output::WlOutput, wayland::CaptureImage>,
-    handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+    img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
+    handle: ZcosmicWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
     is_active: bool,
 }
 
 #[derive(Debug)]
 struct Toplevel {
-    handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+    handle: ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
-    img: Option<wayland::CaptureImage>,
+    img: Option<backend::CaptureImage>,
     icon: Option<PathBuf>,
 }
 
@@ -171,11 +167,11 @@ struct LayerSurface {
 enum DragSurface {
     #[allow(dead_code)]
     Workspace {
-        handle: zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        handle: ZcosmicWorkspaceHandleV1,
         output: wl_output::WlOutput,
     },
     Toplevel {
-        handle: zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        handle: ZcosmicToplevelHandleV1,
         output: wl_output::WlOutput,
     },
 }
@@ -202,34 +198,28 @@ struct App {
     toplevels: Vec<Toplevel>,
     conn: Option<Connection>,
     visible: bool,
-    wayland_cmd_sender: Option<calloop::channel::Sender<wayland::Cmd>>,
+    wayland_cmd_sender: Option<calloop::channel::Sender<backend::Cmd>>,
     drag_surface: Option<(SurfaceId, DragSurface, Size)>,
     conf: Conf,
     core: cosmic::app::Core,
-    drop_target: Option<(
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-    )>,
+    drop_target: Option<(ZcosmicWorkspaceHandleV1, wl_output::WlOutput)>,
 }
 
 impl App {
-    fn workspace_for_handle(
-        &self,
-        handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    ) -> Option<&Workspace> {
+    fn workspace_for_handle(&self, handle: &ZcosmicWorkspaceHandleV1) -> Option<&Workspace> {
         self.workspaces.iter().find(|i| &i.handle == handle)
     }
 
     fn workspace_for_handle_mut(
         &mut self,
-        handle: &zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        handle: &ZcosmicWorkspaceHandleV1,
     ) -> Option<&mut Workspace> {
         self.workspaces.iter_mut().find(|i| &i.handle == handle)
     }
 
     fn toplevel_for_handle_mut(
         &mut self,
-        handle: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        handle: &ZcosmicToplevelHandleV1,
     ) -> Option<&mut Toplevel> {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
@@ -311,14 +301,14 @@ impl App {
         )
     }
 
-    fn send_wayland_cmd(&self, cmd: wayland::Cmd) {
+    fn send_wayland_cmd(&self, cmd: backend::Cmd) {
         if let Some(sender) = self.wayland_cmd_sender.as_ref() {
             sender.send(cmd).unwrap();
         }
     }
 
     fn update_capture_filter(&self) {
-        let mut capture_filter = wayland::CaptureFilter::default();
+        let mut capture_filter = backend::CaptureFilter::default();
         if self.visible {
             capture_filter.workspaces_on_outputs =
                 self.outputs.iter().map(|x| x.handle.clone()).collect();
@@ -329,7 +319,7 @@ impl App {
                 .map(|x| x.handle.clone())
                 .collect();
         }
-        self.send_wayland_cmd(wayland::Cmd::CaptureFilter(capture_filter));
+        self.send_wayland_cmd(backend::Cmd::CaptureFilter(capture_filter));
     }
 }
 
@@ -413,10 +403,10 @@ impl Application for App {
             },
             Msg::Wayland(evt) => {
                 match evt {
-                    wayland::Event::CmdSender(sender) => {
+                    backend::Event::CmdSender(sender) => {
                         self.wayland_cmd_sender = Some(sender);
                     }
-                    wayland::Event::Workspaces(workspaces) => {
+                    backend::Event::Workspaces(workspaces) => {
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
@@ -441,7 +431,7 @@ impl Application for App {
                         }
                         self.update_capture_filter();
                     }
-                    wayland::Event::NewToplevel(handle, info) => {
+                    backend::Event::NewToplevel(handle, info) => {
                         log::debug!("New toplevel: {info:?}");
                         self.toplevels.push(Toplevel {
                             icon: desktop_info::icon_for_app_id(info.app_id.clone()),
@@ -450,7 +440,7 @@ impl Application for App {
                             img: None,
                         });
                     }
-                    wayland::Event::UpdateToplevel(handle, info) => {
+                    backend::Event::UpdateToplevel(handle, info) => {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
@@ -458,17 +448,17 @@ impl Application for App {
                             toplevel.info = info;
                         }
                     }
-                    wayland::Event::CloseToplevel(handle) => {
+                    backend::Event::CloseToplevel(handle) => {
                         if let Some(idx) = self.toplevels.iter().position(|x| x.handle == handle) {
                             self.toplevels.remove(idx);
                         }
                     }
-                    wayland::Event::WorkspaceCapture(handle, output_name, image) => {
+                    backend::Event::WorkspaceCapture(handle, output_name, image) => {
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
                             workspace.img_for_output.insert(output_name, image);
                         }
                     }
-                    wayland::Event::ToplevelCapture(handle, image) => {
+                    backend::Event::ToplevelCapture(handle, image) => {
                         if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
                             //println!("Got toplevel image!");
                             toplevel.img = Some(image);
@@ -480,10 +470,10 @@ impl Application for App {
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
-                self.send_wayland_cmd(wayland::Cmd::ActivateWorkspace(workspace_handle));
+                self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
             }
             Msg::ActivateToplevel(toplevel_handle) => {
-                self.send_wayland_cmd(wayland::Cmd::ActivateToplevel(toplevel_handle));
+                self.send_wayland_cmd(backend::Cmd::ActivateToplevel(toplevel_handle));
                 return self.hide();
             }
             Msg::CloseWorkspace(_workspace_handle) => {
@@ -502,16 +492,12 @@ impl Application for App {
             }
             Msg::CloseToplevel(toplevel_handle) => {
                 // TODO confirmation?
-                self.send_wayland_cmd(wayland::Cmd::CloseToplevel(toplevel_handle));
+                self.send_wayland_cmd(backend::Cmd::CloseToplevel(toplevel_handle));
             }
             Msg::StartDrag(size, drag_surface) => {
-                let (wl_id, output, mime_type) = match &drag_surface {
-                    DragSurface::Workspace { handle, output } => {
-                        (handle.clone().id(), output, &*WORKSPACE_MIME)
-                    }
-                    DragSurface::Toplevel { handle, output } => {
-                        (handle.clone().id(), output, &*TOPLEVEL_MIME)
-                    }
+                let (output, mime_type) = match &drag_surface {
+                    DragSurface::Workspace { handle, output } => (output, &*WORKSPACE_MIME),
+                    DragSurface::Toplevel { handle, output } => (output, &*TOPLEVEL_MIME),
                 };
                 let id = SurfaceId::unique();
                 if let Some((parent_id, _)) = self
@@ -525,10 +511,7 @@ impl Application for App {
                         DndAction::Move,
                         *parent_id,
                         Some(DndIcon::Custom(id)),
-                        Box::new(WlDndId {
-                            id: wl_id,
-                            mime_type,
-                        }),
+                        Box::new(WlDndId { mime_type }),
                     );
                 }
             }
@@ -559,7 +542,7 @@ impl Application for App {
                         .and_then(|s| u32::from_str(s).ok());
                     if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
                         if let Some(drop_target) = &self.drop_target {
-                            self.send_wayland_cmd(wayland::Cmd::MoveToplevelToWorkspace(
+                            self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
                                 handle.clone(),
                                 drop_target.0.clone(),
                                 drop_target.1.clone(),
@@ -640,7 +623,7 @@ impl Application for App {
         });
         let mut subscriptions = vec![events, config_subscription, comp_config_subscription];
         if let Some(conn) = self.conn.clone() {
-            subscriptions.push(wayland::subscription(conn).map(Msg::Wayland));
+            subscriptions.push(backend::subscription(conn).map(Msg::Wayland));
         }
         iced::Subscription::batch(subscriptions)
     }

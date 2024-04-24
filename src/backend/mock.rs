@@ -41,7 +41,7 @@ fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
     let mut file = fs::File::from(utils::create_memfile().unwrap());
 
     for i in 0..512 * 512 {
-        file.write(&[r, g, b, 255]).unwrap();
+        file.write(&[b, g, r, 255]).unwrap();
     }
 
     CaptureImage {
@@ -54,7 +54,7 @@ fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
                 width: 512,
                 height: 512,
                 stride: 512 * 4,
-                format: wl_shm::Format::Abgr8888,
+                format: wl_shm::Format::Argb8888,
             }
             .into(),
         ))

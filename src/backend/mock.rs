@@ -187,7 +187,7 @@ impl AppData {
     }
 }
 
-fn start(conn: Connection) -> mpsc::Receiver<Event> {
+fn start(_conn: Connection) -> mpsc::Receiver<Event> {
     let (sender, receiver) = mpsc::channel(20);
     thread::spawn(move || {
         let mut event_loop = calloop::EventLoop::try_new().unwrap();

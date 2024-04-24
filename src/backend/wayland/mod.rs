@@ -18,10 +18,12 @@ use cctk::{
     },
     workspace::WorkspaceState,
 };
-use cosmic::cctk;
-use cosmic::iced::{
-    self,
-    futures::{executor::block_on, FutureExt, SinkExt},
+use cosmic::{
+    cctk,
+    iced::{
+        self,
+        futures::{executor::block_on, FutureExt, SinkExt},
+    },
 };
 use futures_channel::mpsc;
 use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, sync::Arc, thread};

@@ -1,15 +1,18 @@
-use cosmic::cctk::{
-    self,
-    cosmic_protocols::screencopy::v2::client::{
-        zcosmic_screencopy_frame_v2, zcosmic_screencopy_manager_v2, zcosmic_screencopy_session_v2,
+use cosmic::{
+    cctk::{
+        self,
+        cosmic_protocols::screencopy::v2::client::{
+            zcosmic_screencopy_frame_v2, zcosmic_screencopy_manager_v2,
+            zcosmic_screencopy_session_v2,
+        },
+        screencopy::{
+            capture, Formats, Frame, ScreencopyFrameData, ScreencopyFrameDataExt,
+            ScreencopyHandler, ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
+        },
+        wayland_client::{Connection, Proxy, QueueHandle, WEnum},
     },
-    screencopy::{
-        capture, Formats, Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
-        ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
-    },
-    wayland_client::{Connection, Proxy, QueueHandle, WEnum},
+    iced_sctk::subsurface_widget::{SubsurfaceBuffer, SubsurfaceBufferRelease},
 };
-use cosmic::iced_sctk::subsurface_widget::{SubsurfaceBuffer, SubsurfaceBufferRelease};
 use std::{
     array,
     sync::{Arc, Weak},

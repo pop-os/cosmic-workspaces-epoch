@@ -1,17 +1,19 @@
 // Renders image behind widget, and otherwise passes through all behavior
 
-use cosmic::iced::{
-    advanced::{
-        layout::{self},
-        mouse, overlay, renderer,
-        widget::{tree, Operation, OperationOutputWrapper, Tree},
-        Clipboard, Layout, Shell, Widget,
+use cosmic::{
+    iced::{
+        advanced::{
+            layout::{self},
+            mouse, overlay, renderer,
+            widget::{tree, Operation, OperationOutputWrapper, Tree},
+            Clipboard, Layout, Shell, Widget,
+        },
+        event::{self, Event},
+        widget::image::{FilterMethod, Handle},
+        ContentFit, Length, Rectangle, Size, Vector,
     },
-    event::{self, Event},
-    widget::image::{FilterMethod, Handle},
-    ContentFit, Length, Rectangle, Size, Vector,
+    iced_core::Renderer,
 };
-use cosmic::iced_core::Renderer;
 
 use std::marker::PhantomData;
 

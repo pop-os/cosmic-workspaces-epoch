@@ -496,8 +496,8 @@ impl Application for App {
             }
             Msg::StartDrag(size, drag_surface) => {
                 let (output, mime_type) = match &drag_surface {
-                    DragSurface::Workspace { handle, output } => (output, &*WORKSPACE_MIME),
-                    DragSurface::Toplevel { handle, output } => (output, &*TOPLEVEL_MIME),
+                    DragSurface::Workspace { handle: _, output } => (output, &*WORKSPACE_MIME),
+                    DragSurface::Toplevel { handle: _, output } => (output, &*TOPLEVEL_MIME),
                 };
                 let id = SurfaceId::unique();
                 if let Some((parent_id, _)) = self

@@ -5,14 +5,14 @@ use cctk::{
         Connection, Dispatch, QueueHandle,
     },
 };
-use cosmic::cctk;
-use cosmic::iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf};
-use rustix::{io::Errno, shm::ShmOFlags};
+use cosmic::{
+    cctk,
+    iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf},
+};
 use std::{
-    os::fd::{AsFd, OwnedFd},
+    os::fd::AsFd,
     path::{Path, PathBuf},
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
 

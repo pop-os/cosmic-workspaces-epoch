@@ -3,8 +3,8 @@
 
 use cosmic::iced::{
     advanced::{
-        layout, mouse, overlay, renderer,
-        widget::{tree, Id, Operation, OperationOutputWrapper, Tree},
+        layout, mouse, renderer,
+        widget::{Operation, OperationOutputWrapper, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},

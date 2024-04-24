@@ -203,6 +203,7 @@ struct App {
     conf: Conf,
     core: cosmic::app::Core,
     drop_target: Option<(ZcosmicWorkspaceHandleV1, wl_output::WlOutput)>,
+    dnd_started: bool,
 }
 
 impl App {
@@ -399,6 +400,14 @@ impl Application for App {
                         }
                     }
                 }
+                WaylandEvent::DndOffer(evt) => {
+                    // We don't hide the toplevel from the view until we get a
+                    // `DndOffer` event, to make sure `start_grab` isn't called
+                    // after the subsurface is destroyed.
+                    //
+                    // There should be a better way to do this.
+                    self.dnd_started = true;
+                }
                 _ => {}
             },
             Msg::Wayland(evt) => {
@@ -505,6 +514,7 @@ impl Application for App {
                     .iter()
                     .find(|(_, x)| &x.output == output)
                 {
+                    self.dnd_started = false;
                     self.drag_surface = Some((id, drag_surface, size));
                     return start_drag(
                         vec![mime_type.to_string()],

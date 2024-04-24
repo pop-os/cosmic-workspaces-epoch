@@ -33,9 +33,7 @@ pub(crate) fn layer_surface<'a>(
     }
     let mut drag_toplevel = None;
     if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &app.drag_surface {
-        if app.dnd_started {
-            drag_toplevel = Some(handle);
-        }
+        drag_toplevel = Some(handle);
     }
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(

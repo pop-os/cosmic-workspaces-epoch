@@ -23,7 +23,7 @@ use futures_channel::mpsc;
 use std::{
     collections::HashSet,
     fs,
-    io::Write,
+    io::{self, Write},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -38,7 +38,8 @@ use crate::utils;
 struct MockObjectId(usize);
 
 fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
-    let mut file = fs::File::from(utils::create_memfile().unwrap());
+    let file = fs::File::from(utils::create_memfile().unwrap());
+    let mut file = io::BufWriter::new(file);
 
     for i in 0..512 * 512 {
         file.write(&[b, g, r, 255]).unwrap();
@@ -49,7 +50,7 @@ fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
         height: 512,
         wl_buffer: SubsurfaceBuffer::new(Arc::new(
             Shmbuf {
-                fd: file.into(),
+                fd: file.into_inner().unwrap().into(),
                 offset: 0,
                 width: 512,
                 height: 512,

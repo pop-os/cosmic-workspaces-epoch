@@ -99,7 +99,7 @@ impl AppData {
                 x.format == format
                     && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
             })
-            .filter_map(|x| gbm::Modifier::try_from(x.modifier).ok())
+            .map(|x| gbm::Modifier::from(x.modifier))
             .collect::<Vec<_>>();
 
         if modifiers.is_empty() {

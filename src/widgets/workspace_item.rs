@@ -45,10 +45,7 @@ impl AxisExt for Axis {
     }
 }
 
-pub fn workspace_item<'a, Msg>(
-    children: Vec<cosmic::Element<'a, Msg>>,
-    axis: Axis,
-) -> WorkspaceItem<'a, Msg> {
+pub fn workspace_item<Msg>(children: Vec<cosmic::Element<Msg>>, axis: Axis) -> WorkspaceItem<Msg> {
     WorkspaceItem {
         axis,
         children,

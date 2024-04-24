@@ -34,18 +34,18 @@ pub fn create_memfile() -> rustix::io::Result<OwnedFd> {
             time.duration_since(UNIX_EPOCH).unwrap().subsec_nanos()
         );
 
-        match rustix::shm::shm_open(&name, flags, 0600.into()) {
+        match rustix::shm::shm_open(&name, flags, 0o600.into()) {
             Ok(fd) => match rustix::shm::shm_unlink(&name) {
                 Ok(_) => return Ok(fd),
                 Err(errno) => {
-                    return Err(errno.into());
+                    return Err(errno);
                 }
             },
             #[allow(unreachable_patterns)]
             Err(Errno::EXIST | Errno::EXIST) => {
                 continue;
             }
-            Err(err) => return Err(err.into()),
+            Err(errno) => return Err(errno),
         }
     }
 }

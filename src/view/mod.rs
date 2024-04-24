@@ -222,7 +222,7 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
     .padding(4);
     crate::widgets::workspace_item(
         vec![
-            close_button(Msg::CloseToplevel(toplevel.handle.clone())).into(),
+            close_button(Msg::CloseToplevel(toplevel.handle.clone())),
             widget::button(capture_image(toplevel.img.as_ref()))
                 .selected(
                     toplevel

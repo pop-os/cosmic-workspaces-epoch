@@ -128,7 +128,7 @@ enum Msg {
     SourceFinished,
     #[allow(dead_code)]
     NewWorkspace,
-    CompConfig(CosmicCompConfig),
+    CompConfig(Box<CosmicCompConfig>),
     Config(CosmicWorkspacesConfig),
 }
 
@@ -176,18 +176,10 @@ enum DragSurface {
     },
 }
 
+#[derive(Default)]
 struct Conf {
     workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
     config: CosmicWorkspacesConfig,
-}
-
-impl Default for Conf {
-    fn default() -> Self {
-        Self {
-            workspace_config: Default::default(),
-            config: Default::default(),
-        }
-    }
 }
 
 #[derive(Default)]
@@ -619,7 +611,7 @@ impl Application for App {
             if !update.errors.is_empty() {
                 log::error!("Failed to load compositor config: {:?}", update.errors);
             }
-            Msg::CompConfig(update.config)
+            Msg::CompConfig(Box::new(update.config))
         });
         let mut subscriptions = vec![events, config_subscription, comp_config_subscription];
         if let Some(conn) = self.conn.clone() {

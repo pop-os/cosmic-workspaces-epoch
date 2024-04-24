@@ -40,7 +40,7 @@ impl AxisExt for Axis {
     }
 }
 
-pub fn toplevels<'a, Msg>(children: Vec<cosmic::Element<'a, Msg>>) -> Toplevels<'a, Msg> {
+pub fn toplevels<Msg>(children: Vec<cosmic::Element<Msg>>) -> Toplevels<Msg> {
     Toplevels {
         axis: Axis::Horizontal,
         children,

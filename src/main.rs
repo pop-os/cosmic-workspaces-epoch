@@ -671,12 +671,6 @@ impl Application for App {
     fn core_mut(&mut self) -> &mut cosmic::app::Core {
         &mut self.core
     }
-
-    fn style(
-        &self,
-    ) -> Option<<cosmic::Theme as cosmic::iced_style::application::StyleSheet>::Style> {
-        Some(cosmic::theme::style::iced::Application::default())
-    }
 }
 
 fn init_localizer() {

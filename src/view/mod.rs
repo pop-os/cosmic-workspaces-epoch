@@ -87,16 +87,46 @@ fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
     .into()
 }
 
+fn workspace_item_appearance(
+    theme: &cosmic::Theme,
+    is_active: bool,
+    hovered: bool,
+) -> cosmic::widget::button::Appearance {
+    let cosmic = theme.cosmic();
+    let mut appearance = cosmic::widget::button::Appearance::new();
+    appearance.border_radius = cosmic.corner_radii.radius_s.into();
+    if is_active {
+        appearance.border_width = 2.0;
+        appearance.border_color = cosmic.accent.base.into();
+    }
+    if hovered {
+        appearance.background = Some(iced::Background::Color(cosmic.button.base.into()));
+    }
+    appearance
+}
+
 pub(crate) fn workspace_item<'a>(
     workspace: &'a Workspace,
     output: &wl_output::WlOutput,
 ) -> cosmic::Element<'a, Msg> {
     let image = capture_image(workspace.img_for_output.get(output));
+    let is_active = workspace.is_active;
     column![
         // TODO editable name?
         widget::button(column![image, widget::text(&workspace.name)])
             .selected(workspace.is_active)
-            .style(cosmic::theme::Button::Image)
+            .style(cosmic::theme::Button::Custom {
+                active: Box::new(move |_focused, theme| workspace_item_appearance(
+                    theme, is_active, false
+                )),
+                disabled: Box::new(|_theme| { unreachable!() }),
+                hovered: Box::new(move |_focused, theme| workspace_item_appearance(
+                    theme, is_active, true
+                )),
+                pressed: Box::new(move |_focused, theme| workspace_item_appearance(
+                    theme, is_active, true
+                )),
+            })
             .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
     .spacing(4)

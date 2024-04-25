@@ -1,4 +1,3 @@
-// TODO rename
 // combine widgets
 // Hack: this widget defines it's width as the second child's width
 // So the width of the image will be the overall width.
@@ -45,26 +44,26 @@ impl AxisExt for Axis {
     }
 }
 
-pub fn workspace_item<Msg>(children: Vec<cosmic::Element<Msg>>, axis: Axis) -> WorkspaceItem<Msg> {
-    WorkspaceItem {
+pub fn toplevel_item<Msg>(children: Vec<cosmic::Element<Msg>>, axis: Axis) -> ToplevelItem<Msg> {
+    ToplevelItem {
         axis,
         children,
         _msg: PhantomData,
     }
 }
 
-pub struct WorkspaceItem<'a, Msg> {
+pub struct ToplevelItem<'a, Msg> {
     axis: Axis,
     children: Vec<cosmic::Element<'a, Msg>>,
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceItem<'a, Msg> {
+impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, Msg> {
     fn size(&self) -> Size<Length> {
         Size {
             // width: Length::Fill
             // XXX doesn't work when used in standard `row` widget
-            // But fixes allocation of `dnd_source` wrapping this, within `Workspaces` row
+            // But fixes allocation of `dnd_source` wrapping this, within `Toplevels` row
             width: Length::Shrink,
             // TODO Make depend on orientation or drop that option
             height: Length::Shrink,
@@ -220,8 +219,8 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceItem<'a,
     }
 }
 
-impl<'a, Msg: 'static> From<WorkspaceItem<'a, Msg>> for cosmic::Element<'a, Msg> {
-    fn from(widget: WorkspaceItem<'a, Msg>) -> Self {
+impl<'a, Msg: 'static> From<ToplevelItem<'a, Msg>> for cosmic::Element<'a, Msg> {
+    fn from(widget: ToplevelItem<'a, Msg>) -> Self {
         cosmic::Element::new(widget)
     }
 }

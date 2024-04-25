@@ -250,7 +250,7 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
         row![label]
     }
     .padding(4);
-    crate::widgets::workspace_item(
+    crate::widgets::toplevel_item(
         vec![
             close_button(Msg::CloseToplevel(toplevel.handle.clone())),
             widget::button(capture_image(toplevel.img.as_ref()))

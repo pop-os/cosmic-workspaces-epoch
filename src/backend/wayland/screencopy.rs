@@ -60,6 +60,8 @@ impl ScreencopySession {
             udata,
         );
 
+        image_source.destroy();
+
         Self {
             buffers: None,
             session,

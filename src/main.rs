@@ -176,10 +176,27 @@ enum DragSurface {
     },
 }
 
-#[derive(Default)]
 struct Conf {
     workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
     config: CosmicWorkspacesConfig,
+    bg_config: Option<cosmic_config::Config>,
+}
+
+impl Default for Conf {
+    fn default() -> Self {
+        let bg_config = cosmic::cosmic_config::Config::new_state(
+            cosmic_bg_config::NAME,
+            cosmic_bg_config::state::State::version(),
+        );
+        if let Err(err) = &bg_config {
+            log::error!("failed to load bg config: {}", err);
+        }
+        Self {
+            workspace_config: cosmic_comp_config::workspace::WorkspaceConfig::default(),
+            config: CosmicWorkspacesConfig::default(),
+            bg_config: bg_config.ok(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -195,6 +212,7 @@ struct App {
     conf: Conf,
     core: cosmic::app::Core,
     drop_target: Option<(ZcosmicWorkspaceHandleV1, wl_output::WlOutput)>,
+    bg_state: Option<cosmic_bg_config::state::State>,
 }
 
 impl App {
@@ -275,6 +293,19 @@ impl App {
                     .collect::<Vec<_>>(),
             );
             self.update_capture_filter();
+
+            if let Some(config) = &self.conf.bg_config {
+                match cosmic_bg_config::state::State::get_entry(&config) {
+                    Ok(state) => {
+                        self.bg_state = Some(state);
+                    }
+                    Err((err, state)) => {
+                        log::error!("failed to load bg config: {:?}", err);
+                        self.bg_state = Some(state);
+                    }
+                }
+            }
+
             cmd
         } else {
             Command::none()

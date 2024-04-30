@@ -9,23 +9,27 @@ use cosmic::{
             Clipboard, Layout, Shell, Widget,
         },
         event::{self, Event},
-        widget::image::{FilterMethod, Handle},
-        ContentFit, Length, Rectangle, Size, Vector,
+        Length, Rectangle, Size,
     },
     iced_core::Renderer,
 };
 
 use std::marker::PhantomData;
 
-pub fn image_bg<'a, Msg, T: Into<cosmic::Element<'a, Msg>>>(content: T) -> ImageBg<'a, Msg> {
+pub fn image_bg<'a, Msg, T1: Into<cosmic::Element<'a, Msg>>, T2: Into<cosmic::Element<'a, Msg>>>(
+    content: T1,
+    bg: T2,
+) -> ImageBg<'a, Msg> {
     ImageBg {
         content: content.into(),
+        bg: bg.into(),
         _msg: PhantomData,
     }
 }
 
 pub struct ImageBg<'a, Msg> {
     content: cosmic::Element<'a, Msg>,
+    bg: cosmic::Element<'a, Msg>,
     _msg: PhantomData<Msg>,
 }
 
@@ -92,36 +96,11 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'a, Msg> 
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
-        use cosmic::iced_core::image::Renderer;
-
-        // TODO desktop background?
-        let handle =
-            Handle::from_path("/usr/share/backgrounds/pop/kate-hazen-COSMIC-desktop-wallpaper.png");
-
-        let Size { width, height } = renderer.dimensions(&handle);
-        let image_size = Size::new(width as f32, height as f32);
+        self.bg
+            .as_widget()
+            .draw(state, renderer, theme, style, layout, cursor, viewport);
 
         let bounds = layout.bounds();
-        let adjusted_fit = ContentFit::Cover.fit(image_size, bounds.size());
-
-        let offset = Vector::new(
-            (bounds.width - adjusted_fit.width).max(0.0) / 2.0,
-            (bounds.height - adjusted_fit.height).max(0.0) / 2.0,
-        );
-
-        let drawing_bounds = Rectangle {
-            width: adjusted_fit.width,
-            height: adjusted_fit.height,
-            ..bounds
-        };
-
-        renderer.draw(
-            handle.clone(),
-            FilterMethod::default(),
-            drawing_bounds + offset,
-            [0.0, 0.0, 0.0, 0.0],
-        );
-
         renderer.with_layer(bounds, |renderer| {
             self.content
                 .as_widget()

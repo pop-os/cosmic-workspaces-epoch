@@ -14,6 +14,7 @@ use cosmic::{
     iced_sctk::subsurface_widget::Subsurface,
     widget,
 };
+use cosmic_bg_config::Source;
 use cosmic_comp_config::workspace::WorkspaceLayout;
 
 use crate::{
@@ -73,7 +74,13 @@ pub(crate) fn layer_surface<'a>(
                 .width(iced::Length::Fill),
         ),
     };
-    crate::widgets::image_bg(container).into()
+    let output_name = app
+        .outputs
+        .iter()
+        .find(|x| x.handle == surface.output)
+        .map_or("", |o| &o.name);
+    let bg = bg_element(app.bg_state.as_ref(), output_name);
+    crate::widgets::image_bg(container, bg).into()
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
@@ -320,6 +327,71 @@ fn toplevel_previews<'a>(
         .padding(12)
         //.align_items(iced::Alignment::Center)
         .into()
+}
+
+fn bg_element<'a>(
+    bg_state: Option<&'a cosmic_bg_config::state::State>,
+    output_name: &'a str,
+) -> cosmic::Element<'a, Msg> {
+    let bg_source = bg_state
+        .into_iter()
+        .flat_map(|x| x.wallpapers.iter())
+        .find(|(n, _)| n == output_name)
+        .map(|(_, v)| v.clone());
+    match bg_source {
+        Some(Source::Path(path)) => widget::image::Image::<widget::image::Handle>::new(
+            widget::image::Handle::from_path(path),
+        )
+        .content_fit(iced::ContentFit::Cover)
+        .width(iced::Length::Fill)
+        .height(iced::Length::Fill)
+        .into(),
+        Some(Source::Color(color)) => {
+            widget::layer_container(widget::horizontal_space(iced::Length::Fill))
+                .width(iced::Length::Fill)
+                .height(iced::Length::Fill)
+                .style(cosmic::theme::Container::Custom(Box::new(move |_| {
+                    let color = color.clone();
+                    cosmic::iced_style::container::Appearance {
+                        background: Some(match color {
+                            cosmic_bg_config::Color::Single(c) => iced::Background::Color(
+                                cosmic::iced::Color::new(c[0], c[1], c[2], 1.0),
+                            ),
+                            cosmic_bg_config::Color::Gradient(cosmic_bg_config::Gradient {
+                                colors,
+                                radius,
+                            }) => {
+                                let stop_increment = 1.0 / (colors.len() - 1) as f32;
+                                let mut stop = 0.0;
+
+                                let mut linear = iced::gradient::Linear::new(iced::Degrees(radius));
+
+                                for &[r, g, b] in colors.iter() {
+                                    linear = linear
+                                        .add_stop(stop, cosmic::iced::Color::from_rgb(r, g, b));
+                                    stop += stop_increment;
+                                }
+
+                                iced::Background::Gradient(cosmic::iced_core::Gradient::Linear(
+                                    linear,
+                                ))
+                            }
+                        }),
+                        ..Default::default()
+                    }
+                })))
+                .into()
+        }
+        None => {
+            widget::image::Image::<widget::image::Handle>::new(widget::image::Handle::from_path(
+                "/usr/share/backgrounds/pop/kate-hazen-COSMIC-desktop-wallpaper.png",
+            ))
+            .content_fit(iced::ContentFit::Cover)
+            .width(iced::Length::Fill)
+            .height(iced::Length::Fill)
+            .into()
+        }
+    }
 }
 
 fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {

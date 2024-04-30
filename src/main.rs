@@ -533,7 +533,7 @@ impl Application for App {
                         vec![mime_type.to_string()],
                         DndAction::Move,
                         *parent_id,
-                        Some(DndIcon::Custom(id)),
+                        Some((DndIcon::Custom(id), iced::Vector::ZERO)),
                         Box::new(WlDndId { mime_type }),
                     );
                 }

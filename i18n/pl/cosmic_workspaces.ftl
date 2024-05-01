@@ -1,1 +1,1 @@
-ew-workspace = Nowy Obszar Roboczy
+new-workspace = Nowy Obszar Roboczy

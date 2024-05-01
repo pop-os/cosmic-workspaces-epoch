@@ -79,7 +79,7 @@ pub(crate) fn layer_surface<'a>(
         .iter()
         .find(|x| x.handle == surface.output)
         .map_or("", |o| &o.name);
-    let bg = bg_element(app.bg_state.as_ref(), output_name);
+    let bg = bg_element(&app.conf.bg, output_name);
     crate::widgets::image_bg(container, bg).into()
 }
 
@@ -125,7 +125,9 @@ pub(crate) fn workspace_item<'a>(
             .selected(workspace.is_active)
             .style(cosmic::theme::Button::Custom {
                 active: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme, is_active, is_drop_target
+                    theme,
+                    is_active,
+                    is_drop_target
                 )),
                 disabled: Box::new(|_theme| { unreachable!() }),
                 hovered: Box::new(move |_focused, theme| workspace_item_appearance(
@@ -332,12 +334,12 @@ fn toplevel_previews<'a>(
 }
 
 fn bg_element<'a>(
-    bg_state: Option<&'a cosmic_bg_config::state::State>,
+    bg_state: &'a cosmic_bg_config::state::State,
     output_name: &'a str,
 ) -> cosmic::Element<'a, Msg> {
     let bg_source = bg_state
-        .into_iter()
-        .flat_map(|x| x.wallpapers.iter())
+        .wallpapers
+        .iter()
         .find(|(n, _)| n == output_name)
         .map(|(_, v)| v.clone());
     match bg_source {

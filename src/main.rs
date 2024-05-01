@@ -130,6 +130,7 @@ enum Msg {
     NewWorkspace,
     CompConfig(Box<CosmicCompConfig>),
     Config(CosmicWorkspacesConfig),
+    BgConfig(cosmic_bg_config::state::State),
 }
 
 #[derive(Debug)]
@@ -176,27 +177,11 @@ enum DragSurface {
     },
 }
 
+#[derive(Default)]
 struct Conf {
     workspace_config: cosmic_comp_config::workspace::WorkspaceConfig,
     config: CosmicWorkspacesConfig,
-    bg_config: Option<cosmic_config::Config>,
-}
-
-impl Default for Conf {
-    fn default() -> Self {
-        let bg_config = cosmic::cosmic_config::Config::new_state(
-            cosmic_bg_config::NAME,
-            cosmic_bg_config::state::State::version(),
-        );
-        if let Err(err) = &bg_config {
-            log::error!("failed to load bg config: {}", err);
-        }
-        Self {
-            workspace_config: cosmic_comp_config::workspace::WorkspaceConfig::default(),
-            config: CosmicWorkspacesConfig::default(),
-            bg_config: bg_config.ok(),
-        }
-    }
+    bg: cosmic_bg_config::state::State,
 }
 
 #[derive(Default)]
@@ -212,7 +197,6 @@ struct App {
     conf: Conf,
     core: cosmic::app::Core,
     drop_target: Option<(ZcosmicWorkspaceHandleV1, wl_output::WlOutput)>,
-    bg_state: Option<cosmic_bg_config::state::State>,
 }
 
 impl App {
@@ -293,18 +277,6 @@ impl App {
                     .collect::<Vec<_>>(),
             );
             self.update_capture_filter();
-
-            if let Some(config) = &self.conf.bg_config {
-                match cosmic_bg_config::state::State::get_entry(&config) {
-                    Ok(state) => {
-                        self.bg_state = Some(state);
-                    }
-                    Err((err, state)) => {
-                        log::error!("failed to load bg config: {:?}", err);
-                        self.bg_state = Some(state);
-                    }
-                }
-            }
 
             cmd
         } else {
@@ -593,6 +565,9 @@ impl Application for App {
             Msg::CompConfig(c) => {
                 self.conf.workspace_config = c.workspaces;
             }
+            Msg::BgConfig(c) => {
+                self.conf.bg = c;
+            }
         }
 
         Command::none()
@@ -646,7 +621,25 @@ impl Application for App {
             }
             Msg::CompConfig(Box::new(update.config))
         });
-        let mut subscriptions = vec![events, config_subscription, comp_config_subscription];
+        let bg_subscription =
+            cosmic_config::config_state_subscription::<_, cosmic_bg_config::state::State>(
+                "bg-sub",
+                cosmic_bg_config::NAME.into(),
+                cosmic_bg_config::state::State::version(),
+            )
+            .map(|update| {
+                if !update.errors.is_empty() {
+                    log::error!("Failed to load bg config: {:?}", update.errors);
+                }
+                Msg::BgConfig(update.config)
+            });
+
+        let mut subscriptions = vec![
+            events,
+            config_subscription,
+            comp_config_subscription,
+            bg_subscription,
+        ];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(backend::subscription(conn).map(Msg::Wayland));
         }

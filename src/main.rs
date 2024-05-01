@@ -669,7 +669,7 @@ impl Application for App {
                         if let Some(workspace) =
                             self.workspaces.iter().find(|x| &x.handle == handle)
                         {
-                            let item = view::workspace_item(workspace, output);
+                            let item = view::workspace_item(workspace, output, false);
                             return widget::container(item)
                                 .height(iced::Length::Fixed(size.height))
                                 .width(iced::Length::Fixed(size.width))

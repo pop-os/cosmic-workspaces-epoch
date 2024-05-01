@@ -115,6 +115,7 @@ fn workspace_item_appearance(
 pub(crate) fn workspace_item<'a>(
     workspace: &'a Workspace,
     output: &wl_output::WlOutput,
+    is_drop_target: bool,
 ) -> cosmic::Element<'a, Msg> {
     let image = capture_image(workspace.img_for_output.get(output));
     let is_active = workspace.is_active;
@@ -124,7 +125,7 @@ pub(crate) fn workspace_item<'a>(
             .selected(workspace.is_active)
             .style(cosmic::theme::Button::Custom {
                 active: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme, is_active, false
+                    theme, is_active, is_drop_target
                 )),
                 disabled: Box::new(|_theme| { unreachable!() }),
                 hovered: Box::new(move |_focused, theme| workspace_item_appearance(
@@ -144,7 +145,7 @@ pub(crate) fn workspace_item<'a>(
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
-    _is_drop_target: bool,
+    is_drop_target: bool,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -170,7 +171,7 @@ fn workspace_sidebar_entry<'a>(
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    iced::widget::dnd_listener(workspace_item(workspace, output))
+    iced::widget::dnd_listener(workspace_item(workspace, output, is_drop_target))
         .on_enter(|actions, mime, pos| {
             Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
         })

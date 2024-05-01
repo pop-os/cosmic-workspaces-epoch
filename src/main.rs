@@ -525,7 +525,7 @@ impl Application for App {
             }
             Msg::DndWorkspaceLeave => {
                 // XXX Doesn't work since leave for a widget may come after enter for another
-                // self.drop_target = None;
+                self.drop_target = None;
                 return accept_mime_type(None);
             }
             Msg::DndWorkspaceDrop => {

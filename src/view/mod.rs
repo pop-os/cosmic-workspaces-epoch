@@ -291,9 +291,10 @@ fn toplevel_previews_entry<'a>(
     // shown.
     let preview = crate::widgets::visibility_wrapper(toplevel_preview(toplevel), !is_being_dragged);
     iced::widget::dnd_source(preview)
-        .on_drag(|size, _offset| {
+        .on_drag(|size, offset| {
             Msg::StartDrag(
                 size,
+                offset,
                 DragSurface::Toplevel {
                     handle: toplevel.handle.clone(),
                     output: output.clone(),

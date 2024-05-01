@@ -23,7 +23,7 @@ use cosmic::{
             actions::data_device::{DataFromMimeType, DndIcon},
             data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
         },
-        widget, Command, Size, Subscription,
+        widget, Command, Size, Subscription, Vector,
     },
     iced_runtime::{
         command::platform_specific::wayland::layer_surface::{
@@ -114,7 +114,7 @@ enum Msg {
     CloseWorkspace(ZcosmicWorkspaceHandleV1),
     ActivateToplevel(ZcosmicToplevelHandleV1),
     CloseToplevel(ZcosmicToplevelHandleV1),
-    StartDrag(Size, DragSurface),
+    StartDrag(Size, Vector, DragSurface),
     DndWorkspaceEnter(
         ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
@@ -517,7 +517,7 @@ impl Application for App {
                 // TODO confirmation?
                 self.send_wayland_cmd(backend::Cmd::CloseToplevel(toplevel_handle));
             }
-            Msg::StartDrag(size, drag_surface) => {
+            Msg::StartDrag(size, _offset, drag_surface) => {
                 let (output, mime_type) = match &drag_surface {
                     DragSurface::Workspace { handle: _, output } => (output, &*WORKSPACE_MIME),
                     DragSurface::Toplevel { handle: _, output } => (output, &*TOPLEVEL_MIME),
@@ -534,6 +534,8 @@ impl Application for App {
                         DndAction::Move,
                         *parent_id,
                         Some((DndIcon::Custom(id), iced::Vector::ZERO)),
+                        // Applying offset doesn't seem quite right without transparency?
+                        // Some((DndIcon::Custom(id), offset * -1.0)),
                         Box::new(WlDndId { mime_type }),
                     );
                 }

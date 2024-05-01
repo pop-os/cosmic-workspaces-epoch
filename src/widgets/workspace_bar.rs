@@ -71,6 +71,9 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, 
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        // TODO configurable
+        let spacing = 8.0;
+
         /*
         layout::flex::resolve(
             layout::flex::Axis::Vertical,
@@ -88,7 +91,9 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, 
             return layout::Node::new(limits.min());
         }
 
-        let max_main = self.axis.main(limits.max()) / self.children().len() as f32;
+        let total_spacing = spacing * (self.children.len().saturating_sub(1)).max(0) as f32;
+        let max_main =
+            (self.axis.main(limits.max()) - total_spacing) / self.children().len() as f32;
         let max_cross = self.axis.cross(limits.max());
         let mut total_main = 0.0;
         let nodes = self
@@ -102,7 +107,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, 
                 let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
                 let (x, y) = self.axis.pack(total_main, 0.0);
                 layout = layout.move_to(Point::new(x, y));
-                total_main += self.axis.main(layout.size());
+                total_main += self.axis.main(layout.size()) + spacing;
                 layout
             })
             .collect();

@@ -55,7 +55,6 @@ pub struct AppData {
     shm_state: Shm,
     toplevel_manager_state: ToplevelManagerState,
     sender: mpsc::Sender<Event>,
-    seats: Vec<wl_seat::WlSeat>,
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
@@ -76,12 +75,10 @@ impl AppData {
                 self.invalidate_capture_filter();
             }
             Cmd::ActivateToplevel(toplevel_handle) => {
-                if !self.seats.is_empty() {
-                    for seat in &self.seats {
-                        self.toplevel_manager_state
-                            .manager
-                            .activate(&toplevel_handle, seat);
-                    }
+                for seat in self.seat_state.seats() {
+                    self.toplevel_manager_state
+                        .manager
+                        .activate(&toplevel_handle, &seat);
                 }
             }
             Cmd::CloseToplevel(toplevel_handle) => {
@@ -166,15 +163,9 @@ impl SeatHandler for AppData {
         &mut self.seat_state
     }
 
-    fn new_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        self.seats.push(seat);
-    }
+    fn new_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
 
-    fn remove_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        if let Some(idx) = self.seats.iter().position(|i| i == &seat) {
-            self.seats.remove(idx);
-        }
-    }
+    fn remove_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
 
     fn new_capability(
         &mut self,
@@ -224,7 +215,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             seat_state: SeatState::new(&globals, &qh),
             shm_state: Shm::bind(&globals, &qh).unwrap(),
             sender,
-            seats: Vec::new(),
             capture_filter: CaptureFilter::default(),
             captures: RefCell::new(HashMap::new()),
             dmabuf_feedback: None,

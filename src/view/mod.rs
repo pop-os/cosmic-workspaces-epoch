@@ -177,7 +177,10 @@ fn workspace_sidebar_entry<'a>(
         .on_enter(|actions, mime, pos| {
             Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
         })
-        .on_exit(Msg::DndWorkspaceLeave)
+        .on_exit(Msg::DndWorkspaceLeave(
+            workspace.handle.clone(),
+            output.clone(),
+        ))
         .on_drop(Msg::DndWorkspaceDrop)
         .on_data(Msg::DndWorkspaceData)
         //)

@@ -122,7 +122,7 @@ enum Msg {
         Vec<String>,
         (f32, f32),
     ),
-    DndWorkspaceLeave,
+    DndWorkspaceLeave(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
     DndWorkspaceDrop,
     DndWorkspaceData(String, Vec<u8>),
     SourceFinished,
@@ -523,9 +523,12 @@ impl Application for App {
                     ]);
                 }
             }
-            Msg::DndWorkspaceLeave => {
-                // XXX Doesn't work since leave for a widget may come after enter for another
-                self.drop_target = None;
+            Msg::DndWorkspaceLeave(handle, output) => {
+                // Currently in iced-sctk, a `DndOfferEvent::Motion` may cause a leave event after
+                // an enter event, based on which widget handles it first. So we need a test here.
+                if self.drop_target == Some((handle, output)) {
+                    self.drop_target = None;
+                }
                 return accept_mime_type(None);
             }
             Msg::DndWorkspaceDrop => {

@@ -288,6 +288,7 @@ impl App {
     fn hide(&mut self) -> Command<cosmic::app::Message<Msg>> {
         self.visible = false;
         self.update_capture_filter();
+        self.drag_surface = None;
         Command::batch(
             mem::take(&mut self.layer_surfaces)
                 .into_keys()
@@ -541,11 +542,11 @@ impl Application for App {
                         .ok()
                         .and_then(|s| u32::from_str(s).ok());
                     if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
-                        if let Some(drop_target) = &self.drop_target {
+                        if let Some(drop_target) = self.drop_target.take() {
                             self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
                                 handle.clone(),
-                                drop_target.0.clone(),
-                                drop_target.1.clone(),
+                                drop_target.0,
+                                drop_target.1,
                             ));
                         }
                     }

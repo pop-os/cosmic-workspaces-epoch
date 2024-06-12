@@ -117,7 +117,7 @@ pub(crate) fn workspace_item<'a>(
     output: &wl_output::WlOutput,
     is_drop_target: bool,
 ) -> cosmic::Element<'a, Msg> {
-    let image = capture_image(workspace.img_for_output.get(output));
+    let image = capture_image(workspace.img_for_output.get(output), 1.0);
     let is_active = workspace.is_active;
     column![
         // TODO editable name?
@@ -255,7 +255,10 @@ fn workspaces_sidebar<'a>(
     .into()
 }
 
-pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
+pub(crate) fn toplevel_preview(
+    toplevel: &Toplevel,
+    is_being_dragged: bool,
+) -> cosmic::Element<Msg> {
     let label = widget::text(&toplevel.info.title);
     let label = if let Some(icon) = &toplevel.icon {
         row![widget::icon(widget::icon::from_path(icon.clone())), label].spacing(4)
@@ -263,10 +266,11 @@ pub(crate) fn toplevel_preview(toplevel: &Toplevel) -> cosmic::Element<Msg> {
         row![label]
     }
     .padding(4);
+    let alpha = if is_being_dragged { 0.5 } else { 1.0 };
     crate::widgets::toplevel_item(
         vec![
             close_button(Msg::CloseToplevel(toplevel.handle.clone())),
-            widget::button(capture_image(toplevel.img.as_ref()))
+            widget::button(capture_image(toplevel.img.as_ref(), alpha))
                 .selected(
                     toplevel
                         .info
@@ -295,7 +299,10 @@ fn toplevel_previews_entry<'a>(
 ) -> cosmic::Element<'a, Msg> {
     // Dragged window still takes up space until moved, but isn't rendered while drag surface is
     // shown.
-    let preview = crate::widgets::visibility_wrapper(toplevel_preview(toplevel), !is_being_dragged);
+    let preview = crate::widgets::visibility_wrapper(
+        toplevel_preview(toplevel, is_being_dragged),
+        !is_being_dragged,
+    );
     iced::widget::dnd_source(preview)
         .on_drag(|size, offset| {
             Msg::StartDrag(
@@ -401,15 +408,18 @@ fn bg_element<'a>(
     }
 }
 
-fn capture_image(image: Option<&CaptureImage>) -> cosmic::Element<'_, Msg> {
+fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'_, Msg> {
     if let Some(image) = image {
         #[cfg(feature = "no-subsurfaces")]
         {
+            // TODO alpha
             widget::Image::new(image.image.clone()).into()
         }
         #[cfg(not(feature = "no-subsurfaces"))]
         {
-            Subsurface::new(image.width, image.height, &image.wl_buffer).into()
+            Subsurface::new(image.width, image.height, &image.wl_buffer)
+                .alpha(alpha)
+                .into()
         }
     } else {
         widget::Image::new(widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])).into()

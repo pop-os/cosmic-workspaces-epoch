@@ -490,7 +490,7 @@ impl Application for App {
                 // TODO confirmation?
                 self.send_wayland_cmd(backend::Cmd::CloseToplevel(toplevel_handle));
             }
-            Msg::StartDrag(size, _offset, drag_surface) => {
+            Msg::StartDrag(size, offset, drag_surface) => {
                 let (output, mime_type) = match &drag_surface {
                     DragSurface::Workspace { handle: _, output } => (output, &*WORKSPACE_MIME),
                     DragSurface::Toplevel { handle: _, output } => (output, &*TOPLEVEL_MIME),
@@ -506,9 +506,7 @@ impl Application for App {
                         vec![mime_type.to_string()],
                         DndAction::Move,
                         *parent_id,
-                        Some((DndIcon::Custom(id), iced::Vector::ZERO)),
-                        // Applying offset doesn't seem quite right without transparency?
-                        // Some((DndIcon::Custom(id), offset * -1.0)),
+                        Some((DndIcon::Custom(id), offset * -1.0)),
                         Box::new(WlDndId { mime_type }),
                     );
                 }
@@ -676,7 +674,7 @@ impl Application for App {
                     DragSurface::Toplevel { handle, .. } => {
                         if let Some(toplevel) = self.toplevels.iter().find(|x| &x.handle == handle)
                         {
-                            let item = view::toplevel_preview(toplevel);
+                            let item = view::toplevel_preview(toplevel, true);
                             return widget::container(item)
                                 .height(iced::Length::Fixed(size.height))
                                 .width(iced::Length::Fixed(size.width))

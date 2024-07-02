@@ -710,8 +710,29 @@ fn init_localizer() {
     }
 }
 
+fn init_loging() {
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+    let fmt_layer = fmt::layer().with_target(false);
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("warn"))
+        .unwrap();
+
+    if let Ok(journal_layer) = tracing_journald::layer() {
+        tracing_subscriber::registry()
+            .with(journal_layer)
+            .with(filter_layer)
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(fmt_layer)
+            .with(filter_layer)
+            .init();
+    }
+}
+
 pub fn main() -> iced::Result {
-    env_logger::init();
+    init_loging();
     init_localizer();
 
     cosmic::app::run_single_instance::<App>(

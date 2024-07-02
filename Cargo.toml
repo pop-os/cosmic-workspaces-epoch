@@ -9,7 +9,6 @@ calloop = { version = "0.13.0", features = ["executor"] }
 clap = { version = "4", features = ["derive"] }
 cosmic-bg-config = { git = "https://github.com/pop-os/cosmic-bg" }
 cosmic-comp-config = { git = "https://github.com/pop-os/cosmic-comp" }
-env_logger = "0.11.0"
 futures-channel = "0.3.25"
 gbm = "0.15.0"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland", "single-instance"] }
@@ -29,6 +28,9 @@ i18n-embed-fl = "0.8.0"
 rust-embed = "8.1.0"
 rustix = { version = "0.38.30", features  = ["fs"] }
 calloop-wayland-source = "0.3.0"
+tracing = "0.1.40"
+tracing-journald = "0.3.0"
+tracing-subscriber = { version = "0.3.18", default-features = false, features = ["std", "fmt", "env-filter", "chrono"] }
 
 [dependencies.i18n-embed]
 version = "0.14.1"

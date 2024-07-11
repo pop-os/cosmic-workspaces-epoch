@@ -8,7 +8,7 @@ use cosmic::{
         self,
         advanced::layout::flex::Axis,
         widget::{column, row},
-        Border,
+        Border, Size,
     },
     iced_core::Shadow,
     iced_sctk::subsurface_widget::Subsurface,
@@ -83,6 +83,38 @@ pub(crate) fn layer_surface<'a>(
     crate::widgets::image_bg(container, bg).into()
 }
 
+pub(crate) fn drag_surface<'a>(
+    app: &'a App,
+    drag_surface: &DragSurface,
+    size: Size,
+) -> Option<cosmic::Element<'a, Msg>> {
+    match drag_surface {
+        DragSurface::Workspace { handle, output } => {
+            if let Some(workspace) = app.workspaces.iter().find(|x| &x.handle == handle) {
+                let item = workspace_item(workspace, output, false);
+                return Some(
+                    widget::container(item)
+                        .height(iced::Length::Fixed(size.height))
+                        .width(iced::Length::Fixed(size.width))
+                        .into(),
+                );
+            }
+        }
+        DragSurface::Toplevel { handle, .. } => {
+            if let Some(toplevel) = app.toplevels.iter().find(|x| &x.handle == handle) {
+                let item = toplevel_preview(toplevel, true);
+                return Some(
+                    widget::container(item)
+                        .height(iced::Length::Fixed(size.height))
+                        .width(iced::Length::Fixed(size.width))
+                        .into(),
+                );
+            }
+        }
+    }
+    None
+}
+
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
     widget::container(
         widget::button(widget::icon::from_name("window-close-symbolic").size(16))
@@ -112,7 +144,7 @@ fn workspace_item_appearance(
     appearance
 }
 
-pub(crate) fn workspace_item<'a>(
+fn workspace_item<'a>(
     workspace: &'a Workspace,
     output: &wl_output::WlOutput,
     is_drop_target: bool,
@@ -255,10 +287,7 @@ fn workspaces_sidebar<'a>(
     .into()
 }
 
-pub(crate) fn toplevel_preview(
-    toplevel: &Toplevel,
-    is_being_dragged: bool,
-) -> cosmic::Element<Msg> {
+fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Element<Msg> {
     let label = widget::text(&toplevel.info.title);
     let label = if let Some(icon) = &toplevel.icon {
         row![widget::icon(widget::icon::from_path(icon.clone())), label].spacing(4)

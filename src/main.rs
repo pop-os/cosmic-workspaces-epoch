@@ -659,28 +659,8 @@ impl Application for App {
         }
         if let Some((drag_id, drag_surface, size)) = &self.drag_surface {
             if drag_id == &id {
-                match drag_surface {
-                    DragSurface::Workspace { handle, output } => {
-                        if let Some(workspace) =
-                            self.workspaces.iter().find(|x| &x.handle == handle)
-                        {
-                            let item = view::workspace_item(workspace, output, false);
-                            return widget::container(item)
-                                .height(iced::Length::Fixed(size.height))
-                                .width(iced::Length::Fixed(size.width))
-                                .into();
-                        }
-                    }
-                    DragSurface::Toplevel { handle, .. } => {
-                        if let Some(toplevel) = self.toplevels.iter().find(|x| &x.handle == handle)
-                        {
-                            let item = view::toplevel_preview(toplevel, true);
-                            return widget::container(item)
-                                .height(iced::Length::Fixed(size.height))
-                                .width(iced::Length::Fixed(size.width))
-                                .into();
-                        }
-                    }
+                if let Some(element) = view::drag_surface(self, drag_surface, *size) {
+                    return element;
                 }
             }
         }

@@ -88,31 +88,30 @@ pub(crate) fn drag_surface<'a>(
     drag_surface: &DragSurface,
     size: Size,
 ) -> Option<cosmic::Element<'a, Msg>> {
-    match drag_surface {
+    let item = match drag_surface {
         DragSurface::Workspace { handle, output } => {
             if let Some(workspace) = app.workspaces.iter().find(|x| &x.handle == handle) {
-                let item = workspace_item(workspace, output, false);
-                return Some(
-                    widget::container(item)
-                        .height(iced::Length::Fixed(size.height))
-                        .width(iced::Length::Fixed(size.width))
-                        .into(),
-                );
+                workspace_item(workspace, output, false)
+            } else {
+                return None;
             }
         }
         DragSurface::Toplevel { handle, .. } => {
             if let Some(toplevel) = app.toplevels.iter().find(|x| &x.handle == handle) {
-                let item = toplevel_preview(toplevel, true);
-                return Some(
-                    widget::container(item)
-                        .height(iced::Length::Fixed(size.height))
-                        .width(iced::Length::Fixed(size.width))
-                        .into(),
-                );
+                toplevel_preview(toplevel, true)
+            } else {
+                return None;
             }
         }
-    }
-    None
+    };
+    // TODO Use `mouse_interaction_wrapper` (need to modify iced_sctk to update view of
+    // drag surfaces)
+    Some(
+        widget::container(item)
+            .height(iced::Length::Fixed(size.height))
+            .width(iced::Length::Fixed(size.width))
+            .into(),
+    )
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {

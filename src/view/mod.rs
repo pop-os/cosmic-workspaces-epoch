@@ -74,13 +74,7 @@ pub(crate) fn layer_surface<'a>(
                 .width(iced::Length::Fill),
         ),
     };
-    let output_name = app
-        .outputs
-        .iter()
-        .find(|x| x.handle == surface.output)
-        .map_or("", |o| &o.name);
-    let bg = bg_element(&app.conf.bg, output_name);
-    crate::widgets::image_bg(container, bg).into()
+    container.into()
 }
 
 pub(crate) fn drag_surface<'a>(

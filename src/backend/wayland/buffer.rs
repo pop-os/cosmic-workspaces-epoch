@@ -80,6 +80,7 @@ impl AppData {
     fn create_gbm_buffer(
         &self,
         format: u32,
+        modifiers: &[u64],
         (width, height): (u32, u32),
         needs_linear: bool,
     ) -> anyhow::Result<Option<Buffer>> {
@@ -100,6 +101,7 @@ impl AppData {
                     && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
             })
             .map(|x| gbm::Modifier::from(x.modifier))
+            .filter(|x| modifiers.contains(&u64::from(*x)))
             .collect::<Vec<_>>();
 
         if modifiers.is_empty() {
@@ -178,9 +180,8 @@ impl AppData {
         let format = u32::from(wl_shm::Format::Abgr8888);
 
         #[cfg(not(feature = "force-shm-screencopy"))]
-        if let Some((_, _modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
-            // TODO Restrict modifiers
-            match self.create_gbm_buffer(format, formats.buffer_size, false) {
+        if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
+            match self.create_gbm_buffer(format, &modifiers, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }

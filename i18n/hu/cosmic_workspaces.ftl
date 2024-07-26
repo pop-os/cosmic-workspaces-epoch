@@ -1,0 +1,1 @@
+new-workspace = Új Munkaterület

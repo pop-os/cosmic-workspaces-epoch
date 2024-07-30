@@ -435,6 +435,10 @@ impl Application for App {
                             info,
                             img: None,
                         });
+                        // Close workspaces view if a window spawns while open
+                        if self.visible {
+                            return self.hide();
+                        }
                     }
                     backend::Event::UpdateToplevel(handle, info) => {
                         if let Some(toplevel) =

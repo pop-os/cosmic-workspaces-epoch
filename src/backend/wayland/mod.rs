@@ -198,7 +198,9 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     let qh = event_queue.handle();
 
     let dmabuf_state = DmabufState::new(&globals, &qh);
-    dmabuf_state.get_default_feedback(&qh).unwrap();
+    if let Err(err) = dmabuf_state.get_default_feedback(&qh) {
+        log::warn!("dmabuf feedback not supported, only shm: {}", err);
+    }
 
     thread::spawn(move || {
         let (executor, scheduler) = calloop::futures::executor().unwrap();

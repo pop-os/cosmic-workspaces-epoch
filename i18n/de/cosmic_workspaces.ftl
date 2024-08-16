@@ -1,0 +1,1 @@
+new-workspace = Neue Arbeitsfläche

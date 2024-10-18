@@ -5,11 +5,11 @@ use cosmic::{
         advanced::{
             layout::{self},
             mouse, overlay, renderer,
-            widget::{tree, Operation, OperationOutputWrapper, Tree},
+            widget::{tree, Operation, Tree},
             Clipboard, Layout, Shell, Widget,
         },
         event::{self, Event},
-        Length, Rectangle, Size,
+        Length, Rectangle, Size, Vector,
     },
     iced_core::Renderer,
 };
@@ -52,7 +52,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'a, Msg> 
                     tree: &mut Tree,
                     layout: Layout<'_>,
                     renderer: &cosmic::Renderer,
-                    operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+                    operation: &mut dyn Operation<()>,
                 );
             fn mouse_interaction(
                 &self,
@@ -82,6 +82,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'a, Msg> 
                 tree: &'b mut Tree,
                 layout: Layout<'_>,
                 renderer: &cosmic::Renderer,
+                translation: Vector,
             ) -> Option<overlay::Element<'b, Msg, cosmic::Theme, cosmic::Renderer>>;
         }
     }

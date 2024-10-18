@@ -12,7 +12,7 @@ cosmic-comp-config = { git = "https://github.com/pop-os/cosmic-comp" }
 env_logger = "0.11.0"
 futures-channel = "0.3.25"
 gbm = "0.15.0"
-libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland", "single-instance"] }
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland", "single-instance", "multi-window", "winit"] }
 cosmic-config = { git = "https://github.com/pop-os/libcosmic" }
 freedesktop-desktop-entry = "0.5.0"
 freedesktop-icons = "0.2.4"
@@ -45,7 +45,3 @@ mock-backend = []
 [profile.dev]
 # Not usable at opt-level 0, at least with software renderer
 opt-level = 1
-
-# [patch."https://github.com/pop-os/libcosmic"]
-# libcosmic = { path = "../libcosmic" }
-# cosmic-config = { path = "../libcosmic/cosmic-config" }

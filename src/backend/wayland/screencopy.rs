@@ -11,7 +11,9 @@ use cosmic::{
         },
         wayland_client::{Connection, Proxy, QueueHandle, WEnum},
     },
-    iced_sctk::subsurface_widget::{SubsurfaceBuffer, SubsurfaceBufferRelease},
+    iced_winit::platform_specific::wayland::subsurface_widget::{
+        SubsurfaceBuffer, SubsurfaceBufferRelease,
+    },
 };
 use std::{
     array,

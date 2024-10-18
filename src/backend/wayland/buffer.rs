@@ -7,7 +7,9 @@ use cctk::{
 };
 use cosmic::{
     cctk,
-    iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf},
+    iced_winit::platform_specific::wayland::subsurface_widget::{
+        BufferSource, Dmabuf, Plane, Shmbuf,
+    },
 };
 use std::{
     os::fd::AsFd,

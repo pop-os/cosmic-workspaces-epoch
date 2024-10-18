@@ -1,11 +1,11 @@
 use cosmic::iced::{
     advanced::{
         layout, mouse, overlay, renderer,
-        widget::{tree, Id, Operation, OperationOutputWrapper, Tree},
+        widget::{tree, Id, Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Rectangle, Size,
+    Length, Rectangle, Size, Vector,
 };
 use std::marker::PhantomData;
 
@@ -61,7 +61,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
                     tree: &mut Tree,
                     layout: Layout<'_>,
                     renderer: &cosmic::Renderer,
-                    operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+                    operation: &mut dyn Operation<()>,
                 );
             fn draw(
                 &self,
@@ -102,6 +102,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
                 tree: &'b mut Tree,
                 layout: Layout<'_>,
                 renderer: &cosmic::Renderer,
+                transation: Vector,
             ) -> Option<overlay::Element<'b, Msg, cosmic::Theme, cosmic::Renderer>>;
             fn set_id(&mut self, id: Id);
         }

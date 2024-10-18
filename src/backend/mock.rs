@@ -16,7 +16,7 @@ use cosmic::{
         self,
         futures::{executor::block_on, FutureExt, SinkExt},
     },
-    iced_sctk::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
+    iced_winit::platform_specific::wayland::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
 };
 
 use futures_channel::mpsc;

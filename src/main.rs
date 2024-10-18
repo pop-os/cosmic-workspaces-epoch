@@ -6,10 +6,7 @@
 use cctk::{
     cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1,
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
-    wayland_client::{
-        protocol::{wl_data_device_manager::DndAction, wl_output},
-        Connection, Proxy, WEnum,
-    },
+    wayland_client::{protocol::wl_output, Connection, Proxy, WEnum},
 };
 use clap::Parser;
 use cosmic::{
@@ -17,31 +14,29 @@ use cosmic::{
     cctk,
     iced::{
         self,
+        clipboard::mime::AsMimeTypes,
         event::wayland::{Event as WaylandEvent, OutputEvent},
         keyboard::key::{Key, Named},
-        wayland::{
-            actions::data_device::{DataFromMimeType, DndIcon},
-            data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
-        },
-        widget, Command, Size, Subscription, Vector,
+        Size, Subscription, Task,
     },
-    iced_runtime::{
-        command::platform_specific::wayland::layer_surface::{
-            IcedOutput, SctkLayerSurfaceSettings,
-        },
-        window::Id as SurfaceId,
+    iced_core::window::Id as SurfaceId,
+    iced_runtime::platform_specific::wayland::layer_surface::{
+        IcedOutput, SctkLayerSurfaceSettings,
     },
-    iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
+    iced_winit::platform_specific::wayland::commands::layer_surface::{
+        destroy_layer_surface, get_layer_surface,
+    },
 };
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
 use once_cell::sync::Lazy;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     mem,
     path::PathBuf,
-    str::{self, FromStr},
+    str,
 };
 
 mod desktop_info;
@@ -90,16 +85,37 @@ impl CosmicFlags for Args {
     }
 }
 
-struct WlDndId {
-    mime_type: &'static str,
-}
+// TODO store protocol object id?
+#[derive(Clone, Debug)]
+struct DragToplevel {}
 
-impl DataFromMimeType for WlDndId {
-    fn from_mime_type(&self, mime_type: &str) -> Option<Vec<u8>> {
-        if mime_type == self.mime_type {
-            Some(Vec::new())
+impl AsMimeTypes for DragToplevel {
+    fn available(&self) -> Cow<'static, [String]> {
+        vec![TOPLEVEL_MIME.clone()].into()
+    }
+
+    fn as_bytes(&self, mime_type: &str) -> Option<Cow<'static, [u8]>> {
+        if mime_type == *TOPLEVEL_MIME {
+            Some(Vec::new().into())
         } else {
             None
+        }
+    }
+}
+
+impl cosmic::iced::clipboard::mime::AllowedMimeTypes for DragToplevel {
+    fn allowed() -> Cow<'static, [String]> {
+        vec![crate::TOPLEVEL_MIME.clone()].into()
+    }
+}
+
+impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
+    type Error = ();
+    fn try_from((bytes, mime_type): (Vec<u8>, String)) -> Result<Self, ()> {
+        if mime_type == *TOPLEVEL_MIME {
+            Ok(Self {})
+        } else {
+            Err(())
         }
     }
 }
@@ -114,23 +130,24 @@ enum Msg {
     CloseWorkspace(ZcosmicWorkspaceHandleV1),
     ActivateToplevel(ZcosmicToplevelHandleV1),
     CloseToplevel(ZcosmicToplevelHandleV1),
-    StartDrag(Size, Vector, DragSurface),
+    //StartDrag(Size, Vector, DragSurface),
+    StartDrag(DragSurface),
     DndWorkspaceEnter(
         ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
-        DndAction,
+        f64,
+        f64,
         Vec<String>,
-        (f32, f32),
     ),
     DndWorkspaceLeave(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
-    DndWorkspaceDrop,
-    DndWorkspaceData(String, Vec<u8>),
+    DndWorkspaceDrop(DragToplevel),
     SourceFinished,
     #[allow(dead_code)]
     NewWorkspace,
     CompConfig(Box<CosmicCompConfig>),
     Config(CosmicWorkspacesConfig),
     BgConfig(cosmic_bg_config::state::State),
+    Ignore,
 }
 
 #[derive(Debug)]
@@ -142,7 +159,7 @@ struct Workspace {
     is_active: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Toplevel {
     handle: ZcosmicToplevelHandleV1,
     info: ToplevelInfo,
@@ -193,7 +210,7 @@ struct App {
     conn: Option<Connection>,
     visible: bool,
     wayland_cmd_sender: Option<calloop::channel::Sender<backend::Cmd>>,
-    drag_surface: Option<(SurfaceId, DragSurface, Size)>,
+    drag_surface: Option<(DragSurface, Size)>,
     conf: Conf,
     core: cosmic::app::Core,
     drop_target: Option<(ZcosmicWorkspaceHandleV1, wl_output::WlOutput)>,
@@ -218,10 +235,7 @@ impl App {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
 
-    fn create_surface(
-        &mut self,
-        output: wl_output::WlOutput,
-    ) -> Command<cosmic::app::Message<Msg>> {
+    fn create_surface(&mut self, output: wl_output::WlOutput) -> Task<cosmic::app::Message<Msg>> {
         let id = SurfaceId::unique();
         self.layer_surfaces.insert(
             id,
@@ -241,10 +255,7 @@ impl App {
         })
     }
 
-    fn destroy_surface(
-        &mut self,
-        output: &wl_output::WlOutput,
-    ) -> Command<cosmic::app::Message<Msg>> {
+    fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Task<cosmic::app::Message<Msg>> {
         if let Some((id, _)) = self
             .layer_surfaces
             .iter()
@@ -254,11 +265,11 @@ impl App {
             self.layer_surfaces.remove(&id).unwrap();
             destroy_layer_surface(id)
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
-    fn toggle(&mut self) -> Command<cosmic::app::Message<Msg>> {
+    fn toggle(&mut self) -> Task<cosmic::app::Message<Msg>> {
         if self.visible {
             self.hide()
         } else {
@@ -266,11 +277,11 @@ impl App {
         }
     }
 
-    fn show(&mut self) -> Command<cosmic::app::Message<Msg>> {
+    fn show(&mut self) -> Task<cosmic::app::Message<Msg>> {
         if !self.visible {
             self.visible = true;
             let outputs = self.outputs.clone();
-            let cmd = Command::batch(
+            let cmd = Task::batch(
                 outputs
                     .into_iter()
                     .map(|output| self.create_surface(output.handle))
@@ -280,16 +291,16 @@ impl App {
 
             cmd
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
     // Close all shell surfaces
-    fn hide(&mut self) -> Command<cosmic::app::Message<Msg>> {
+    fn hide(&mut self) -> Task<cosmic::app::Message<Msg>> {
         self.visible = false;
         self.update_capture_filter();
         self.drag_surface = None;
-        Command::batch(
+        Task::batch(
             mem::take(&mut self.layer_surfaces)
                 .into_keys()
                 .map(destroy_layer_surface)
@@ -325,21 +336,18 @@ impl Application for App {
     type Flags = Args;
     const APP_ID: &'static str = "com.system76.CosmicWorkspaces";
 
-    fn init(
-        core: cosmic::app::Core,
-        _flags: Self::Flags,
-    ) -> (Self, iced::Command<Message<Self::Message>>) {
+    fn init(core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<Message<Self::Message>>) {
         (
             Self {
                 core,
                 ..Default::default()
             },
-            Command::none(),
+            Task::none(),
         )
     }
     // TODO: show panel and dock? Drag?
 
-    fn update(&mut self, message: Msg) -> Command<cosmic::app::Message<Msg>> {
+    fn update(&mut self, message: Msg) -> Task<cosmic::app::Message<Msg>> {
         match message {
             Msg::SourceFinished => {
                 self.drag_surface = None;
@@ -455,13 +463,14 @@ impl Application for App {
                         }
                     }
                     backend::Event::WorkspaceCapture(handle, output_name, image) => {
+                        //println!("Workspace capture");
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
                             workspace.img_for_output.insert(output_name, image);
                         }
                     }
                     backend::Event::ToplevelCapture(handle, image) => {
                         if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
-                            //println!("Got toplevel image!");
+                            // println!("Got toplevel image!");
                             toplevel.img = Some(image);
                         }
                     }
@@ -495,37 +504,11 @@ impl Application for App {
                 // TODO confirmation?
                 self.send_wayland_cmd(backend::Cmd::CloseToplevel(toplevel_handle));
             }
-            Msg::StartDrag(size, offset, drag_surface) => {
-                let (output, mime_type) = match &drag_surface {
-                    DragSurface::Workspace { handle: _, output } => (output, &*WORKSPACE_MIME),
-                    DragSurface::Toplevel { handle: _, output } => (output, &*TOPLEVEL_MIME),
-                };
-                let id = SurfaceId::unique();
-                if let Some((parent_id, _)) = self
-                    .layer_surfaces
-                    .iter()
-                    .find(|(_, x)| &x.output == output)
-                {
-                    self.drag_surface = Some((id, drag_surface, size));
-                    return start_drag(
-                        vec![mime_type.to_string()],
-                        DndAction::Move,
-                        *parent_id,
-                        Some((DndIcon::Custom(id), offset * -1.0)),
-                        Box::new(WlDndId { mime_type }),
-                    );
-                }
+            Msg::StartDrag(drag_surface) => {
+                self.drag_surface = Some((drag_surface, Default::default()));
             }
-            Msg::DndWorkspaceEnter(handle, output, _action, mimes, (_x, _y)) => {
+            Msg::DndWorkspaceEnter(handle, output, _x, _y, _mimes) => {
                 self.drop_target = Some((handle, output));
-                // XXX
-                // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
-                if mimes.iter().any(|x| x == &*TOPLEVEL_MIME) {
-                    return Command::batch(vec![
-                        set_actions(DndAction::Move, DndAction::Move),
-                        accept_mime_type(Some(TOPLEVEL_MIME.to_string())),
-                    ]);
-                }
             }
             Msg::DndWorkspaceLeave(handle, output) => {
                 // Currently in iced-sctk, a `DndOfferEvent::Motion` may cause a leave event after
@@ -533,25 +516,15 @@ impl Application for App {
                 if self.drop_target == Some((handle, output)) {
                     self.drop_target = None;
                 }
-                return accept_mime_type(None);
             }
-            Msg::DndWorkspaceDrop => {
-                return request_dnd_data(TOPLEVEL_MIME.to_string());
-            }
-            Msg::DndWorkspaceData(mime_type, data) => {
-                if mime_type == *TOPLEVEL_MIME {
-                    // XXX getting empty data?
-                    let _protocol_id = str::from_utf8(&data)
-                        .ok()
-                        .and_then(|s| u32::from_str(s).ok());
-                    if let Some((_, DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
-                        if let Some(drop_target) = self.drop_target.take() {
-                            self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
-                                handle.clone(),
-                                drop_target.0,
-                                drop_target.1,
-                            ));
-                        }
+            Msg::DndWorkspaceDrop(_toplevel) => {
+                if let Some((DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
+                    if let Some(drop_target) = self.drop_target.take() {
+                        self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
+                            handle.clone(),
+                            drop_target.0,
+                            drop_target.1,
+                        ));
                     }
                 }
             }
@@ -575,23 +548,24 @@ impl Application for App {
             Msg::BgConfig(c) => {
                 self.conf.bg = c;
             }
+            Msg::Ignore => {}
         }
 
-        Command::none()
+        Task::none()
     }
     fn dbus_activation(
         &mut self,
         msg: cosmic::app::DbusActivationMessage,
-    ) -> iced::Command<cosmic::app::Message<Self::Message>> {
+    ) -> Task<cosmic::app::Message<Self::Message>> {
         if let DbusActivationDetails::Activate = msg.msg {
             self.toggle()
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
     fn subscription(&self) -> Subscription<Msg> {
-        let events = iced::event::listen_with(|evt, _| {
+        let events = iced::event::listen_with(|evt, _, _| {
             if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
             {
                 Some(Msg::WaylandEvent(evt))
@@ -599,6 +573,8 @@ impl Application for App {
                 key: Key::Named(Named::Escape),
                 modifiers: _,
                 location: _,
+                modified_key: _,
+                physical_key: _,
             }) = evt
             {
                 Some(Msg::Close)
@@ -661,13 +637,6 @@ impl Application for App {
         use iced::widget::*;
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
-        }
-        if let Some((drag_id, drag_surface, size)) = &self.drag_surface {
-            if drag_id == &id {
-                if let Some(element) = view::drag_surface(self, drag_surface, *size) {
-                    return element;
-                }
-            }
         }
         log::info!("NO VIEW");
         text("workspaces").into()

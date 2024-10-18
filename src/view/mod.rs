@@ -11,7 +11,7 @@ use cosmic::{
         Border, Size,
     },
     iced_core::Shadow,
-    iced_sctk::subsurface_widget::Subsurface,
+    iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
     widget,
 };
 use cosmic_bg_config::Source;
@@ -110,7 +110,7 @@ pub(crate) fn drag_surface<'a>(
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
     widget::container(
-        widget::button(widget::icon::from_name("window-close-symbolic").size(16))
+        widget::button::custom(widget::icon::from_name("window-close-symbolic").size(16))
             .style(cosmic::theme::Button::Destructive)
             .on_press(on_press),
     )
@@ -123,9 +123,9 @@ fn workspace_item_appearance(
     theme: &cosmic::Theme,
     is_active: bool,
     hovered: bool,
-) -> cosmic::widget::button::Appearance {
+) -> cosmic::widget::button::Style {
     let cosmic = theme.cosmic();
-    let mut appearance = cosmic::widget::button::Appearance::new();
+    let mut appearance = cosmic::widget::button::Style::new();
     appearance.border_radius = cosmic.corner_radii.radius_s.into();
     if is_active {
         appearance.border_width = 2.0;
@@ -146,7 +146,7 @@ fn workspace_item<'a>(
     let is_active = workspace.is_active;
     column![
         // TODO editable name?
-        widget::button(column![image, widget::text(&workspace.name)])
+        widget::button::custom(column![image, widget::text(&workspace.name)])
             .selected(workspace.is_active)
             .style(cosmic::theme::Button::Custom {
                 active: Box::new(move |_focused, theme| workspace_item_appearance(
@@ -198,7 +198,7 @@ fn workspace_sidebar_entry<'a>(
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    iced::widget::dnd_listener(workspace_item(workspace, output, is_drop_target))
+    cosmic::widget::dnd_destination(workspace_item(workspace, output, is_drop_target))
         .on_enter(|actions, mime, pos| {
             Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
         })
@@ -261,7 +261,7 @@ fn workspaces_sidebar<'a>(
             .width(width)
             .height(height)
             .style(cosmic::theme::Container::custom(|theme| {
-                cosmic::iced_style::container::Appearance {
+                cosmic::iced::widget::container::Style {
                     text_color: Some(theme.cosmic().on_bg_color().into()),
                     icon_color: Some(theme.cosmic().on_bg_color().into()),
                     background: Some(iced::Color::from(theme.cosmic().background.base).into()),
@@ -292,7 +292,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     crate::widgets::toplevel_item(
         vec![
             close_button(Msg::CloseToplevel(toplevel.handle.clone())),
-            widget::button(capture_image(toplevel.img.as_ref(), alpha))
+            widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
                 .selected(
                     toplevel
                         .info
@@ -302,7 +302,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
                 .style(cosmic::theme::Button::Image)
                 .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
                 .into(),
-            widget::button(label)
+            widget::button::custom(label)
                 .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
                 .into(),
         ],
@@ -325,7 +325,7 @@ fn toplevel_previews_entry<'a>(
         toplevel_preview(toplevel, is_being_dragged),
         !is_being_dragged,
     );
-    iced::widget::dnd_source(preview)
+    cosmic::widget::dnd_source(preview)
         .on_drag(|size, offset| {
             Msg::StartDrag(
                 size,
@@ -388,7 +388,7 @@ fn bg_element<'a>(
                 .height(iced::Length::Fill)
                 .style(cosmic::theme::Container::Custom(Box::new(move |_| {
                     let color = color.clone();
-                    cosmic::iced_style::container::Appearance {
+                    cosmic::iced::widget::container::Style {
                         background: Some(match color {
                             cosmic_bg_config::Color::Single(c) => iced::Background::Color(
                                 cosmic::iced::Color::new(c[0], c[1], c[2], 1.0),

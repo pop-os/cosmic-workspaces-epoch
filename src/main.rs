@@ -23,15 +23,15 @@ use cosmic::{
             actions::data_device::{DataFromMimeType, DndIcon},
             data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
         },
-        widget, Command, Size, Subscription, Vector,
+        widget, Size, Subscription, Task, Vector,
     },
-    iced_runtime::{
-        command::platform_specific::wayland::layer_surface::{
-            IcedOutput, SctkLayerSurfaceSettings,
-        },
-        window::Id as SurfaceId,
+    iced_core::window::Id as SurfaceId,
+    iced_runtime::platform_specific::wayland::layer_surface::{
+        IcedOutput, SctkLayerSurfaceSettings,
     },
-    iced_sctk::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
+    iced_winit::platform_specific::wayland::commands::layer_surface::{
+        destroy_layer_surface, get_layer_surface,
+    },
 };
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
@@ -218,10 +218,7 @@ impl App {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
 
-    fn create_surface(
-        &mut self,
-        output: wl_output::WlOutput,
-    ) -> Command<cosmic::app::Message<Msg>> {
+    fn create_surface(&mut self, output: wl_output::WlOutput) -> Task<cosmic::app::Message<Msg>> {
         let id = SurfaceId::unique();
         self.layer_surfaces.insert(
             id,
@@ -241,10 +238,7 @@ impl App {
         })
     }
 
-    fn destroy_surface(
-        &mut self,
-        output: &wl_output::WlOutput,
-    ) -> Command<cosmic::app::Message<Msg>> {
+    fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Task<cosmic::app::Message<Msg>> {
         if let Some((id, _)) = self
             .layer_surfaces
             .iter()
@@ -254,11 +248,11 @@ impl App {
             self.layer_surfaces.remove(&id).unwrap();
             destroy_layer_surface(id)
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
-    fn toggle(&mut self) -> Command<cosmic::app::Message<Msg>> {
+    fn toggle(&mut self) -> Task<cosmic::app::Message<Msg>> {
         if self.visible {
             self.hide()
         } else {
@@ -266,11 +260,11 @@ impl App {
         }
     }
 
-    fn show(&mut self) -> Command<cosmic::app::Message<Msg>> {
+    fn show(&mut self) -> Task<cosmic::app::Message<Msg>> {
         if !self.visible {
             self.visible = true;
             let outputs = self.outputs.clone();
-            let cmd = Command::batch(
+            let cmd = Task::batch(
                 outputs
                     .into_iter()
                     .map(|output| self.create_surface(output.handle))
@@ -280,16 +274,16 @@ impl App {
 
             cmd
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
     // Close all shell surfaces
-    fn hide(&mut self) -> Command<cosmic::app::Message<Msg>> {
+    fn hide(&mut self) -> Task<cosmic::app::Message<Msg>> {
         self.visible = false;
         self.update_capture_filter();
         self.drag_surface = None;
-        Command::batch(
+        Task::batch(
             mem::take(&mut self.layer_surfaces)
                 .into_keys()
                 .map(destroy_layer_surface)
@@ -325,21 +319,18 @@ impl Application for App {
     type Flags = Args;
     const APP_ID: &'static str = "com.system76.CosmicWorkspaces";
 
-    fn init(
-        core: cosmic::app::Core,
-        _flags: Self::Flags,
-    ) -> (Self, iced::Command<Message<Self::Message>>) {
+    fn init(core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<Message<Self::Message>>) {
         (
             Self {
                 core,
                 ..Default::default()
             },
-            Command::none(),
+            Task::none(),
         )
     }
     // TODO: show panel and dock? Drag?
 
-    fn update(&mut self, message: Msg) -> Command<cosmic::app::Message<Msg>> {
+    fn update(&mut self, message: Msg) -> Task<cosmic::app::Message<Msg>> {
         match message {
             Msg::SourceFinished => {
                 self.drag_surface = None;
@@ -520,7 +511,7 @@ impl Application for App {
                 // XXX
                 // if mimes.iter().any(|x| x == WORKSPACE_MIME) && action == DndAction::Move {
                 if mimes.iter().any(|x| x == &*TOPLEVEL_MIME) {
-                    return Command::batch(vec![
+                    return Task::batch(vec![
                         set_actions(DndAction::Move, DndAction::Move),
                         accept_mime_type(Some(TOPLEVEL_MIME.to_string())),
                     ]);
@@ -576,16 +567,16 @@ impl Application for App {
             }
         }
 
-        Command::none()
+        Task::none()
     }
     fn dbus_activation(
         &mut self,
         msg: cosmic::app::DbusActivationMessage,
-    ) -> iced::Command<cosmic::app::Message<Self::Message>> {
+    ) -> Task<cosmic::app::Message<Self::Message>> {
         if let DbusActivationDetails::Activate = msg.msg {
             self.toggle()
         } else {
-            Command::none()
+            Task::none()
         }
     }
 

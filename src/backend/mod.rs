@@ -8,7 +8,8 @@
 //! backend for testing without any special protocols.
 
 use cosmic::{
-    cctk::wayland_client::protocol::wl_output, iced_sctk::subsurface_widget::SubsurfaceBuffer,
+    cctk::wayland_client::protocol::wl_output,
+    iced_winit::platform_specific::wayland::subsurface_widget::SubsurfaceBuffer,
 };
 use std::collections::HashSet;
 

@@ -15,16 +15,17 @@ use cosmic::{
     widget,
 };
 use cosmic_bg_config::Source;
-use cosmic_comp_config::workspace::WorkspaceLayout;
+use cosmic_comp_config::workspace::{WorkspaceLayout, WorkspaceThumbnailPlacement};
 
 use crate::{
     backend::{self, CaptureImage},
-    App, DragSurface, LayerSurface, Msg, Toplevel, Workspace,
+    App, CosmicWorkspacesConfig, DragSurface, LayerSurface, Msg, Toplevel, Workspace,
 };
 
 pub(crate) fn layer_surface<'a>(
     app: &'a App,
     surface: &'a LayerSurface,
+    config: &CosmicWorkspacesConfig,
 ) -> cosmic::Element<'a, Msg> {
     let mut drop_target = None;
     if let Some((workspace, output)) = &app.drop_target {
@@ -37,6 +38,7 @@ pub(crate) fn layer_surface<'a>(
         drag_toplevel = Some(handle);
     }
     let layout = app.conf.workspace_config.workspace_layout;
+    let placement = app.conf.workspace_config.workspace_thumbnail_placement;
     let sidebar = workspaces_sidebar(
         app.workspaces
             .iter()
@@ -44,6 +46,7 @@ pub(crate) fn layer_surface<'a>(
         &surface.output,
         layout,
         drop_target,
+        config,
     );
     let toplevels = toplevel_previews(
         app.toplevels.iter().filter(|i| {
@@ -60,15 +63,27 @@ pub(crate) fn layer_surface<'a>(
         layout,
         drag_toplevel,
     );
-    let container = match layout {
-        WorkspaceLayout::Vertical => widget::layer_container(
+    let container = match placement {
+        WorkspaceThumbnailPlacement::Left => widget::layer_container(
             row![sidebar, toplevels]
                 .spacing(12)
                 .height(iced::Length::Fill)
                 .width(iced::Length::Fill),
         ),
-        WorkspaceLayout::Horizontal => widget::layer_container(
+        WorkspaceThumbnailPlacement::Right => widget::layer_container(
+            row![toplevels, sidebar]
+                .spacing(12)
+                .height(iced::Length::Fill)
+                .width(iced::Length::Fill),
+        ),
+        WorkspaceThumbnailPlacement::Top => widget::layer_container(
             column![sidebar, toplevels]
+                .spacing(12)
+                .height(iced::Length::Fill)
+                .width(iced::Length::Fill),
+        ),
+        WorkspaceThumbnailPlacement::Bottom => widget::layer_container(
+            column![toplevels, sidebar]
                 .spacing(12)
                 .height(iced::Length::Fill)
                 .width(iced::Length::Fill),
@@ -81,11 +96,12 @@ pub(crate) fn drag_surface<'a>(
     app: &'a App,
     drag_surface: &DragSurface,
     size: Size,
+    config: &CosmicWorkspacesConfig,
 ) -> Option<cosmic::Element<'a, Msg>> {
     let item = match drag_surface {
         DragSurface::Workspace { handle, output } => {
             if let Some(workspace) = app.workspaces.iter().find(|x| &x.handle == handle) {
-                workspace_item(workspace, output, false)
+                workspace_item(workspace, output, false, config)
             } else {
                 return None;
             }
@@ -141,28 +157,36 @@ fn workspace_item<'a>(
     workspace: &'a Workspace,
     output: &wl_output::WlOutput,
     is_drop_target: bool,
+    config: &CosmicWorkspacesConfig,
 ) -> cosmic::Element<'a, Msg> {
     let image = capture_image(workspace.img_for_output.get(output), 1.0);
     let is_active = workspace.is_active;
     column![
         // TODO editable name?
-        widget::button(column![image, widget::text(&workspace.name)])
-            .selected(workspace.is_active)
-            .style(cosmic::theme::Button::Custom {
-                active: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme,
-                    is_active,
-                    is_drop_target
-                )),
-                disabled: Box::new(|_theme| { unreachable!() }),
-                hovered: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme, is_active, true
-                )),
-                pressed: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme, is_active, true
-                )),
-            })
-            .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
+        widget::button(
+            // FIXME currently, the namespace number is used as name, so display the workspace label if either is enabled
+            if config.show_workspace_name || config.show_workspace_number {
+                column![image, widget::text(&workspace.name)].into()
+            } else {
+                image
+            }
+        )
+        .selected(workspace.is_active)
+        .style(cosmic::theme::Button::Custom {
+            active: Box::new(move |_focused, theme| workspace_item_appearance(
+                theme,
+                is_active,
+                is_drop_target
+            )),
+            disabled: Box::new(|_theme| { unreachable!() }),
+            hovered: Box::new(move |_focused, theme| workspace_item_appearance(
+                theme, is_active, true
+            )),
+            pressed: Box::new(move |_focused, theme| workspace_item_appearance(
+                theme, is_active, true
+            )),
+        })
+        .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
     ]
     .spacing(4)
     //.height(iced::Length::Fill)
@@ -173,6 +197,7 @@ fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
     is_drop_target: bool,
+    config: &CosmicWorkspacesConfig,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -198,7 +223,7 @@ fn workspace_sidebar_entry<'a>(
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    iced::widget::dnd_listener(workspace_item(workspace, output, is_drop_target))
+    iced::widget::dnd_listener(workspace_item(workspace, output, is_drop_target, config))
         .on_enter(|actions, mime, pos| {
             Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
         })
@@ -217,9 +242,10 @@ fn workspaces_sidebar<'a>(
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
     drop_target: Option<&backend::ZcosmicWorkspaceHandleV1>,
+    config: &CosmicWorkspacesConfig,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
-        .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))
+        .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle), config))
         .collect();
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,

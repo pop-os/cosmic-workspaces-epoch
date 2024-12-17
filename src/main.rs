@@ -660,11 +660,13 @@ impl Application for App {
     fn view_window(&self, id: iced::window::Id) -> cosmic::prelude::Element<Self::Message> {
         use iced::widget::*;
         if let Some(surface) = self.layer_surfaces.get(&id) {
-            return view::layer_surface(self, surface);
+            return view::layer_surface(self, surface, &self.conf.config);
         }
         if let Some((drag_id, drag_surface, size)) = &self.drag_surface {
             if drag_id == &id {
-                if let Some(element) = view::drag_surface(self, drag_surface, *size) {
+                if let Some(element) =
+                    view::drag_surface(self, drag_surface, *size, &self.conf.config)
+                {
                     return element;
                 }
             }

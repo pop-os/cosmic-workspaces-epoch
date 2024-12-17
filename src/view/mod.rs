@@ -11,16 +11,30 @@ use cosmic::{
         Border, Size,
     },
     iced_core::Shadow,
-    iced_sctk::subsurface_widget::Subsurface,
+    iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
     widget,
 };
 use cosmic_bg_config::Source;
 use cosmic_comp_config::workspace::WorkspaceLayout;
+use std::borrow::Cow;
 
 use crate::{
     backend::{self, CaptureImage},
     App, DragSurface, LayerSurface, Msg, Toplevel, Workspace,
 };
+
+struct Mime {}
+
+impl cosmic::iced::clipboard::mime::AsMimeTypes for Mime {
+    fn available(&self) -> Cow<'static, [String]> {
+        // TODO
+        vec![crate::TOPLEVEL_MIME.clone()].into()
+    }
+
+    fn as_bytes(&self, mime_type: &str) -> Option<Cow<'static, [u8]>> {
+        None
+    }
+}
 
 pub(crate) fn layer_surface<'a>(
     app: &'a App,
@@ -110,8 +124,8 @@ pub(crate) fn drag_surface<'a>(
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
     widget::container(
-        widget::button(widget::icon::from_name("window-close-symbolic").size(16))
-            .style(cosmic::theme::Button::Destructive)
+        widget::button::custom(widget::icon::from_name("window-close-symbolic").size(16))
+            .class(cosmic::theme::Button::Destructive)
             .on_press(on_press),
     )
     .align_x(iced::alignment::Horizontal::Right)
@@ -123,9 +137,9 @@ fn workspace_item_appearance(
     theme: &cosmic::Theme,
     is_active: bool,
     hovered: bool,
-) -> cosmic::widget::button::Appearance {
+) -> cosmic::widget::button::Style {
     let cosmic = theme.cosmic();
-    let mut appearance = cosmic::widget::button::Appearance::new();
+    let mut appearance = cosmic::widget::button::Style::new();
     appearance.border_radius = cosmic.corner_radii.radius_s.into();
     if is_active {
         appearance.border_width = 2.0;
@@ -146,9 +160,9 @@ fn workspace_item<'a>(
     let is_active = workspace.is_active;
     column![
         // TODO editable name?
-        widget::button(column![image, widget::text(&workspace.name)])
+        widget::button::custom(column![image, widget::text(&workspace.name)])
             .selected(workspace.is_active)
-            .style(cosmic::theme::Button::Custom {
+            .class(cosmic::theme::Button::Custom {
                 active: Box::new(move |_focused, theme| workspace_item_appearance(
                     theme,
                     is_active,
@@ -198,18 +212,29 @@ fn workspace_sidebar_entry<'a>(
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    iced::widget::dnd_listener(workspace_item(workspace, output, is_drop_target))
-        .on_enter(|actions, mime, pos| {
-            Msg::DndWorkspaceEnter(workspace.handle.clone(), output.clone(), actions, mime, pos)
-        })
-        .on_exit(Msg::DndWorkspaceLeave(
-            workspace.handle.clone(),
-            output.clone(),
-        ))
-        .on_drop(Msg::DndWorkspaceDrop)
-        .on_data(Msg::DndWorkspaceData)
-        //)
-        .into()
+    let workspace_handle = workspace.handle.clone();
+    let workspace_handle2 = workspace_handle.clone();
+    let output_clone = output.clone();
+    let output_clone2 = output.clone();
+    cosmic::widget::dnd_destination(
+        workspace_item(workspace, output, is_drop_target),
+        vec![crate::TOPLEVEL_MIME.as_str().into()],
+    )
+    // XXX
+    .on_enter(move |actions, mime, pos| {
+        Msg::DndWorkspaceEnter(
+            workspace_handle.clone(),
+            output_clone.clone(),
+            actions,
+            mime,
+            pos,
+        )
+    })
+    .on_leave(move || Msg::DndWorkspaceLeave(workspace_handle2.clone(), output_clone2.clone()))
+    .on_drop(Msg::DndWorkspaceDrop)
+    .on_data_received(Msg::DndWorkspaceData)
+    //)
+    .into()
 }
 
 fn workspaces_sidebar<'a>(
@@ -260,8 +285,8 @@ fn workspaces_sidebar<'a>(
         widget::container(sidebar_entries_container)
             .width(width)
             .height(height)
-            .style(cosmic::theme::Container::custom(|theme| {
-                cosmic::iced_style::container::Appearance {
+            .class(cosmic::theme::Container::custom(|theme| {
+                cosmic::iced::widget::container::Style {
                     text_color: Some(theme.cosmic().on_bg_color().into()),
                     icon_color: Some(theme.cosmic().on_bg_color().into()),
                     background: Some(iced::Color::from(theme.cosmic().background.base).into()),
@@ -292,17 +317,17 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     crate::widgets::toplevel_item(
         vec![
             close_button(Msg::CloseToplevel(toplevel.handle.clone())),
-            widget::button(capture_image(toplevel.img.as_ref(), alpha))
+            widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
                 .selected(
                     toplevel
                         .info
                         .state
                         .contains(&zcosmic_toplevel_handle_v1::State::Activated),
                 )
-                .style(cosmic::theme::Button::Image)
+                .class(cosmic::theme::Button::Image)
                 .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
                 .into(),
-            widget::button(label)
+            widget::button::custom(label)
                 .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
                 .into(),
         ],
@@ -311,6 +336,41 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     //.spacing(4)
     //.align_items(iced::Alignment::Center)
     //.width(iced::Length::Fill)
+    .into()
+}
+
+// XXX
+fn toplevel_preview_static(
+    toplevel: &Toplevel,
+    is_being_dragged: bool,
+) -> cosmic::Element<'static, Msg> {
+    let label = widget::text::<'static>(toplevel.info.title.clone()); // XXX Clone
+    let label: cosmic::widget::Row<'static, _> = if let Some(icon) = &toplevel.icon {
+        row![widget::icon(widget::icon::from_path(icon.clone())), label].spacing(4)
+    } else {
+        row![label]
+    }
+    .padding(4);
+    let alpha = if is_being_dragged { 0.5 } else { 1.0 };
+    crate::widgets::toplevel_item(
+        vec![
+            close_button(Msg::CloseToplevel(toplevel.handle.clone())),
+            widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
+                .selected(
+                    toplevel
+                        .info
+                        .state
+                        .contains(&zcosmic_toplevel_handle_v1::State::Activated),
+                )
+                .class(cosmic::theme::Button::Image)
+                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+                .into(),
+            widget::button::custom(label)
+                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+                .into(),
+        ],
+        Axis::Vertical,
+    )
     .into()
 }
 
@@ -325,19 +385,28 @@ fn toplevel_previews_entry<'a>(
         toplevel_preview(toplevel, is_being_dragged),
         !is_being_dragged,
     );
-    iced::widget::dnd_source(preview)
-        .on_drag(|size, offset| {
-            Msg::StartDrag(
-                size,
-                offset,
-                DragSurface::Toplevel {
-                    handle: toplevel.handle.clone(),
-                    output: output.clone(),
-                },
+    //let drag_icon = toplevel_preview(toplevel, true).map(|_| ());
+    let toplevel2 = toplevel.clone(); // XXX
+    cosmic::widget::dnd_source::<_, Mime>(preview)
+        .drag_threshold(5.)
+        .drag_content(|| Mime {})
+        // XXX State
+        .drag_icon(move || {
+            (
+                toplevel_preview_static(&toplevel2, true).map(|_| ()),
+                cosmic::iced_core::widget::tree::State::None,
             )
         })
-        .on_finished(Msg::SourceFinished)
-        .on_cancelled(Msg::SourceFinished)
+        .on_start(Some(Msg::StartDrag(
+            //size,
+            //offset,
+            DragSurface::Toplevel {
+                handle: toplevel.handle.clone(),
+                output: output.clone(),
+            },
+        )))
+        .on_finish(Some(Msg::SourceFinished))
+        .on_cancel(Some(Msg::SourceFinished))
         .into()
 }
 
@@ -382,42 +451,38 @@ fn bg_element<'a>(
         .width(iced::Length::Fill)
         .height(iced::Length::Fill)
         .into(),
-        Some(Source::Color(color)) => {
-            widget::layer_container(widget::horizontal_space(iced::Length::Fill))
-                .width(iced::Length::Fill)
-                .height(iced::Length::Fill)
-                .style(cosmic::theme::Container::Custom(Box::new(move |_| {
-                    let color = color.clone();
-                    cosmic::iced_style::container::Appearance {
-                        background: Some(match color {
-                            cosmic_bg_config::Color::Single(c) => iced::Background::Color(
-                                cosmic::iced::Color::new(c[0], c[1], c[2], 1.0),
-                            ),
-                            cosmic_bg_config::Color::Gradient(cosmic_bg_config::Gradient {
-                                colors,
-                                radius,
-                            }) => {
-                                let stop_increment = 1.0 / (colors.len() - 1) as f32;
-                                let mut stop = 0.0;
+        Some(Source::Color(color)) => widget::layer_container(widget::horizontal_space())
+            .width(iced::Length::Fill)
+            .height(iced::Length::Fill)
+            .class(cosmic::theme::Container::Custom(Box::new(move |_| {
+                let color = color.clone();
+                cosmic::iced::widget::container::Style {
+                    background: Some(match color {
+                        cosmic_bg_config::Color::Single(c) => {
+                            iced::Background::Color(cosmic::iced::Color::new(c[0], c[1], c[2], 1.0))
+                        }
+                        cosmic_bg_config::Color::Gradient(cosmic_bg_config::Gradient {
+                            colors,
+                            radius,
+                        }) => {
+                            let stop_increment = 1.0 / (colors.len() - 1) as f32;
+                            let mut stop = 0.0;
 
-                                let mut linear = iced::gradient::Linear::new(iced::Degrees(radius));
+                            let mut linear = iced::gradient::Linear::new(iced::Degrees(radius));
 
-                                for &[r, g, b] in colors.iter() {
-                                    linear = linear
-                                        .add_stop(stop, cosmic::iced::Color::from_rgb(r, g, b));
-                                    stop += stop_increment;
-                                }
-
-                                iced::Background::Gradient(cosmic::iced_core::Gradient::Linear(
-                                    linear,
-                                ))
+                            for &[r, g, b] in colors.iter() {
+                                linear =
+                                    linear.add_stop(stop, cosmic::iced::Color::from_rgb(r, g, b));
+                                stop += stop_increment;
                             }
-                        }),
-                        ..Default::default()
-                    }
-                })))
-                .into()
-        }
+
+                            iced::Background::Gradient(cosmic::iced_core::Gradient::Linear(linear))
+                        }
+                    }),
+                    ..Default::default()
+                }
+            })))
+            .into(),
         None => {
             widget::image::Image::<widget::image::Handle>::new(widget::image::Handle::from_path(
                 "/usr/share/backgrounds/pop/kate-hazen-COSMIC-desktop-wallpaper.png",
@@ -430,7 +495,7 @@ fn bg_element<'a>(
     }
 }
 
-fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'_, Msg> {
+fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'static, Msg> {
     if let Some(image) = image {
         #[cfg(feature = "no-subsurfaces")]
         {
@@ -439,11 +504,9 @@ fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'_
         }
         #[cfg(not(feature = "no-subsurfaces"))]
         {
-            Subsurface::new(image.width, image.height, &image.wl_buffer)
-                .alpha(alpha)
-                .into()
+            Subsurface::new(image.wl_buffer.clone()).alpha(alpha).into()
         }
     } else {
-        widget::Image::new(widget::image::Handle::from_pixels(1, 1, vec![0, 0, 0, 255])).into()
+        widget::Image::new(widget::image::Handle::from_rgba(1, 1, vec![0, 0, 0, 255])).into()
     }
 }

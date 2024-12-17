@@ -11,7 +11,9 @@ use cosmic::{
         },
         wayland_client::{Connection, Proxy, QueueHandle, WEnum},
     },
-    iced_sctk::subsurface_widget::{SubsurfaceBuffer, SubsurfaceBufferRelease},
+    iced_winit::platform_specific::wayland::subsurface_widget::{
+        SubsurfaceBuffer, SubsurfaceBufferRelease,
+    },
 };
 use std::{
     array,
@@ -206,7 +208,7 @@ impl ScreencopyHandler for AppData {
             width: front.size.0,
             height: front.size.1,
             #[cfg(feature = "no-subsurfaces")]
-            image: cosmic::widget::image::Handle::from_pixels(
+            image: cosmic::widget::image::Handle::from_rgba(
                 front.size.0,
                 front.size.1,
                 front.mmap.to_vec(),

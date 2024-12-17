@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{AppData, ScreencopySession, SessionData};
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CaptureSource {
     Toplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
     Workspace(

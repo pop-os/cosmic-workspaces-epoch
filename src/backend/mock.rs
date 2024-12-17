@@ -16,7 +16,7 @@ use cosmic::{
         self,
         futures::{executor::block_on, FutureExt, SinkExt},
     },
-    iced_sctk::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
+    iced_winit::platform_specific::wayland::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
 };
 
 use futures_channel::mpsc;
@@ -61,7 +61,7 @@ fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
         ))
         .0,
         #[cfg(feature = "no-subsurfaces")]
-        image: cosmic::widget::image::Handle::from_pixels(
+        image: cosmic::widget::image::Handle::from_rgba(
             512,
             512,
             [r, g, b, 255].repeat(512 * 512),
@@ -108,7 +108,7 @@ pub struct Workspace {
 }
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {
-    iced::subscription::run_with_id("wayland-mock-sub", async { start(conn) }.flatten_stream())
+    iced::Subscription::run_with_id("wayland-mock-sub", async { start(conn) }.flatten_stream())
 }
 
 struct AppData {

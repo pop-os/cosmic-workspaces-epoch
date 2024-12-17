@@ -436,6 +436,7 @@ impl Application for App {
                             img: None,
                         });
                         // Close workspaces view if a window spawns while open
+                        #[cfg(not(feature = "mock-backend"))]
                         if self.visible {
                             return self.hide();
                         }

@@ -658,7 +658,6 @@ impl Application for App {
     }
 
     fn view_window(&self, id: iced::window::Id) -> cosmic::prelude::Element<Self::Message> {
-        use iced::widget::*;
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
         }
@@ -670,7 +669,7 @@ impl Application for App {
             }
         }
         log::info!("NO VIEW");
-        text("workspaces").into()
+        widget::text("workspaces").into()
     }
 
     fn on_close_requested(&self, _id: SurfaceId) -> Option<Msg> {

@@ -1,5 +1,5 @@
 // Custom varian of row/column
-// Gives each child widget a maximim size on main axis of total/n
+// Gives each child widget a maximum size on main axis of total/n
 
 use cosmic::iced::{
     advanced::{

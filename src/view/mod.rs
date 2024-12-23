@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cctk::{
     cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
     wayland_client::protocol::wl_output,
@@ -10,9 +12,9 @@ use cosmic::{
         widget::{column, row},
         Border,
     },
-    iced_core::Shadow,
+    iced_core::{text::Wrapping, Shadow},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
-    widget,
+    widget, Apply,
 };
 use cosmic_bg_config::Source;
 use cosmic_comp_config::workspace::WorkspaceLayout;
@@ -78,14 +80,10 @@ pub(crate) fn layer_surface<'a>(
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
-    widget::container(
-        widget::button::custom(widget::icon::from_name("window-close-symbolic").size(16))
-            .class(cosmic::theme::Button::Destructive)
-            .on_press(on_press),
-    )
-    .align_x(iced::alignment::Horizontal::Right)
-    .width(iced::Length::Fill)
-    .into()
+    widget::button::custom(widget::icon::from_name("window-close-symbolic").size(16))
+        .class(cosmic::theme::Button::Destructive)
+        .on_press(on_press)
+        .into()
 }
 
 fn workspace_item_appearance(
@@ -95,9 +93,13 @@ fn workspace_item_appearance(
 ) -> cosmic::widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = cosmic::widget::button::Style::new();
-    appearance.border_radius = cosmic.corner_radii.radius_s.into();
+    appearance.border_radius = cosmic
+        .corner_radii
+        .radius_s
+        .map(|x| if x < 4.0 { x } else { x + 4.0 })
+        .into();
     if is_active {
-        appearance.border_width = 2.0;
+        appearance.border_width = 4.0;
         appearance.border_color = cosmic.accent.base.into();
     }
     if hovered {
@@ -113,28 +115,30 @@ fn workspace_item<'a>(
 ) -> cosmic::Element<'a, Msg> {
     let image = capture_image(workspace.img_for_output.get(output), 1.0);
     let is_active = workspace.is_active;
-    column![
-        // TODO editable name?
-        widget::button::custom(column![image, widget::text(&workspace.name)])
-            .selected(workspace.is_active)
-            .class(cosmic::theme::Button::Custom {
-                active: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme,
-                    is_active,
-                    is_drop_target
-                )),
-                disabled: Box::new(|_theme| { unreachable!() }),
-                hovered: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme, is_active, true
-                )),
-                pressed: Box::new(move |_focused, theme| workspace_item_appearance(
-                    theme, is_active, true
-                )),
-            })
-            .on_press(Msg::ActivateWorkspace(workspace.handle.clone())),
-    ]
-    .spacing(4)
-    //.height(iced::Length::Fill)
+    // TODO editable name?
+    widget::button::custom(
+        column![
+            image,
+            widget::text::body(fl!(
+                "workspace",
+                HashMap::from([("number", &workspace.name)])
+            ))
+        ]
+        .align_x(iced::Alignment::Center)
+        .spacing(4),
+    )
+    .selected(workspace.is_active)
+    .class(cosmic::theme::Button::Custom {
+        active: Box::new(move |_focused, theme| {
+            workspace_item_appearance(theme, is_active, is_drop_target)
+        }),
+        disabled: Box::new(|_theme| unreachable!()),
+        hovered: Box::new(move |_focused, theme| workspace_item_appearance(theme, is_active, true)),
+        pressed: Box::new(move |_focused, theme| workspace_item_appearance(theme, is_active, true)),
+    })
+    .on_press(Msg::ActivateWorkspace(workspace.handle.clone()))
+    .padding(8)
+    .width(iced::Length::Fixed(240.0))
     .into()
 }
 
@@ -209,34 +213,10 @@ fn workspaces_sidebar<'a>(
         WorkspaceLayout::Horizontal => Axis::Horizontal,
     };
     let sidebar_entries_container =
-        widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(12.0);
-    /*
-    let new_workspace_button = widget::button(
-        widget::container(row![
-            widget::icon::from_name("list-add-symbolic").symbolic(true),
-            widget::text(fl!("new-workspace"))
-        ])
-        .width(iced::Length::Fill)
-        .align_x(iced::alignment::Horizontal::Center),
-    )
-    .on_press(Msg::NewWorkspace)
-    .width(iced::Length::Fill);
-    let bar: cosmic::Element<_> = if amount != WorkspaceAmount::Dynamic {
-        match layout {
-            WorkspaceLayout::Vertical => {
-                column![sidebar_entries_container, new_workspace_button,].into()
-            }
-            WorkspaceLayout::Horizontal => {
-                row![sidebar_entries_container, new_workspace_button,].into()
-            }
-        }
-    } else {
-        sidebar_entries_container.into()
-    };
-    */
-    // Shrink?
+        widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(8.0);
+
     let (width, height) = match layout {
-        WorkspaceLayout::Vertical => (iced::Length::Fill, iced::Length::Shrink),
+        WorkspaceLayout::Vertical => (iced::Length::Fixed(256.0), iced::Length::Shrink),
         WorkspaceLayout::Horizontal => (iced::Length::Shrink, iced::Length::Fill),
     };
     widget::container(
@@ -249,33 +229,67 @@ fn workspaces_sidebar<'a>(
                     icon_color: Some(theme.cosmic().on_bg_color().into()),
                     background: Some(iced::Color::from(theme.cosmic().background.base).into()),
                     border: Border {
-                        radius: (12.0).into(),
-                        width: 0.0,
-                        color: iced::Color::TRANSPARENT,
+                        radius: theme
+                            .cosmic()
+                            .radius_s()
+                            .map(|x| if x < 4.0 { x } else { x + 8.0 })
+                            .into(),
+                        ..Default::default()
                     },
                     shadow: Shadow::default(),
                 }
             })),
     )
-    .width(width)
-    .height(height)
-    .padding(24.0)
+    .padding(8)
     .into()
 }
 
 fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Element<'static, Msg> {
-    // Clone so it can be 'static, for use in drag icon
-    let label = widget::text(toplevel.info.title.clone());
+    let cosmic::cosmic_theme::Spacing {
+        space_xxs, space_s, ..
+    } = cosmic::theme::active().cosmic().spacing;
+
+    let label = widget::text::body(toplevel.info.title.clone()).wrapping(Wrapping::None);
     let label = if let Some(icon) = &toplevel.icon {
-        row![widget::icon(widget::icon::from_path(icon.clone())), label].spacing(4)
+        row![
+            widget::icon(widget::icon::from_path(icon.clone())).size(24),
+            label
+        ]
+        .spacing(4)
     } else {
         row![label]
     }
-    .padding(4);
+    .align_y(iced::Alignment::Center);
     let alpha = if is_being_dragged { 0.5 } else { 1.0 };
     crate::widgets::toplevel_item(
         vec![
-            close_button(Msg::CloseToplevel(toplevel.handle.clone())),
+            row![
+                widget::button::custom(label)
+                    .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+                    .class(cosmic::theme::Button::Icon)
+                    .padding([space_xxs, space_s])
+                    .apply(widget::container)
+                    .class(cosmic::theme::Container::custom(|theme| {
+                        cosmic::iced::widget::container::Style {
+                            background: Some(
+                                iced::Color::from(theme.cosmic().background.component.base).into(),
+                            ),
+                            border: Border {
+                                color: theme.cosmic().bg_divider().into(),
+                                width: 1.0,
+                                radius: theme.cosmic().radius_xl().into(),
+                            },
+                            ..Default::default()
+                        }
+                    }))
+                    .apply(widget::container)
+                    .width(iced::Length::FillPortion(5)),
+                widget::horizontal_space().width(iced::Length::Fixed(8.0)),
+                close_button(Msg::CloseToplevel(toplevel.handle.clone()))
+            ]
+            .padding([0, 0, 4, 0])
+            .align_y(iced::Alignment::Center)
+            .into(),
             widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
                 .selected(
                     toplevel
@@ -284,9 +298,6 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
                         .contains(&zcosmic_toplevel_handle_v1::State::Activated),
                 )
                 .class(cosmic::theme::Button::Image)
-                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
-                .into(),
-            widget::button::custom(label)
                 .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
                 .into(),
         ],

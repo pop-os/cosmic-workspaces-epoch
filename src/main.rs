@@ -23,7 +23,7 @@ use cosmic::{
             actions::data_device::{DataFromMimeType, DndIcon},
             data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
         },
-        widget, Command, Size, Subscription, Vector,
+        Command, Size, Subscription, Vector,
     },
     iced_runtime::{
         command::platform_specific::wayland::layer_surface::{
@@ -471,6 +471,11 @@ impl Application for App {
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
+                if let Some(workspace) = self.workspace_for_handle(&workspace_handle) {
+                    if workspace.is_active {
+                        return self.hide();
+                    }
+                }
                 self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
             }
             Msg::ActivateToplevel(toplevel_handle) => {

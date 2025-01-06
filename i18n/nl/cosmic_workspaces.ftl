@@ -1,1 +1,1 @@
-new-workspace = Nieuwe Werkruimte
+new-workspace = Nieuw werkblad

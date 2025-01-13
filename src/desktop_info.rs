@@ -45,12 +45,13 @@ fn desktop_info_for_app_ids(mut app_ids: Vec<String>) -> Vec<DesktopInfo> {
     let app_ids_clone = app_ids.clone();
     let mut ret = freedesktop_desktop_entry::Iter::new(freedesktop_desktop_entry::default_paths())
         .filter_map(|path| {
-            std::fs::read_to_string(&path).ok().and_then(|input| {
-                DesktopEntry::decode(&path, &input).ok().and_then(|de| {
+            DesktopEntry::from_path::<String>(path.clone(), None)
+                .ok()
+                .and_then(|de| {
                     if let Some(i) = app_ids.iter().position(|s| {
-                        s == de.appid || s.eq(&de.startup_wm_class().unwrap_or_default())
+                        *s == de.appid || s.eq(&de.startup_wm_class().unwrap_or_default())
                     }) {
-                        let icon = freedesktop_icons::lookup(de.icon().unwrap_or(de.appid))
+                        let icon = freedesktop_icons::lookup(de.icon().unwrap_or(&de.appid))
                             .with_size(128)
                             .with_cache()
                             .find()
@@ -62,14 +63,13 @@ fn desktop_info_for_app_ids(mut app_ids: Vec<String>) -> Vec<DesktopInfo> {
                             wm_class: de.startup_wm_class().map(ToString::to_string),
                             icon,
                             exec: de.exec().unwrap_or_default().to_string(),
-                            name: de.name(None).unwrap_or_default().to_string(),
+                            name: de.name::<String>(&[]).unwrap_or_default().to_string(),
                             path: path.clone(),
                         })
                     } else {
                         None
                     }
                 })
-            })
         })
         .collect_vec();
     ret.append(

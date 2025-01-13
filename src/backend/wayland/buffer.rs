@@ -131,11 +131,11 @@ impl AppData {
         let mut planes = Vec::new();
 
         let params = self.dmabuf_state.create_params(&self.qh)?;
-        let modifier = bo.modifier()?;
-        for i in 0..bo.plane_count()? as i32 {
+        let modifier = bo.modifier();
+        for i in 0..bo.plane_count() as i32 {
             let plane_fd = bo.fd_for_plane(i)?;
-            let plane_offset = bo.offset(i)?;
-            let plane_stride = bo.stride_for_plane(i)?;
+            let plane_offset = bo.offset(i);
+            let plane_stride = bo.stride_for_plane(i);
             params.add(
                 plane_fd.as_fd(),
                 i as u32,

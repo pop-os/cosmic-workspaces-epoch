@@ -60,6 +60,7 @@ fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
             .into(),
         ))
         .0,
+        transform: wl_output::Transform::Normal,
         #[cfg(feature = "no-subsurfaces")]
         image: cosmic::widget::image::Handle::from_rgba(512, 512, [r, g, b, 255].repeat(512 * 512)),
     }

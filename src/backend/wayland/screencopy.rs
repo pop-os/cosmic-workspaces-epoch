@@ -162,7 +162,7 @@ impl ScreencopyHandler for AppData {
         conn: &Connection,
         qh: &QueueHandle<Self>,
         screencopy_frame: &zcosmic_screencopy_frame_v2::ZcosmicScreencopyFrameV2,
-        _frame: Frame,
+        frame: Frame,
     ) {
         let session = &screencopy_frame.data::<FrameData>().unwrap().session;
         let Some(capture) = Capture::for_session(session) else {
@@ -207,6 +207,10 @@ impl ScreencopyHandler for AppData {
             wl_buffer: buffer,
             width: front.size.0,
             height: front.size.1,
+            transform: match frame.transform {
+                WEnum::Value(value) => value,
+                WEnum::Unknown(value) => panic!("invalid capture transform: {}", value),
+            },
             #[cfg(feature = "no-subsurfaces")]
             image: cosmic::widget::image::Handle::from_rgba(
                 front.size.0,

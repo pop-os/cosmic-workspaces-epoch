@@ -47,6 +47,7 @@ pub struct CaptureImage {
     pub width: u32,
     pub height: u32,
     pub wl_buffer: SubsurfaceBuffer,
+    pub transform: wl_output::Transform,
     #[cfg(feature = "no-subsurfaces")]
     pub image: cosmic::widget::image::Handle,
 }

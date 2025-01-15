@@ -423,12 +423,15 @@ fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'s
     if let Some(image) = image {
         #[cfg(feature = "no-subsurfaces")]
         {
-            // TODO alpha
+            // TODO alpha, transform
             widget::Image::new(image.image.clone()).into()
         }
         #[cfg(not(feature = "no-subsurfaces"))]
         {
-            Subsurface::new(image.wl_buffer.clone()).alpha(alpha).into()
+            Subsurface::new(image.wl_buffer.clone())
+                .alpha(alpha)
+                .transform(image.transform)
+                .into()
         }
     } else {
         widget::Image::new(widget::image::Handle::from_rgba(1, 1, vec![0, 0, 0, 255])).into()

@@ -183,7 +183,7 @@ impl AppData {
 
         #[cfg(not(feature = "force-shm-screencopy"))]
         if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
-            match self.create_gbm_buffer(format, &modifiers, formats.buffer_size, false) {
+            match self.create_gbm_buffer(format, modifiers, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }

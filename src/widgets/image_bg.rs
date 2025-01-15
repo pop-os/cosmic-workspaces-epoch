@@ -33,7 +33,7 @@ pub struct ImageBg<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ImageBg<'_, Msg> {
     delegate::delegate! {
         to self.content.as_widget() {
             fn tag(&self) -> tree::Tag;

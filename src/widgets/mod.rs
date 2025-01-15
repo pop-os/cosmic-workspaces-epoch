@@ -10,13 +10,11 @@ use cosmic::iced::{
 use std::marker::PhantomData;
 
 mod image_bg;
-pub use image_bg::image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
 mod toplevel_item;
 pub use toplevel_item::toplevel_item;
 mod mouse_interaction_wrapper;
-pub use mouse_interaction_wrapper::mouse_interaction_wrapper;
 mod toplevels;
 pub use toplevels::toplevels;
 mod visibility_wrapper;
@@ -38,7 +36,7 @@ pub struct LayoutWrapper<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'_, Msg> {
     fn layout(
         &self,
         tree: &mut Tree,

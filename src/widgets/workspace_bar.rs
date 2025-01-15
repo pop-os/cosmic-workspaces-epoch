@@ -58,7 +58,7 @@ pub struct WorkspaceBar<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg> {
     fn size(&self) -> Size<Length> {
         Size {
             width: Length::Fill,

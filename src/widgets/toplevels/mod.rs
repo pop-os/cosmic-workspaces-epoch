@@ -31,7 +31,7 @@ pub struct Toplevels<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
     fn size(&self) -> Size<Length> {
         self.layout.size()
     }

@@ -70,6 +70,7 @@ pub struct Args {}
 #[derive(Default, Debug, Clone)]
 pub struct WorkspaceCommands;
 
+#[allow(clippy::to_string_trait_impl)]
 impl ToString for WorkspaceCommands {
     fn to_string(&self) -> String {
         String::new()
@@ -419,6 +420,7 @@ impl Application for App {
                             ));
 
                             // XXX efficiency
+                            #[allow(clippy::mutable_key_type)]
                             let img_for_output = old_workspaces
                                 .iter()
                                 .find(|i| i.handle == workspace.handle)

@@ -15,7 +15,7 @@ use cosmic::{
     iced::{
         self,
         clipboard::mime::AsMimeTypes,
-        event::wayland::{Event as WaylandEvent, OutputEvent},
+        event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
         Size, Subscription, Task,
     },
@@ -177,6 +177,7 @@ struct Output {
     height: i32,
 }
 
+#[derive(Debug)]
 struct LayerSurface {
     output: wl_output::WlOutput,
     // for transitions, would need windows in more than one workspace? But don't capture all of
@@ -264,7 +265,6 @@ impl App {
             .find(|(_id, surface)| &surface.output == output)
         {
             let id = *id;
-            self.layer_surfaces.remove(&id).unwrap();
             destroy_layer_surface(id)
         } else {
             Task::none()
@@ -303,10 +303,10 @@ impl App {
         self.update_capture_filter();
         self.drag_surface = None;
         Task::batch(
-            mem::take(&mut self.layer_surfaces)
-                .into_keys()
-                .map(destroy_layer_surface)
-                .collect::<Vec<_>>(),
+            self.layer_surfaces
+                .keys()
+                .copied()
+                .map(destroy_layer_surface),
         )
     }
 
@@ -403,6 +403,11 @@ impl Application for App {
                                 return self.destroy_surface(&output);
                             }
                         }
+                    }
+                }
+                WaylandEvent::Layer(LayerEvent::Done, _surface, id) => {
+                    if self.layer_surfaces.remove(&id).is_none() {
+                        log::error!("removing non-existant layer shell id {}?", id);
                     }
                 }
                 _ => {}
@@ -640,7 +645,7 @@ impl Application for App {
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
         }
-        log::info!("NO VIEW");
+        log::error!("non-existant layer shell id {}?", id);
         cosmic::widget::text("workspaces").into()
     }
 

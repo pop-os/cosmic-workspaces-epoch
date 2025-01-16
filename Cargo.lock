@@ -1274,7 +1274,6 @@ dependencies = [
  "libcosmic",
  "log",
  "memmap2 0.9.5",
- "once_cell",
  "rust-embed",
  "rustix 0.38.43",
  "tokio",

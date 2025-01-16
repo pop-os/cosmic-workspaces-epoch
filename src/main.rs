@@ -30,13 +30,13 @@ use cosmic::{
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
-use once_cell::sync::Lazy;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
     mem,
     path::PathBuf,
     str,
+    sync::LazyLock,
 };
 
 mod desktop_info;
@@ -57,11 +57,11 @@ struct CosmicWorkspacesConfig {
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
 #[allow(dead_code)]
-static WORKSPACE_MIME: Lazy<String> =
-    Lazy::new(|| format!("text/x.cosmic-workspace-id-{}", std::process::id()));
+static WORKSPACE_MIME: LazyLock<String> =
+    LazyLock::new(|| format!("text/x.cosmic-workspace-id-{}", std::process::id()));
 
-static TOPLEVEL_MIME: Lazy<String> =
-    Lazy::new(|| format!("text/x.cosmic-toplevel-id-{}", std::process::id()));
+static TOPLEVEL_MIME: LazyLock<String> =
+    LazyLock::new(|| format!("text/x.cosmic-toplevel-id-{}", std::process::id()));
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]

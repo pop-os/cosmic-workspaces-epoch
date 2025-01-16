@@ -56,6 +56,7 @@ struct CosmicWorkspacesConfig {
 
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
+#[allow(dead_code)]
 static WORKSPACE_MIME: Lazy<String> =
     Lazy::new(|| format!("text/x.cosmic-workspace-id-{}", std::process::id()));
 
@@ -112,7 +113,7 @@ impl cosmic::iced::clipboard::mime::AllowedMimeTypes for DragToplevel {
 
 impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
     type Error = ();
-    fn try_from((bytes, mime_type): (Vec<u8>, String)) -> Result<Self, ()> {
+    fn try_from((_bytes, mime_type): (Vec<u8>, String)) -> Result<Self, ()> {
         if mime_type == *TOPLEVEL_MIME {
             Ok(Self {})
         } else {

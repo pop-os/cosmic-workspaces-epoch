@@ -44,7 +44,9 @@ pub struct CaptureFilter {
 
 #[derive(Clone, Debug)]
 pub struct CaptureImage {
+    #[allow(dead_code)]
     pub width: u32,
+    #[allow(dead_code)]
     pub height: u32,
     pub wl_buffer: SubsurfaceBuffer,
     pub transform: wl_output::Transform,

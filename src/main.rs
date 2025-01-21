@@ -461,7 +461,9 @@ impl Application for App {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
-                            toplevel.icon = desktop_info::icon_for_app_id(info.app_id.clone());
+                            if toplevel.info.app_id != info.app_id {
+                                toplevel.icon = desktop_info::icon_for_app_id(info.app_id.clone());
+                            }
                             toplevel.info = info;
                         }
                     }

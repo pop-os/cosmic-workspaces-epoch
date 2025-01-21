@@ -5,13 +5,17 @@ use freedesktop_desktop_entry::DesktopEntry;
 use itertools::Itertools;
 use std::path::PathBuf;
 
-pub fn icon_for_app_id(app_id: String) -> Option<PathBuf> {
-    Some(
-        desktop_info_for_app_ids(vec![app_id])
-            .into_iter()
-            .next()?
-            .icon,
-    )
+pub async fn icon_for_app_id(app_id: String) -> Option<PathBuf> {
+    tokio::task::spawn_blocking(|| {
+        Some(
+            desktop_info_for_app_ids(vec![app_id])
+                .into_iter()
+                .next()?
+                .icon,
+        )
+    })
+    .await
+    .unwrap()
 }
 
 #[allow(dead_code)]

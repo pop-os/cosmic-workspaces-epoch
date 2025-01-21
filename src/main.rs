@@ -149,6 +149,7 @@ enum Msg {
     CompConfig(Box<CosmicCompConfig>),
     Config(CosmicWorkspacesConfig),
     BgConfig(cosmic_bg_config::state::State),
+    UpdateToplevelIcon(String, Option<PathBuf>),
     Ignore,
 }
 
@@ -445,8 +446,14 @@ impl Application for App {
                     }
                     backend::Event::NewToplevel(handle, info) => {
                         log::debug!("New toplevel: {info:?}");
+                        let app_id = info.app_id.clone();
+                        let icon_task = iced::Task::perform(
+                            desktop_info::icon_for_app_id(app_id.clone()),
+                            move |path| Msg::UpdateToplevelIcon(app_id.clone(), path),
+                        )
+                        .map(cosmic::app::Message::App);
                         self.toplevels.push(Toplevel {
-                            icon: desktop_info::icon_for_app_id(info.app_id.clone()),
+                            icon: None,
                             handle,
                             info,
                             img: None,
@@ -454,17 +461,25 @@ impl Application for App {
                         // Close workspaces view if a window spawns while open
                         #[cfg(not(feature = "mock-backend"))]
                         if self.visible {
-                            return self.hide();
+                            return Task::batch([icon_task, self.hide()]);
                         }
+                        return icon_task;
                     }
                     backend::Event::UpdateToplevel(handle, info) => {
                         if let Some(toplevel) =
                             self.toplevels.iter_mut().find(|x| x.handle == handle)
                         {
+                            let mut task = Task::none();
                             if toplevel.info.app_id != info.app_id {
-                                toplevel.icon = desktop_info::icon_for_app_id(info.app_id.clone());
+                                let app_id = info.app_id.clone();
+                                task = iced::Task::perform(
+                                    desktop_info::icon_for_app_id(app_id.clone()),
+                                    move |path| Msg::UpdateToplevelIcon(app_id.clone(), path),
+                                )
+                                .map(cosmic::app::Message::App);
                             }
                             toplevel.info = info;
+                            return task;
                         }
                     }
                     backend::Event::CloseToplevel(handle) => {
@@ -557,6 +572,13 @@ impl Application for App {
             }
             Msg::BgConfig(c) => {
                 self.conf.bg = c;
+            }
+            Msg::UpdateToplevelIcon(app_id, path) => {
+                for toplevel in self.toplevels.iter_mut() {
+                    if toplevel.info.app_id == app_id {
+                        toplevel.icon = path.clone();
+                    }
+                }
             }
             Msg::Ignore => {}
         }

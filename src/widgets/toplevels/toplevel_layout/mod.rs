@@ -8,6 +8,7 @@ mod row_col_toplevel_layout;
 mod utils;
 pub(crate) use row_col_toplevel_layout::RowColToplevelLayout;
 
+#[derive(Debug)]
 pub(crate) struct LayoutToplevel<'a> {
     //toplevel: &'a crate::Toplevel,
     /// Preferred size of the child widget, if it fill the parent container

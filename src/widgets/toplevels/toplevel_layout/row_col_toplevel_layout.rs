@@ -31,7 +31,10 @@ impl ToplevelLayout for RowColToplevelLayout {
         let scale_factor = (self.axis.main(max_limit) / requested_main_total).min(1.0);
         let max_cross = self.axis.cross(max_limit);
 
-        let mut total_main = 0.0;
+        // Add padding to center if total requested size doesn't fill available space
+        let padding = (self.axis.main(max_limit) - requested_main_total).max(0.) / 2.;
+
+        let mut total_main = padding;
         let mut first = true;
         toplevels.iter().map(move |child| {
             let requested_main = self.axis.main(child.preferred_size);

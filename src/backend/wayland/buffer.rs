@@ -7,7 +7,9 @@ use cctk::{
 };
 use cosmic::{
     cctk,
-    iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf},
+    iced_winit::platform_specific::wayland::subsurface_widget::{
+        BufferSource, Dmabuf, Plane, Shmbuf,
+    },
 };
 use std::{
     os::fd::AsFd,
@@ -129,11 +131,11 @@ impl AppData {
         let mut planes = Vec::new();
 
         let params = self.dmabuf_state.create_params(&self.qh)?;
-        let modifier = bo.modifier()?;
-        for i in 0..bo.plane_count()? as i32 {
+        let modifier = bo.modifier();
+        for i in 0..bo.plane_count() as i32 {
             let plane_fd = bo.fd_for_plane(i)?;
-            let plane_offset = bo.offset(i)?;
-            let plane_stride = bo.stride_for_plane(i)?;
+            let plane_offset = bo.offset(i);
+            let plane_stride = bo.stride_for_plane(i);
             params.add(
                 plane_fd.as_fd(),
                 i as u32,
@@ -181,7 +183,7 @@ impl AppData {
 
         #[cfg(not(feature = "force-shm-screencopy"))]
         if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
-            match self.create_gbm_buffer(format, &modifiers, formats.buffer_size, false) {
+            match self.create_gbm_buffer(format, modifiers, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }

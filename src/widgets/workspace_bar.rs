@@ -1,13 +1,14 @@
 // Custom varian of row/column
-// Gives each child widget a maximim size on main axis of total/n
+// Gives each child widget a maximum size on main axis of total/n
 
 use cosmic::iced::{
     advanced::{
         layout::{self, flex::Axis},
         mouse, renderer,
-        widget::{Operation, OperationOutputWrapper, Tree},
+        widget::{Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
+    core::clipboard::DndDestinationRectangles,
     event::{self, Event},
     Length, Point, Rectangle, Size,
 };
@@ -57,7 +58,7 @@ pub struct WorkspaceBar<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg> {
     fn size(&self) -> Size<Length> {
         Size {
             width: Length::Fill,
@@ -122,7 +123,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, 
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+        operation: &mut dyn Operation<()>,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children
@@ -218,6 +219,24 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'a, 
 
     fn diff(&mut self, tree: &mut Tree) {
         tree.diff_children(&mut self.children);
+    }
+
+    fn drag_destinations(
+        &self,
+        state: &Tree,
+        layout: Layout<'_>,
+        renderer: &cosmic::Renderer,
+        dnd_rectangles: &mut DndDestinationRectangles,
+    ) {
+        for ((e, layout), state) in self
+            .children
+            .iter()
+            .zip(layout.children())
+            .zip(state.children.iter())
+        {
+            e.as_widget()
+                .drag_destinations(state, layout, renderer, dnd_rectangles);
+        }
     }
 }
 

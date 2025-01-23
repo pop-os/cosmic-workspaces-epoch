@@ -6,7 +6,7 @@ use cosmic::iced::{
     advanced::{
         layout::{self, flex::Axis},
         mouse, renderer,
-        widget::{Operation, OperationOutputWrapper, Tree},
+        widget::{Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
@@ -58,7 +58,7 @@ pub struct ToplevelItem<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'_, Msg> {
     fn size(&self) -> Size<Length> {
         Size {
             // width: Length::Fill
@@ -120,7 +120,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, 
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+        operation: &mut dyn Operation<()>,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children

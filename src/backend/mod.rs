@@ -8,7 +8,8 @@
 //! backend for testing without any special protocols.
 
 use cosmic::{
-    cctk::wayland_client::protocol::wl_output, iced_sctk::subsurface_widget::SubsurfaceBuffer,
+    cctk::wayland_client::protocol::wl_output,
+    iced_winit::platform_specific::wayland::subsurface_widget::SubsurfaceBuffer,
 };
 use std::collections::HashSet;
 
@@ -43,9 +44,12 @@ pub struct CaptureFilter {
 
 #[derive(Clone, Debug)]
 pub struct CaptureImage {
+    #[allow(dead_code)]
     pub width: u32,
+    #[allow(dead_code)]
     pub height: u32,
     pub wl_buffer: SubsurfaceBuffer,
+    pub transform: wl_output::Transform,
     #[cfg(feature = "no-subsurfaces")]
     pub image: cosmic::widget::image::Handle,
 }

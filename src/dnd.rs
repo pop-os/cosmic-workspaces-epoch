@@ -1,10 +1,7 @@
 //! Types related to drag-and-drop
 
 use cosmic::{
-    cctk::{
-        cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1,
-        wayland_client::{protocol::wl_output, Proxy},
-    },
+    cctk::wayland_client::{protocol::wl_output, Proxy},
     iced::clipboard::mime::AsMimeTypes,
 };
 use std::{borrow::Cow, sync::LazyLock};
@@ -71,10 +68,7 @@ impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
 #[derive(Clone, Debug, PartialEq)]
 #[repr(u8)]
 pub enum DropTarget {
-    WorkspaceSidebarEntry(
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-    ),
+    WorkspaceSidebarEntry(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
 }
 
 impl DropTarget {

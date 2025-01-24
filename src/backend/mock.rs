@@ -25,7 +25,7 @@ use std::{
     fs,
     io::{self, Write},
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc,
     },
     thread,
@@ -35,7 +35,13 @@ use super::{CaptureImage, Cmd, Event};
 use crate::utils;
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-struct MockObjectId(usize);
+pub struct MockObjectId(u32);
+
+impl MockObjectId {
+    pub fn protocol_id(&self) -> u32 {
+        self.0
+    }
+}
 
 fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
     let file = fs::File::from(utils::create_memfile().unwrap());
@@ -68,13 +74,19 @@ fn create_solid_capture_image(r: u8, g: u8, b: u8) -> CaptureImage {
 
 impl MockObjectId {
     fn new() -> Self {
-        static NEXT_MOCK_ID: AtomicUsize = AtomicUsize::new(0);
+        static NEXT_MOCK_ID: AtomicU32 = AtomicU32::new(0);
         Self(NEXT_MOCK_ID.fetch_add(1, Ordering::SeqCst))
     }
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct ZcosmicWorkspaceHandleV1(MockObjectId);
+
+impl ZcosmicWorkspaceHandleV1 {
+    pub fn id(&self) -> MockObjectId {
+        self.0.clone()
+    }
+}
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct ZcosmicToplevelHandleV1(MockObjectId);

@@ -359,14 +359,17 @@ fn toplevel_previews<'a>(
         .map(|t| toplevel_previews_entry(t, output, drag_toplevel == Some(&t.handle)))
         .collect();
     //row(entries)
-    widget::container(crate::widgets::toplevels(entries))
-        .align_x(iced::alignment::Horizontal::Center)
-        .width(width)
-        .height(height)
-        //.spacing(16)
-        .padding(12)
-        //.align_items(iced::Alignment::Center)
-        .into()
+    widget::mouse_area(
+        widget::container(crate::widgets::toplevels(entries))
+            .align_x(iced::alignment::Horizontal::Center)
+            .width(width)
+            .height(height)
+            //.spacing(16)
+            .padding(12),
+    )
+    .on_press(Msg::Close)
+    //.align_items(iced::Alignment::Center)
+    .into()
 }
 
 fn bg_element<'a>(

@@ -505,6 +505,11 @@ impl Application for App {
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
+                if let Some(workspace) = self.workspace_for_handle(&workspace_handle) {
+                    if workspace.is_active {
+                        return self.hide();
+                    }
+                }
                 self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
             }
             Msg::ActivateToplevel(toplevel_handle) => {

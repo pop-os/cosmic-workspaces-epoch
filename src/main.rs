@@ -17,11 +17,7 @@ use cosmic::{
         clipboard::mime::AsMimeTypes,
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
-        wayland::{
-            actions::data_device::{DataFromMimeType, DndIcon},
-            data_device::{accept_mime_type, request_dnd_data, set_actions, start_drag},
-        },
-        Command, Size, Subscription, Vector, Task,
+        Size, Subscription, Task,
     },
     iced_core::window::Id as SurfaceId,
     iced_runtime::platform_specific::wayland::layer_surface::{

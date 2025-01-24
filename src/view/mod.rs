@@ -24,6 +24,27 @@ use crate::{
     App, DragSurface, DragToplevel, LayerSurface, Msg, Toplevel, Workspace,
 };
 
+// Used in iced/smithay_sctk to associate drag destination area with widget
+#[repr(u8)]
+enum DragId {
+    WorkspaceEntry(usize),
+}
+
+// Encode as a u64 for iced/smithay_sctk
+impl From<DragId> for u64 {
+    fn from(id: DragId) -> u64 {
+        // https://doc.rust-lang.org/std/mem/fn.discriminant.html#accessing-the-numeric-value-of-the-discriminant
+        let discriminant = unsafe { *<*const _>::from(&id).cast::<u8>() };
+        match id {
+            DragId::WorkspaceEntry(idx) => {
+                // Index should not exceed 32 bits
+                let idx = u32::try_from(idx).unwrap();
+                ((discriminant as u64) << 32) | (idx as u64)
+            }
+        }
+    }
+}
+
 pub(crate) fn layer_surface<'a>(
     app: &'a App,
     surface: &'a LayerSurface,
@@ -146,7 +167,7 @@ fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
     is_drop_target: bool,
-    drag_id: u64,
+    idx: usize,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -183,7 +204,7 @@ fn workspace_sidebar_entry<'a>(
             None => Msg::Ignore,
         },
     )
-    .drag_id(drag_id)
+    .drag_id(DragId::WorkspaceEntry(idx).into())
     .on_enter(move |actions, mime, pos| {
         Msg::DndWorkspaceEnter(
             workspace_handle.clone(),
@@ -206,7 +227,7 @@ fn workspaces_sidebar<'a>(
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
         .enumerate()
-        .map(|(i, w)| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle), i as u64))
+        .map(|(i, w)| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle), i))
         .collect();
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,

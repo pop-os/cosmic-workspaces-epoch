@@ -16,6 +16,7 @@ use cosmic::{
         self,
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
+        mouse::ScrollDelta,
         Size, Subscription, Task,
     },
     iced_core::window::Id as SurfaceId,
@@ -98,6 +99,7 @@ enum Msg {
     Config(CosmicWorkspacesConfig),
     BgConfig(cosmic_bg_config::state::State),
     UpdateToplevelIcon(String, Option<PathBuf>),
+    OnScroll(wl_output::WlOutput, ScrollDelta),
     Ignore,
 }
 
@@ -534,6 +536,29 @@ impl Application for App {
                 for toplevel in self.toplevels.iter_mut() {
                     if toplevel.info.app_id == app_id {
                         toplevel.icon = path.clone();
+                    }
+                }
+            }
+            Msg::OnScroll(output, delta) => {
+                // TODO assumes only one active workspace per output
+                let mut workspaces = self.workspaces_for_output(&output).collect::<Vec<_>>();
+                if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active) {
+                    if let ScrollDelta::Pixels { x: _, y } = delta {
+                        // XXX accumulate delta, with timer?
+                        let workspace = if y <= -4. {
+                            // Next workspace on output
+                            workspaces[workspace_idx + 1..].iter().next()
+                        } else if y >= 4. {
+                            // Previous workspace on output
+                            workspaces[..workspace_idx].iter().last()
+                        } else {
+                            None
+                        };
+                        if let Some(workspace) = workspace {
+                            self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
+                                dbg!(workspace).handle.clone(),
+                            ));
+                        }
                     }
                 }
             }

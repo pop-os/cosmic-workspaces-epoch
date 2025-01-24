@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
-use cctk::{
-    cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-    wayland_client::protocol::wl_output,
-};
 use cosmic::{
-    cctk,
+    cctk::{
+        cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        wayland_client::protocol::wl_output,
+    },
     iced::{
         self,
         advanced::layout::flex::Axis,
@@ -18,10 +15,12 @@ use cosmic::{
 };
 use cosmic_bg_config::Source;
 use cosmic_comp_config::workspace::WorkspaceLayout;
+use std::collections::HashMap;
 
 use crate::{
     backend::{self, CaptureImage},
-    App, DragSurface, DragToplevel, DropTarget, LayerSurface, Msg, Toplevel, Workspace,
+    dnd::{DragSurface, DragToplevel, DropTarget},
+    App, LayerSurface, Msg, Toplevel, Workspace,
 };
 
 fn toplevel_dnd_destination<'a>(

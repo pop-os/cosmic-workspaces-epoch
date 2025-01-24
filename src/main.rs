@@ -14,7 +14,6 @@ use cosmic::{
     cctk,
     iced::{
         self,
-        clipboard::mime::AsMimeTypes,
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
         Size, Subscription, Task,
@@ -31,12 +30,10 @@ use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     mem,
     path::PathBuf,
     str,
-    sync::LazyLock,
 };
 
 mod desktop_info;
@@ -45,23 +42,16 @@ mod localize;
 mod backend;
 mod view;
 use backend::{ToplevelInfo, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1};
+mod dnd;
 mod utils;
 mod widgets;
+use dnd::{DragSurface, DragToplevel, DropTarget};
 
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
     show_workspace_number: bool,
     show_workspace_name: bool,
 }
-
-// Include `pid` in mime. Want to drag between our surfaces, but not another
-// process, if we use Wayland object ids.
-#[allow(dead_code)]
-static WORKSPACE_MIME: LazyLock<String> =
-    LazyLock::new(|| format!("text/x.cosmic-workspace-id-{}", std::process::id()));
-
-static TOPLEVEL_MIME: LazyLock<String> =
-    LazyLock::new(|| format!("text/x.cosmic-toplevel-id-{}", std::process::id()));
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -84,65 +74,6 @@ impl CosmicFlags for Args {
 
     fn action(&self) -> Option<&WorkspaceCommands> {
         None
-    }
-}
-
-// TODO store protocol object id?
-#[derive(Clone, Debug)]
-struct DragToplevel {}
-
-impl AsMimeTypes for DragToplevel {
-    fn available(&self) -> Cow<'static, [String]> {
-        vec![TOPLEVEL_MIME.clone()].into()
-    }
-
-    fn as_bytes(&self, mime_type: &str) -> Option<Cow<'static, [u8]>> {
-        if mime_type == *TOPLEVEL_MIME {
-            Some(Vec::new().into())
-        } else {
-            None
-        }
-    }
-}
-
-impl cosmic::iced::clipboard::mime::AllowedMimeTypes for DragToplevel {
-    fn allowed() -> Cow<'static, [String]> {
-        vec![crate::TOPLEVEL_MIME.clone()].into()
-    }
-}
-
-impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
-    type Error = ();
-    fn try_from((_bytes, mime_type): (Vec<u8>, String)) -> Result<Self, ()> {
-        if mime_type == *TOPLEVEL_MIME {
-            Ok(Self {})
-        } else {
-            Err(())
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-#[repr(u8)]
-pub enum DropTarget {
-    WorkspaceSidebarEntry(
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-    ),
-}
-
-impl DropTarget {
-    /// Encode as a u64 for iced/smithay_sctk to associate drag destination area with widget.
-    fn drag_id(&self) -> u64 {
-        // https://doc.rust-lang.org/std/mem/fn.discriminant.html#accessing-the-numeric-value-of-the-discriminant
-        let discriminant = unsafe { *<*const _>::from(self).cast::<u8>() };
-        match self {
-            Self::WorkspaceSidebarEntry(workspace, _output) => {
-                // TODO consider workspace that span multiple outputs?
-                let id = workspace.id().protocol_id();
-                (u64::from(discriminant) << 32) | u64::from(id)
-            }
-        }
     }
 }
 
@@ -200,19 +131,6 @@ struct LayerSurface {
     output: wl_output::WlOutput,
     // for transitions, would need windows in more than one workspace? But don't capture all of
     // them all the time every frame.
-}
-
-#[derive(Clone, Debug)]
-enum DragSurface {
-    #[allow(dead_code)]
-    Workspace {
-        handle: ZcosmicWorkspaceHandleV1,
-        output: wl_output::WlOutput,
-    },
-    Toplevel {
-        handle: ZcosmicToplevelHandleV1,
-        output: wl_output::WlOutput,
-    },
 }
 
 #[derive(Default)]

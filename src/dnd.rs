@@ -63,6 +63,7 @@ impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
 #[repr(u8)]
 pub enum DropTarget {
     WorkspaceSidebarEntry(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
+    OutputToplevels(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
 }
 
 impl DropTarget {
@@ -74,6 +75,10 @@ impl DropTarget {
             Self::WorkspaceSidebarEntry(workspace, _output) => {
                 // TODO consider workspace that span multiple outputs?
                 let id = workspace.id().protocol_id();
+                (u64::from(discriminant) << 32) | u64::from(id)
+            }
+            Self::OutputToplevels(_workspace, output) => {
+                let id = output.id().protocol_id();
                 (u64::from(discriminant) << 32) | u64::from(id)
             }
         }

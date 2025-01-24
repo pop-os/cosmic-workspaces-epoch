@@ -484,14 +484,18 @@ impl Application for App {
             }
             Msg::DndWorkspaceDrop(_toplevel) => {
                 if let Some((DragSurface::Toplevel(handle), _)) = &self.drag_surface {
-                    if let Some(DropTarget::WorkspaceSidebarEntry(workspace, output)) =
-                        self.drop_target.take()
-                    {
-                        self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
-                            handle.clone(),
-                            workspace,
-                            output,
-                        ));
+                    match self.drop_target.take() {
+                        Some(
+                            DropTarget::WorkspaceSidebarEntry(workspace, output)
+                            | DropTarget::OutputToplevels(workspace, output),
+                        ) => {
+                            self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
+                                handle.clone(),
+                                workspace,
+                                output,
+                            ));
+                        }
+                        None => {}
                     }
                 }
             }

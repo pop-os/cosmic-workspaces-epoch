@@ -78,6 +78,20 @@ pub(crate) fn layer_surface<'a>(
         layout,
         drag_toplevel,
     );
+    // TODO multiple active workspaces? Not currently supported by cosmic.
+    let first_active_workspace = app
+        .workspaces
+        .iter()
+        .find(|i| i.outputs.contains(&surface.output) && i.is_active);
+    let toplevels = if let Some(workspace) = first_active_workspace {
+        toplevel_dnd_destination(
+            DropTarget::OutputToplevels(workspace.handle.clone(), surface.output.clone()),
+            toplevels,
+        )
+    } else {
+        // Shouldn't happen, but no drag destination if no active workspace found for output
+        cosmic::Element::from(toplevels)
+    };
     let container = match layout {
         WorkspaceLayout::Vertical => widget::layer_container(
             row![sidebar, toplevels]

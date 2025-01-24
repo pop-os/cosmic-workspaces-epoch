@@ -483,7 +483,7 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceDrop(_toplevel) => {
-                if let Some((DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
+                if let Some((DragSurface::Toplevel(handle), _)) = &self.drag_surface {
                     if let Some(DropTarget::WorkspaceSidebarEntry(workspace, output)) =
                         self.drop_target.take()
                     {

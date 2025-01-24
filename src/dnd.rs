@@ -20,14 +20,8 @@ static TOPLEVEL_MIME: LazyLock<String> =
 #[derive(Clone, Debug)]
 pub enum DragSurface {
     #[allow(dead_code)]
-    Workspace {
-        handle: ZcosmicWorkspaceHandleV1,
-        output: wl_output::WlOutput,
-    },
-    Toplevel {
-        handle: ZcosmicToplevelHandleV1,
-        output: wl_output::WlOutput,
-    },
+    Workspace(ZcosmicWorkspaceHandleV1),
+    Toplevel(ZcosmicToplevelHandleV1),
 }
 
 // TODO store protocol object id?

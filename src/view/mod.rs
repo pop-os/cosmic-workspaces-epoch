@@ -52,7 +52,7 @@ pub(crate) fn layer_surface<'a>(
         }
     }
     let mut drag_toplevel = None;
-    if let Some((DragSurface::Toplevel { handle, .. }, _)) = &app.drag_surface {
+    if let Some((DragSurface::Toplevel(handle), _)) = &app.drag_surface {
         drag_toplevel = Some(handle);
     }
     let layout = app.conf.workspace_config.workspace_layout;
@@ -75,7 +75,6 @@ pub(crate) fn layer_surface<'a>(
                     .map_or(false, |x| x.is_active)
             })
         }),
-        &surface.output,
         layout,
         drag_toplevel,
     );
@@ -306,7 +305,6 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
 
 fn toplevel_previews_entry<'a>(
     toplevel: &'a Toplevel,
-    output: &'a wl_output::WlOutput,
     is_being_dragged: bool,
 ) -> cosmic::Element<'a, Msg> {
     // Dragged window still takes up space until moved, but isn't rendered while drag surface is
@@ -329,11 +327,7 @@ fn toplevel_previews_entry<'a>(
         })
         .on_start(Some(Msg::StartDrag(
             //size,
-            //offset,
-            DragSurface::Toplevel {
-                handle: toplevel.handle.clone(),
-                output: output.clone(),
-            },
+            DragSurface::Toplevel(toplevel.handle.clone()),
         )))
         .on_finish(Some(Msg::SourceFinished))
         .on_cancel(Some(Msg::SourceFinished))
@@ -342,7 +336,6 @@ fn toplevel_previews_entry<'a>(
 
 fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
-    output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
     drag_toplevel: Option<&'a backend::ZcosmicToplevelHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
@@ -351,7 +344,7 @@ fn toplevel_previews<'a>(
         WorkspaceLayout::Horizontal => (iced::Length::Fill, iced::Length::FillPortion(4)),
     };
     let entries = toplevels
-        .map(|t| toplevel_previews_entry(t, output, drag_toplevel == Some(&t.handle)))
+        .map(|t| toplevel_previews_entry(t, drag_toplevel == Some(&t.handle)))
         .collect();
     //row(entries)
     widget::mouse_area(

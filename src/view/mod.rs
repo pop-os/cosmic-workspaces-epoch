@@ -103,7 +103,10 @@ pub(crate) fn layer_surface<'a>(
                 .width(iced::Length::Fill),
         ),
     };
-    container.into()
+    let output = surface.output.clone();
+    widget::mouse_area(container)
+        .on_scroll(move |delta| Msg::OnScroll(output.clone(), delta))
+        .into()
 }
 
 fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {

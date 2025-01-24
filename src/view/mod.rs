@@ -57,9 +57,7 @@ pub(crate) fn layer_surface<'a>(
     }
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(
-        app.workspaces
-            .iter()
-            .filter(|i| i.outputs.contains(&surface.output)),
+        app.workspaces_for_output(&surface.output),
         &surface.output,
         layout,
         drop_target,
@@ -80,9 +78,8 @@ pub(crate) fn layer_surface<'a>(
     );
     // TODO multiple active workspaces? Not currently supported by cosmic.
     let first_active_workspace = app
-        .workspaces
-        .iter()
-        .find(|i| i.outputs.contains(&surface.output) && i.is_active);
+        .workspaces_for_output(&surface.output)
+        .find(|w| w.is_active);
     let toplevels = if let Some(workspace) = first_active_workspace {
         toplevel_dnd_destination(
             DropTarget::OutputToplevels(workspace.handle.clone(), surface.output.clone()),

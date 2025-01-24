@@ -167,6 +167,16 @@ impl App {
         self.workspaces.iter_mut().find(|i| &i.handle == handle)
     }
 
+    // TODO iterate in order based on `coordinates`
+    fn workspaces_for_output<'a>(
+        &'a self,
+        output: &'a wl_output::WlOutput,
+    ) -> impl Iterator<Item = &Workspace> + 'a {
+        self.workspaces
+            .iter()
+            .filter(|w| w.outputs.contains(output))
+    }
+
     fn toplevel_for_handle_mut(
         &mut self,
         handle: &ZcosmicToplevelHandleV1,

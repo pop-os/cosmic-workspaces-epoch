@@ -122,6 +122,30 @@ impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+#[repr(u8)]
+pub enum DropTarget {
+    WorkspaceSidebarEntry(
+        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+        wl_output::WlOutput,
+    ),
+}
+
+impl DropTarget {
+    /// Encode as a u64 for iced/smithay_sctk to associate drag destination area with widget.
+    fn drag_id(&self) -> u64 {
+        // https://doc.rust-lang.org/std/mem/fn.discriminant.html#accessing-the-numeric-value-of-the-discriminant
+        let discriminant = unsafe { *<*const _>::from(self).cast::<u8>() };
+        match self {
+            Self::WorkspaceSidebarEntry(workspace, _output) => {
+                // TODO consider workspace that span multiple outputs?
+                let id = workspace.id().protocol_id();
+                (u64::from(discriminant) << 32) | u64::from(id)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Msg {
     WaylandEvent(WaylandEvent),
@@ -132,16 +156,9 @@ enum Msg {
     CloseWorkspace(ZcosmicWorkspaceHandleV1),
     ActivateToplevel(ZcosmicToplevelHandleV1),
     CloseToplevel(ZcosmicToplevelHandleV1),
-    //StartDrag(Size, Vector, DragSurface),
     StartDrag(DragSurface),
-    DndWorkspaceEnter(
-        ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-        f64,
-        f64,
-        Vec<String>,
-    ),
-    DndWorkspaceLeave(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
+    DndEnter(DropTarget, f64, f64, Vec<String>),
+    DndLeave(DropTarget),
     DndWorkspaceDrop(DragToplevel),
     SourceFinished,
     #[allow(dead_code)]
@@ -217,7 +234,7 @@ struct App {
     drag_surface: Option<(DragSurface, Size)>,
     conf: Conf,
     core: cosmic::app::Core,
-    drop_target: Option<(ZcosmicWorkspaceHandleV1, wl_output::WlOutput)>,
+    drop_target: Option<DropTarget>,
 }
 
 impl App {
@@ -537,23 +554,25 @@ impl Application for App {
             Msg::StartDrag(drag_surface) => {
                 self.drag_surface = Some((drag_surface, Default::default()));
             }
-            Msg::DndWorkspaceEnter(handle, output, _x, _y, _mimes) => {
-                self.drop_target = Some((handle, output));
+            Msg::DndEnter(drop_target, _x, _y, _mimes) => {
+                self.drop_target = Some(drop_target);
             }
-            Msg::DndWorkspaceLeave(handle, output) => {
+            Msg::DndLeave(drop_target) => {
                 // Currently in iced-sctk, a `DndOfferEvent::Motion` may cause a leave event after
                 // an enter event, based on which widget handles it first. So we need a test here.
-                if self.drop_target == Some((handle, output)) {
+                if self.drop_target == Some(drop_target) {
                     self.drop_target = None;
                 }
             }
             Msg::DndWorkspaceDrop(_toplevel) => {
                 if let Some((DragSurface::Toplevel { handle, .. }, _)) = &self.drag_surface {
-                    if let Some(drop_target) = self.drop_target.take() {
+                    if let Some(DropTarget::WorkspaceSidebarEntry(workspace, output)) =
+                        self.drop_target.take()
+                    {
                         self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
                             handle.clone(),
-                            drop_target.0,
-                            drop_target.1,
+                            workspace,
+                            output,
                         ));
                     }
                 }

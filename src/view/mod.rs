@@ -21,28 +21,25 @@ use cosmic_comp_config::workspace::WorkspaceLayout;
 
 use crate::{
     backend::{self, CaptureImage},
-    App, DragSurface, DragToplevel, LayerSurface, Msg, Toplevel, Workspace,
+    App, DragSurface, DragToplevel, DropTarget, LayerSurface, Msg, Toplevel, Workspace,
 };
 
-// Used in iced/smithay_sctk to associate drag destination area with widget
-#[repr(u8)]
-enum DragId {
-    WorkspaceEntry(usize),
-}
-
-// Encode as a u64 for iced/smithay_sctk
-impl From<DragId> for u64 {
-    fn from(id: DragId) -> u64 {
-        // https://doc.rust-lang.org/std/mem/fn.discriminant.html#accessing-the-numeric-value-of-the-discriminant
-        let discriminant = unsafe { *<*const _>::from(&id).cast::<u8>() };
-        match id {
-            DragId::WorkspaceEntry(idx) => {
-                // Index should not exceed 32 bits
-                let idx = u32::try_from(idx).unwrap();
-                ((discriminant as u64) << 32) | (idx as u64)
-            }
-        }
-    }
+fn toplevel_dnd_destination<'a>(
+    target: DropTarget,
+    child: cosmic::Element<'a, Msg>,
+) -> cosmic::Element<'a, Msg> {
+    let target2 = target.clone();
+    cosmic::widget::dnd_destination::dnd_destination_for_data(
+        child,
+        |data: Option<DragToplevel>, _action| match data {
+            Some(toplevel) => Msg::DndWorkspaceDrop(toplevel),
+            None => Msg::Ignore,
+        },
+    )
+    .drag_id(target.drag_id())
+    .on_enter(move |actions, mime, pos| Msg::DndEnter(target.clone(), actions, mime, pos))
+    .on_leave(move || Msg::DndLeave(target2.clone()))
+    .into()
 }
 
 pub(crate) fn layer_surface<'a>(
@@ -50,7 +47,7 @@ pub(crate) fn layer_surface<'a>(
     surface: &'a LayerSurface,
 ) -> cosmic::Element<'a, Msg> {
     let mut drop_target = None;
-    if let Some((workspace, output)) = &app.drop_target {
+    if let Some(DropTarget::WorkspaceSidebarEntry(workspace, output)) = &app.drop_target {
         if output == &surface.output {
             drop_target = Some(workspace);
         }
@@ -167,7 +164,6 @@ fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
     is_drop_target: bool,
-    idx: usize,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -193,30 +189,10 @@ fn workspace_sidebar_entry<'a>(
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    let workspace_handle = workspace.handle.clone();
-    let workspace_handle2 = workspace_handle.clone();
-    let output_clone = output.clone();
-    let output_clone2 = output.clone();
-    cosmic::widget::dnd_destination::dnd_destination_for_data(
+    toplevel_dnd_destination(
+        DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
         workspace_item(workspace, output, is_drop_target),
-        |data: Option<DragToplevel>, _action| match data {
-            Some(toplevel) => Msg::DndWorkspaceDrop(toplevel),
-            None => Msg::Ignore,
-        },
     )
-    .drag_id(DragId::WorkspaceEntry(idx).into())
-    .on_enter(move |actions, mime, pos| {
-        Msg::DndWorkspaceEnter(
-            workspace_handle.clone(),
-            output_clone.clone(),
-            actions,
-            mime,
-            pos,
-        )
-    })
-    .on_leave(move || Msg::DndWorkspaceLeave(workspace_handle2.clone(), output_clone2.clone()))
-    //)
-    .into()
 }
 
 fn workspaces_sidebar<'a>(
@@ -226,8 +202,7 @@ fn workspaces_sidebar<'a>(
     drop_target: Option<&backend::ZcosmicWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
-        .enumerate()
-        .map(|(i, w)| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle), i))
+        .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))
         .collect();
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,

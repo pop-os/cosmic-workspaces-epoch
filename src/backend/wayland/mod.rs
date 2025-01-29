@@ -3,7 +3,7 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
-    screencopy::ScreencopyState,
+    screencopy::{CaptureSource, ScreencopyState},
     sctk::{
         self,
         dmabuf::{DmabufFeedback, DmabufState},
@@ -31,7 +31,7 @@ use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, sync::Arc, thr
 mod buffer;
 use buffer::Buffer;
 mod capture;
-use capture::{Capture, CaptureSource};
+use capture::Capture;
 mod dmabuf;
 mod screencopy;
 use screencopy::{ScreencopySession, SessionData};
@@ -104,7 +104,7 @@ impl AppData {
 
     fn matches_capture_filter(&self, source: &CaptureSource) -> bool {
         match source {
-            CaptureSource::Toplevel(toplevel) => {
+            CaptureSource::CosmicToplevel(toplevel) => {
                 let info = self.toplevel_info_state.info(toplevel).unwrap();
                 info.workspace.iter().any(|workspace| {
                     self.capture_filter
@@ -112,9 +112,19 @@ impl AppData {
                         .contains(workspace)
                 })
             }
-            CaptureSource::Workspace(_, output) => {
-                self.capture_filter.workspaces_on_outputs.contains(output)
-            }
+            CaptureSource::CosmicWorkspace(workspace) => self
+                .workspace_state
+                .workspace_groups()
+                .iter()
+                .find(|g| g.workspaces.iter().any(|w| w.handle == *workspace))
+                .map_or(false, |group| {
+                    self.capture_filter
+                        .workspaces_on_outputs
+                        .iter()
+                        .any(|o| group.outputs.contains(o))
+                }),
+            CaptureSource::Toplevel(_) => false,
+            CaptureSource::Output(_) => false,
         }
     }
 

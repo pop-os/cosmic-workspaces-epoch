@@ -58,7 +58,7 @@ pub struct CaptureImage {
 pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
     Workspaces(Vec<(HashSet<wl_output::WlOutput>, Workspace)>),
-    WorkspaceCapture(ZcosmicWorkspaceHandleV1, wl_output::WlOutput, CaptureImage),
+    WorkspaceCapture(ZcosmicWorkspaceHandleV1, CaptureImage),
     NewToplevel(ZcosmicToplevelHandleV1, ToplevelInfo),
     UpdateToplevel(ZcosmicToplevelHandleV1, ToplevelInfo),
     CloseToplevel(ZcosmicToplevelHandleV1),

@@ -26,7 +26,7 @@ impl ToplevelInfoHandler for AppData {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
         self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
 
-        self.add_capture_source(CaptureSource::Toplevel(toplevel.clone()));
+        self.add_capture_source(CaptureSource::CosmicToplevel(toplevel.clone()));
     }
 
     fn update_toplevel(
@@ -47,7 +47,7 @@ impl ToplevelInfoHandler for AppData {
     ) {
         self.send_event(Event::CloseToplevel(toplevel.clone()));
 
-        self.remove_capture_source(CaptureSource::Toplevel(toplevel.clone()));
+        self.remove_capture_source(CaptureSource::CosmicToplevel(toplevel.clone()));
     }
 }
 

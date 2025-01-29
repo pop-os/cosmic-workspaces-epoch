@@ -137,10 +137,10 @@ fn workspace_item_appearance(
 
 fn workspace_item<'a>(
     workspace: &'a Workspace,
-    output: &wl_output::WlOutput,
+    _output: &wl_output::WlOutput,
     is_drop_target: bool,
 ) -> cosmic::Element<'a, Msg> {
-    let image = capture_image(workspace.img_for_output.get(output), 1.0);
+    let image = capture_image(workspace.img.as_ref(), 1.0);
     let is_active = workspace.is_active;
     // TODO editable name?
     widget::button::custom(

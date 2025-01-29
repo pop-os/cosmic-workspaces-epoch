@@ -18,12 +18,8 @@ impl WorkspaceHandler for AppData {
             for workspace in &group.workspaces {
                 workspaces.push((group.outputs.iter().cloned().collect(), workspace.clone()));
 
-                for output in &group.outputs {
-                    self.add_capture_source(CaptureSource::Workspace(
-                        workspace.handle.clone(),
-                        output.clone(),
-                    ));
-                }
+                // TODO one capture per output on workspace?
+                self.add_capture_source(CaptureSource::CosmicWorkspace(workspace.handle.clone()));
             }
         }
 

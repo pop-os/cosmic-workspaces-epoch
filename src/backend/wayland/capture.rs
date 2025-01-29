@@ -1,26 +1,12 @@
 use cctk::{
-    cosmic_protocols::{
-        screencopy::v2::client::zcosmic_screencopy_session_v2,
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        workspace::v1::client::zcosmic_workspace_handle_v1,
-    },
-    screencopy::ScreencopyState,
-    wayland_client::{protocol::wl_output, Proxy, QueueHandle},
+    screencopy::{CaptureSession, CaptureSource, ScreencopyState},
+    wayland_client::QueueHandle,
 };
 use cosmic::cctk;
 
 use std::sync::{Arc, Mutex};
 
 use super::{AppData, ScreencopySession, SessionData};
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum CaptureSource {
-    Toplevel(zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1),
-    Workspace(
-        zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-        wl_output::WlOutput,
-    ),
-}
 
 pub struct Capture {
     pub source: CaptureSource,
@@ -37,9 +23,7 @@ impl Capture {
 
     // Returns `None` if capture is destroyed
     // (or if `session` wasn't created with `SessionData`)
-    pub fn for_session(
-        session: &zcosmic_screencopy_session_v2::ZcosmicScreencopySessionV2,
-    ) -> Option<Arc<Self>> {
+    pub fn for_session(session: &CaptureSession) -> Option<Arc<Self>> {
         session.data::<SessionData>()?.capture.upgrade()
     }
 

@@ -168,10 +168,20 @@ fn workspace_item<'a>(
     widget::button::custom(
         column![
             image,
-            widget::text::body(fl!(
-                "workspace",
-                HashMap::from([("number", &workspace.name)])
-            ))
+            row![
+                widget::text::body(fl!(
+                    "workspace",
+                    HashMap::from([("number", &workspace.name)])
+                )),
+                widget::horizontal_space(),
+                // TODO in Adwaita, but not pop?
+                widget::button::custom(widget::icon::from_name("view-pin-symbolic").size(16))
+                    //.class(cosmic::theme::Button::Icon)
+                    .class(cosmic::theme::Button::Image)
+                    // TODO style selected correctly
+                    .selected(workspace.is_pinned)
+                    .on_press(Msg::TogglePinned(workspace.handle.clone()))
+            ]
         ]
         .align_x(iced::Alignment::Center)
         .spacing(4),

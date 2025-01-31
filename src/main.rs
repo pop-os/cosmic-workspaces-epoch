@@ -104,7 +104,8 @@ enum Msg {
 #[derive(Debug)]
 struct Workspace {
     name: String,
-    img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
+    // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
+    img: Option<backend::CaptureImage>,
     handle: ZcosmicWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
     is_active: bool,
@@ -373,17 +374,17 @@ impl Application for App {
 
                             // XXX efficiency
                             #[allow(clippy::mutable_key_type)]
-                            let img_for_output = old_workspaces
+                            let img = old_workspaces
                                 .iter()
                                 .find(|i| i.handle == workspace.handle)
-                                .map(|i| i.img_for_output.clone())
+                                .map(|i| i.img.clone())
                                 .unwrap_or_default();
 
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
                                 handle: workspace.handle,
                                 outputs,
-                                img_for_output,
+                                img,
                                 is_active,
                             });
                         }
@@ -432,10 +433,10 @@ impl Application for App {
                             self.toplevels.remove(idx);
                         }
                     }
-                    backend::Event::WorkspaceCapture(handle, output_name, image) => {
+                    backend::Event::WorkspaceCapture(handle, image) => {
                         //println!("Workspace capture");
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
-                            workspace.img_for_output.insert(output_name, image);
+                            workspace.img = Some(image);
                         }
                     }
                     backend::Event::ToplevelCapture(handle, image) => {

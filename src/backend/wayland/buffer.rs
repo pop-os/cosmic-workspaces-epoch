@@ -31,7 +31,7 @@ pub struct Buffer {
 }
 
 impl AppData {
-    fn create_shm_buffer(&self, format: u32, (width, height): (u32, u32)) -> Buffer {
+    fn create_shm_buffer(&self, format: wl_shm::Format, (width, height): (u32, u32)) -> Buffer {
         let fd = utils::create_memfile().unwrap(); // XXX?
         rustix::fs::ftruncate(&fd, width as u64 * height as u64 * 4).unwrap();
 
@@ -42,7 +42,6 @@ impl AppData {
             (),
         );
 
-        let format = wl_shm::Format::try_from(format).unwrap();
         let buffer = pool.create_buffer(
             0,
             width as i32,
@@ -179,11 +178,15 @@ impl AppData {
 
     pub fn create_buffer(&self, formats: &Formats) -> Buffer {
         // XXX Handle other formats?
-        let format = u32::from(wl_shm::Format::Abgr8888);
+        let format = wl_shm::Format::Abgr8888;
 
         #[cfg(not(feature = "force-shm-screencopy"))]
-        if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
-            match self.create_gbm_buffer(format, modifiers, formats.buffer_size, false) {
+        if let Some((_, modifiers)) = formats
+            .dmabuf_formats
+            .iter()
+            .find(|(f, _)| *f == u32::from(format))
+        {
+            match self.create_gbm_buffer(u32::from(format), modifiers, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }

@@ -76,4 +76,5 @@ pub enum Cmd {
         wl_output::WlOutput,
     ),
     ActivateWorkspace(ZcosmicWorkspaceHandleV1),
+    SetWorkspacePinned(ZcosmicWorkspaceHandleV1, bool),
 }

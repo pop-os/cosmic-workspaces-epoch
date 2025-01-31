@@ -3,6 +3,7 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
+    cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1,
     screencopy::ScreencopyState,
     sctk::{
         self,
@@ -97,6 +98,19 @@ impl AppData {
                 if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
                     workspace_handle.activate();
                     workspace_manager.commit();
+                }
+            }
+            Cmd::SetWorkspacePinned(workspace_handle, pinned) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if workspace_handle.version() >= zcosmic_workspace_handle_v1::REQ_PIN_SINCE {
+                        // TODO check capability
+                        if pinned {
+                            workspace_handle.pin();
+                        } else {
+                            workspace_handle.unpin();
+                        }
+                        workspace_manager.commit();
+                    }
                 }
             }
         }

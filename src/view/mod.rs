@@ -1,28 +1,58 @@
 use cosmic::{
     cctk::{
-        cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        cosmic_protocols::{
+            toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+            workspace::v2::client::zcosmic_workspace_handle_v2,
+        },
         wayland_client::protocol::wl_output,
         wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
     iced::{
         self,
         advanced::layout::flex::Axis,
-        clipboard::mime::AllowedMimeTypes,
+        clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
         widget::{column, row},
         Border, Length,
     },
     iced_core::{text::Wrapping, Shadow},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
-    widget, Apply,
+    widget::{self, Widget},
+    Apply,
 };
 use cosmic_comp_config::workspace::WorkspaceLayout;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     backend::{self, CaptureImage},
-    dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget},
+    dnd::{Drag, DragSurface, DragToplevel, DragWorkspace, DropTarget},
     App, LayerSurface, Msg, Toplevel, Workspace,
 };
+
+fn dnd_source_with_drag_surface<D: AsMimeTypes + Send + Clone + 'static>(
+    drag_content: D,
+    drag_surface: DragSurface,
+    id: Option<iced::id::Id>,
+    child: cosmic::Element<'_, Msg>,
+    drag_icon: impl Fn() -> cosmic::Element<'static, Msg> + 'static,
+) -> cosmic::Element<'_, Msg> {
+    let mut source = cosmic::widget::dnd_source(child)
+        .drag_threshold(5.)
+        .drag_content(move || drag_content.clone())
+        .drag_icon(move |offset| {
+            (
+                drag_icon().map(|_| ()),
+                cosmic::iced_core::widget::tree::State::None,
+                -offset,
+            )
+        })
+        .on_start(Some(Msg::StartDrag(drag_surface)))
+        .on_finish(Some(Msg::SourceFinished))
+        .on_cancel(Some(Msg::SourceFinished));
+    if let Some(id) = id {
+        source.set_id(id);
+    }
+    source.into()
+}
 
 fn dnd_destination_for_target<T>(
     target: DropTarget,
@@ -50,22 +80,31 @@ pub(crate) fn layer_surface<'a>(
     app: &'a App,
     surface: &'a LayerSurface,
 ) -> cosmic::Element<'a, Msg> {
-    let mut drop_target = None;
-    if let Some(DropTarget::WorkspaceSidebarEntry(workspace, output)) = &app.drop_target {
-        if output == &surface.output {
-            drop_target = Some(workspace);
-        }
-    }
     let mut drag_toplevel = None;
-    if let Some((DragSurface::Toplevel(handle), _)) = &app.drag_surface {
-        drag_toplevel = Some(handle);
+    let mut drag_workspace = None;
+    match &app.drag_surface {
+        Some((DragSurface::Toplevel(handle), _)) => {
+            drag_toplevel = Some(handle);
+        }
+        Some((DragSurface::Workspace(handle), _)) => {
+            drag_workspace = Some(handle);
+        }
+        _ => {}
     }
+    #[allow(clippy::mutable_key_type)]
+    let workspaces_with_toplevels = app
+        .toplevels
+        .iter()
+        .flat_map(|t| &t.info.workspace)
+        .collect::<HashSet<_>>();
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(
         app.workspaces_for_output(&surface.output),
+        &workspaces_with_toplevels,
         &surface.output,
         layout,
-        drop_target,
+        app.drop_target.as_ref(),
+        drag_workspace,
     );
     let toplevels = toplevel_previews(
         app.toplevels.iter().filter(|i| {
@@ -122,6 +161,57 @@ fn close_button(on_press: Msg) -> cosmic::Element<'static, Msg> {
         .into()
 }
 
+fn pin_button_style(theme: &cosmic::Theme, is_pinned: bool) -> cosmic::widget::button::Style {
+    let bg_color = if is_pinned {
+        theme.cosmic().accent.base.into()
+    } else {
+        theme.cosmic().primary.base.into()
+    };
+    let icon_color = if is_pinned {
+        theme.cosmic().accent.on.into()
+    } else {
+        theme.cosmic().primary.on.into()
+    };
+    cosmic::widget::button::Style {
+        icon_color: Some(icon_color),
+        background: Some(iced::Background::Color(bg_color)),
+        border_radius: theme.cosmic().corner_radii.radius_s.into(),
+        ..cosmic::widget::button::Style::new()
+    }
+}
+
+fn pin_button(workspace: &Workspace) -> cosmic::Element<'static, Msg> {
+    let is_pinned = workspace.is_pinned();
+    crate::widgets::visibility_wrapper(
+        widget::button::custom(
+            widget::icon::from_name("pin-symbolic")
+                .symbolic(true)
+                .size(16), //.style(|theme, status| todo!())
+        )
+        //.class(cosmic::theme::Button::Icon)
+        //.class(cosmic::theme::Button::Image)
+        .class(cosmic::theme::Button::Custom {
+            // TODO adjust state for hover, etc.
+            active: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
+            disabled: Box::new(move |theme| pin_button_style(theme, is_pinned)),
+            hovered: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
+            pressed: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
+        })
+        //.class(cosmic::theme::Button::Standard)
+        // TODO style selected correctly
+        .selected(workspace.is_pinned())
+        .on_press(Msg::TogglePinned(workspace.handle().clone())),
+        // Show pin button only if hovered or pinned; but allocate space the same way
+        // regardless
+        (workspace.has_cursor || workspace.is_pinned())
+            && workspace
+                .info
+                .cosmic_capabilities
+                .contains(zcosmic_workspace_handle_v2::WorkspaceCapabilities::Pin),
+    )
+    .into()
+}
+
 fn workspace_item_appearance(
     theme: &cosmic::Theme,
     is_active: bool,
@@ -149,8 +239,9 @@ fn workspace_item(
     _output: &wl_output::WlOutput,
     layout: WorkspaceLayout,
     is_drop_target: bool,
+    has_workspace_drag: bool,
 ) -> cosmic::Element<'static, Msg> {
-    let (image, image_height) = if let Some(img) = workspace.img.as_ref() {
+    let (mut image, image_height) = if let Some(img) = workspace.img.as_ref() {
         let is_rotated = matches!(
             img.transform,
             wl_output::Transform::_90
@@ -188,28 +279,38 @@ fn workspace_item(
         )
     };
 
-    let workspace_name = widget::text::body(fl!(
-        "workspace",
-        HashMap::from([("number", &workspace.info.name)])
-    ));
+    let workspace_name = row![
+        widget::text::body(fl!(
+            "workspace",
+            HashMap::from([("number", &workspace.info.name)])
+        ))
+        .width(Length::Fill) // XXX mades workspace bar fill screen
+        .align_x(iced::Alignment::Center),
+        pin_button(workspace),
+    ];
 
     // Needed to prevent text getting pushed out when scaling on Vertical layout
-    let content = match layout {
-        WorkspaceLayout::Horizontal => column![image, workspace_name]
-            .align_x(iced::Alignment::Center)
-            .spacing(4)
-            .apply(widget::container),
-        WorkspaceLayout::Vertical => column![image.height(Length::Fill), workspace_name]
-            .align_x(iced::Alignment::Center)
-            .spacing(4)
-            .apply(widget::container)
-            .max_height(image_height + 21.0 + 4.0), // text height + spacing
-    };
+    if layout == WorkspaceLayout::Vertical {
+        image = image.height(Length::Fill);
+    }
+    let mut content = crate::widgets::size_cross_nth(
+        vec![
+            image.into(),
+            iced::widget::Space::with_height(4.0).into(),
+            workspace_name.into(),
+        ],
+        Axis::Vertical,
+        0, // Size container to match image size
+    )
+    .apply(widget::container);
+    if layout == WorkspaceLayout::Vertical {
+        content = content.max_height(image_height + 21.0 + 4.0); // text height + spacing
+    }
 
-    let is_active = workspace.is_active();
+    let is_active = workspace.is_active() && !has_workspace_drag;
     // TODO editable name?
     let mut button = widget::button::custom(content)
-        .selected(workspace.is_active())
+        .selected(is_active)
         .class(cosmic::theme::Button::Custom {
             active: Box::new(move |_focused, theme| {
                 workspace_item_appearance(theme, is_active, is_drop_target)
@@ -235,11 +336,37 @@ fn workspace_item(
     button.into()
 }
 
+fn workspace_drag_placeholder(
+    other_workspace: &Workspace,
+    other_output: &wl_output::WlOutput,
+    layout: WorkspaceLayout,
+) -> cosmic::Element<'static, Msg> {
+    let drop_target = DropTarget::WorkspaceSidebarDragPlaceholder(
+        other_workspace.handle().clone(),
+        other_output.clone(),
+    );
+    let placeholder = widget::button::custom(widget::Space::new(Length::Fill, Length::Fill))
+        .class(cosmic::theme::Button::Custom {
+            active: Box::new(|_, _| unreachable!()),
+            disabled: Box::new(|theme| workspace_item_appearance(theme, true, true)),
+            hovered: Box::new(|_, _| unreachable!()),
+            pressed: Box::new(|_, _| unreachable!()),
+        })
+        .padding(8);
+    let placeholder = crate::widgets::match_size(
+        workspace_item(other_workspace, other_output, layout, true, true),
+        placeholder,
+    );
+    dnd_destination_for_target(drop_target, placeholder.into(), Msg::DndWorkspaceDrop)
+}
+
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
     is_drop_target: bool,
+    has_toplevels: bool,
+    has_workspace_drag: bool,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -248,45 +375,107 @@ fn workspace_sidebar_entry<'a>(
         iced::mouse::Interaction::Idle
     };
     */
-    let item = workspace_item(workspace, output, layout, is_drop_target);
-    /* TODO allow moving workspaces (needs compositor support)
+    let item = workspace_item(
+        workspace,
+        output,
+        layout,
+        is_drop_target,
+        has_workspace_drag,
+    );
+    let item = iced::widget::mouse_area(item)
+        .on_enter(Msg::EnteredWorkspaceSidebarEntry(
+            workspace.handle().clone(),
+            true,
+        ))
+        .on_exit(Msg::EnteredWorkspaceSidebarEntry(
+            workspace.handle().clone(),
+            false,
+        ));
     let workspace_clone = workspace.clone(); // TODO avoid clone
     let output_clone = output.clone();
-    let source = cosmic::widget::dnd_source(item)
-        .drag_threshold(5.)
-        .drag_content(|| DragWorkspace {})
-        .drag_icon(move |offset| {
-            (
-                workspace_item(&workspace_clone, &output_clone, false).map(|_| ()),
-                cosmic::iced_core::widget::tree::State::None,
-                -offset,
-            )
-        })
-        .on_start(Some(Msg::StartDrag(DragSurface::Workspace(
-            workspace.handle.clone(),
-        ))))
-        .on_finish(Some(Msg::SourceFinished))
-        .on_cancel(Some(Msg::SourceFinished))
-        .into();
-    */
-    //crate::widgets::mouse_interaction_wrapper(
-    //   mouse_interaction,
-    dnd_destination_for_target(
-        DropTarget::WorkspaceSidebarEntry(workspace.handle().clone(), output.clone()),
-        item,
-        Msg::DndToplevelDrop,
-    )
+    let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle().clone(), output.clone());
+    let destination =
+        dnd_destination_for_target(drop_target, item.into(), |drag: Drag| match drag {
+            Drag::Toplevel => Msg::DndToplevelDrop(DragToplevel {}),
+            Drag::Workspace => Msg::DndWorkspaceDrop(DragWorkspace {}),
+        });
+    // Cosmic-comp auto-removes workspaces that aren't pinned and don't have toplevels when they
+    // aren't the last workspace. So it shouldn't be possible to drag.
+    if (has_toplevels || workspace.is_pinned())
+        && workspace
+            .info
+            .cosmic_capabilities
+            .contains(zcosmic_workspace_handle_v2::WorkspaceCapabilities::Move)
+    {
+        dnd_source_with_drag_surface(
+            DragWorkspace {},
+            DragSurface::Workspace(workspace.handle().clone()),
+            Some(workspace.dnd_source_id.clone()),
+            destination,
+            move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+        )
+    } else {
+        destination
+    }
 }
 
+#[allow(clippy::mutable_key_type)]
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
+    workspaces_with_toplevels: &HashSet<&backend::ExtWorkspaceHandleV1>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
-    drop_target: Option<&backend::ExtWorkspaceHandleV1>,
+    drop_target: Option<&DropTarget>,
+    drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
-    let sidebar_entries = workspaces
-        .map(|w| workspace_sidebar_entry(w, output, layout, drop_target == Some(w.handle())))
-        .collect();
+    let mut sidebar_entries = Vec::new();
+    for workspace in workspaces {
+        // XXX Need dnd source with same id for drag to work; but give it 0x0 size
+        if drag_workspace == Some(workspace.handle()) {
+            let workspace_clone = workspace.clone();
+            let output_clone = output.clone();
+            let source = dnd_source_with_drag_surface(
+                DragWorkspace {},
+                DragSurface::Workspace(workspace.handle().clone()),
+                Some(workspace.dnd_source_id.clone()),
+                widget::Space::new(Length::Shrink, Length::Shrink).into(),
+                move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+            );
+            sidebar_entries.push(source);
+            continue;
+        }
+
+        let mut drop_target_is_workspace = false;
+        let mut drop_target_is_placeholder = false;
+        match drop_target {
+            Some(DropTarget::WorkspaceSidebarEntry(w, o))
+                if (w, o) == (workspace.handle(), output) =>
+            {
+                drop_target_is_workspace = true;
+            }
+            Some(DropTarget::WorkspaceSidebarDragPlaceholder(w, o))
+                if (w, o) == (workspace.handle(), output) =>
+            {
+                drop_target_is_placeholder = true;
+            }
+            _ => {}
+        }
+
+        if drag_workspace.is_some()
+            && drag_workspace != Some(workspace.handle())
+            && (drop_target_is_workspace || drop_target_is_placeholder)
+        {
+            sidebar_entries.push(workspace_drag_placeholder(workspace, output, layout));
+        }
+        sidebar_entries.push(workspace_sidebar_entry(
+            workspace,
+            output,
+            layout,
+            drop_target_is_workspace && drag_workspace.is_none(),
+            workspaces_with_toplevels.contains(workspace.handle()),
+            drag_workspace.is_some(),
+        ));
+    }
     let (axis, width, height) = match layout {
         WorkspaceLayout::Vertical => (Axis::Vertical, Length::Shrink, Length::Fill),
         WorkspaceLayout::Horizontal => (Axis::Horizontal, Length::Fill, Length::Shrink),
@@ -396,24 +585,13 @@ fn toplevel_previews_entry(
         !is_being_dragged,
     );
     let toplevel2 = toplevel.clone();
-    cosmic::widget::dnd_source::<_, DragToplevel>(preview)
-        .drag_threshold(5.)
-        .drag_content(|| DragToplevel {})
-        // XXX State?
-        .drag_icon(move |offset| {
-            (
-                toplevel_preview(&toplevel2, true).map(|_| ()),
-                cosmic::iced_core::widget::tree::State::None,
-                -offset,
-            )
-        })
-        .on_start(Some(Msg::StartDrag(
-            //size,
-            DragSurface::Toplevel(toplevel.handle.clone()),
-        )))
-        .on_finish(Some(Msg::SourceFinished))
-        .on_cancel(Some(Msg::SourceFinished))
-        .into()
+    dnd_source_with_drag_surface(
+        DragToplevel {},
+        DragSurface::Toplevel(toplevel.handle.clone()),
+        None,
+        preview.into(),
+        move || toplevel_preview(&toplevel2, true),
+    )
 }
 
 fn toplevel_previews<'a>(

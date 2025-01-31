@@ -19,6 +19,8 @@ mod toplevels;
 pub use toplevels::toplevels;
 mod visibility_wrapper;
 pub use visibility_wrapper::visibility_wrapper;
+mod match_size;
+pub use match_size::match_size;
 
 // Widget for debugging
 #[allow(dead_code)]

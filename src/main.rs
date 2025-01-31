@@ -5,6 +5,7 @@
 
 use cctk::{
     cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
+    cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     wayland_client::{protocol::wl_output, Connection, Proxy},
     wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
@@ -15,6 +16,7 @@ use cosmic::{
     cctk, dbus_activation,
     iced::{
         self,
+        clipboard::dnd::{DndEvent, SourceEvent},
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
         mouse::ScrollDelta,
@@ -111,6 +113,8 @@ enum Msg {
     BgConfig(cosmic_bg_config::state::State),
     UpdateToplevelIcon(String, Option<PathBuf>),
     OnScroll(wl_output::WlOutput, ScrollDelta),
+    TogglePinned(ExtWorkspaceHandleV1),
+    EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
     Ignore,
 }
 
@@ -120,6 +124,8 @@ struct Workspace {
     // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
     img: Option<backend::CaptureImage>,
     outputs: HashSet<wl_output::WlOutput>,
+    has_cursor: bool,
+    dnd_source_id: iced::id::Id,
 }
 
 impl Workspace {
@@ -131,6 +137,12 @@ impl Workspace {
         self.info
             .state
             .contains(ext_workspace_handle_v1::State::Active)
+    }
+
+    fn is_pinned(&self) -> bool {
+        self.info
+            .cosmic_state
+            .contains(zcosmic_workspace_handle_v2::State::Pinned)
     }
 }
 
@@ -396,17 +408,20 @@ impl Application for App {
                         self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
                             // XXX efficiency
-                            #[allow(clippy::mutable_key_type)]
-                            let img = old_workspaces
+                            let old_workspace = old_workspaces
                                 .iter()
-                                .find(|i| *i.handle() == workspace.handle)
-                                .map(|i| i.img.clone())
-                                .unwrap_or_default();
+                                .find(|i| *i.handle() == workspace.handle);
+                            let img = old_workspace.map(|i| i.img.clone()).unwrap_or_default();
+                            let has_cursor = old_workspace.is_some_and(|w| w.has_cursor);
+                            let dnd_source_id = old_workspace
+                                .map_or_else(iced::id::Id::unique, |w| w.dnd_source_id.clone());
 
                             self.workspaces.push(Workspace {
                                 info: workspace,
                                 outputs,
                                 img,
+                                has_cursor,
+                                dnd_source_id,
                             });
                         }
                         self.update_capture_filter();
@@ -530,7 +545,11 @@ impl Application for App {
                                 output,
                             ));
                         }
-                        Some(DropTarget::WorkspacesBar(_)) | None => {}
+                        Some(
+                            DropTarget::WorkspacesBar(_)
+                            | DropTarget::WorkspaceSidebarDragPlaceholder(_, _),
+                        )
+                        | None => {}
                     }
                 }
             }
@@ -626,7 +645,58 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceDrag => {}
-            Msg::DndWorkspaceDrop(_workspace) => {}
+            Msg::DndWorkspaceDrop(_workspace) => {
+                if let Some((DragSurface::Workspace(handle), _)) = &self.drag_surface {
+                    match self.drop_target.take() {
+                        Some(
+                            DropTarget::WorkspaceSidebarEntry(other_handle, _output)
+                            | DropTarget::WorkspaceSidebarDragPlaceholder(other_handle, _output),
+                        ) => {
+                            let workspace = self.workspaces.iter().find(|i| i.handle() == handle);
+                            let other_workspace =
+                                self.workspaces.iter().find(|i| *i.handle() == other_handle);
+                            if let (Some(workspace), Some(other_workspace)) =
+                                (workspace, other_workspace)
+                            {
+                                if workspace.outputs == other_workspace.outputs
+                                    && workspace.info.coordinates[0] + 1
+                                        == other_workspace.info.coordinates[0]
+                                {
+                                    // Workspace is already in requested position
+                                } else {
+                                    self.send_wayland_cmd(backend::Cmd::MoveWorkspaceBefore(
+                                        handle.clone(),
+                                        other_handle,
+                                    ));
+                                }
+                            }
+                        }
+                        Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))
+                        | None => {}
+                    }
+                }
+            }
+            Msg::TogglePinned(workspace_handle) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter()
+                    .find(|w| *w.handle() == workspace_handle)
+                {
+                    self.send_wayland_cmd(backend::Cmd::SetWorkspacePinned(
+                        workspace_handle,
+                        !workspace.is_pinned(),
+                    ));
+                }
+            }
+            Msg::EnteredWorkspaceSidebarEntry(workspace_handle, entered) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter_mut()
+                    .find(|w| *w.handle() == workspace_handle)
+                {
+                    workspace.has_cursor = entered;
+                }
+            }
             Msg::Ignore => {}
         }
 
@@ -656,6 +726,11 @@ impl Application for App {
                 modified_key: _,
                 physical_key: _,
             }) => Some(Msg::Close),
+            // XXX Workaround for `on_finish`/`on_cancel` not being called, seemingly
+            // due to state diffing behavior.
+            iced::Event::Dnd(DndEvent::Source(SourceEvent::Finished | SourceEvent::Cancelled)) => {
+                Some(Msg::SourceFinished)
+            }
             _ => None,
         });
         let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(

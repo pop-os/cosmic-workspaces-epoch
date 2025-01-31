@@ -155,10 +155,20 @@ fn workspace_item<'a>(
     widget::button::custom(
         column![
             image,
-            widget::text::body(fl!(
-                "workspace",
-                HashMap::from([("number", &workspace.name)])
-            ))
+            row![
+                widget::text::body(fl!(
+                    "workspace",
+                    HashMap::from([("number", &workspace.name)])
+                )),
+                widget::horizontal_space(),
+                // TODO in Adwaita, but not pop?
+                widget::button::custom(widget::icon::from_name("view-pin-symbolic").size(16))
+                    //.class(cosmic::theme::Button::Icon)
+                    .class(cosmic::theme::Button::Image)
+                    // TODO style selected correctly
+                    .selected(workspace.is_pinned)
+                    .on_press(Msg::TogglePinned(workspace.handle.clone()))
+            ]
         ]
         .align_x(iced::Alignment::Center)
         .spacing(4),
@@ -191,7 +201,6 @@ fn workspace_sidebar_entry<'a>(
     };
     */
     let item = workspace_item(workspace, output, is_drop_target);
-    /* TODO allow moving workspaces (needs compositor support)
     let workspace_clone = workspace.clone(); // TODO avoid clone
     let output_clone = output.clone();
     let source = cosmic::widget::dnd_source(item)
@@ -210,14 +219,12 @@ fn workspace_sidebar_entry<'a>(
         .on_finish(Some(Msg::SourceFinished))
         .on_cancel(Some(Msg::SourceFinished))
         .into();
-    */
+    let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone());
+    let destination =
+        dnd_destination_for_target(drop_target.clone(), source, Msg::DndWorkspaceDrop);
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    dnd_destination_for_target(
-        DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
-        item,
-        Msg::DndToplevelDrop,
-    )
+    dnd_destination_for_target(drop_target, destination, Msg::DndToplevelDrop)
 }
 
 fn workspaces_sidebar<'a>(

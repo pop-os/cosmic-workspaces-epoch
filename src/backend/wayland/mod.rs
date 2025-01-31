@@ -3,6 +3,7 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
+    cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
     screencopy::{CaptureSource, ScreencopyState},
     sctk::{
         self,
@@ -102,10 +103,58 @@ impl AppData {
                     }
                 }
             }
+            // TODO version check
+            Cmd::MoveWorkspaceBefore(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        cosmic_workspace.move_before(&other_workspace_handle, 0);
+                        workspace_manager.commit();
+                    }
+                }
+            }
+            Cmd::MoveWorkspaceAfter(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        cosmic_workspace.move_after(&other_workspace_handle, 0);
+                        workspace_manager.commit();
+                    }
+                }
+            }
             Cmd::ActivateWorkspace(workspace_handle) => {
                 if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
                     workspace_handle.activate();
                     workspace_manager.commit();
+                }
+            }
+            Cmd::SetWorkspacePinned(workspace_handle, pinned) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        if workspace_handle.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
+                        {
+                            // TODO check capability
+                            if pinned {
+                                cosmic_workspace.pin();
+                            } else {
+                                cosmic_workspace.unpin();
+                            }
+                            workspace_manager.commit();
+                        }
+                    }
                 }
             }
         }

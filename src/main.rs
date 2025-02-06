@@ -563,8 +563,7 @@ impl Application for App {
                             0.
                         };
 
-                        //let scroll = previous_scroll + y;
-                        let scroll = y;
+                        let scroll = previous_scroll + y;
                         if scroll <= -4. {
                             self.scroll = None;
                             ScrollDirection::Prev

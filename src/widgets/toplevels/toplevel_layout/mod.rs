@@ -4,15 +4,15 @@
 use cosmic::iced::{Length, Rectangle, Size};
 use std::marker::PhantomData;
 
+mod axis_toplevel_layout;
 mod row_col_toplevel_layout;
-mod utils;
 pub(crate) use row_col_toplevel_layout::RowColToplevelLayout;
 
 #[derive(Debug)]
-pub(crate) struct LayoutToplevel<'a> {
+pub(crate) struct LayoutToplevel<'a, S = Size> {
     //toplevel: &'a crate::Toplevel,
     /// Preferred size of the child widget, if it fill the parent container
-    pub preferred_size: Size,
+    pub preferred_size: S,
     pub _phantom_data: PhantomData<&'a crate::Toplevel>,
 }
 

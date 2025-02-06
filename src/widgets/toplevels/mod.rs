@@ -65,6 +65,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
             .zip(tree.children.iter_mut())
             .zip(assigned_rects)
             .map(|((child, tree), assigned_rect)| {
+                dbg!(assigned_rect);
                 let child_limits = layout::Limits::new(Size::ZERO, assigned_rect.size());
                 let layout = child.as_widget().layout(tree, renderer, &child_limits);
 

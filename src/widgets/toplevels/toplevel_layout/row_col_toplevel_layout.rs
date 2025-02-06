@@ -21,10 +21,15 @@ impl RowColToplevelLayout {
 
 impl ToplevelLayout for RowColToplevelLayout {
     fn size(&self) -> Size<Length> {
-        Size {
-            width: Length::Fill,
-            // TODO Make depend on orientation or drop that option
-            height: Length::Shrink,
+        match self.axis {
+            Axis::Horizontal => Size {
+                width: Length::Fill,
+                height: Length::Shrink,
+            },
+            Axis::Vertical => Size {
+                width: Length::Shrink,
+                height: Length::Fill,
+            },
         }
     }
 

@@ -97,7 +97,7 @@ enum Msg {
     StartDrag(DragSurface),
     DndEnter(DropTarget, f64, f64, Vec<String>),
     DndLeave(DropTarget),
-    DndWorkspaceDrop(DragToplevel),
+    DndToplevelDrop(DragToplevel),
     SourceFinished,
     #[allow(dead_code)]
     NewWorkspace,
@@ -502,7 +502,7 @@ impl Application for App {
                     self.drop_target = None;
                 }
             }
-            Msg::DndWorkspaceDrop(_toplevel) => {
+            Msg::DndToplevelDrop(_toplevel) => {
                 if let Some((DragSurface::Toplevel(handle), _)) = &self.drag_surface {
                     match self.drop_target.take() {
                         Some(

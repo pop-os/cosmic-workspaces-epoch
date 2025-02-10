@@ -31,7 +31,7 @@ fn toplevel_dnd_destination<'a>(
     cosmic::widget::dnd_destination::dnd_destination_for_data(
         child,
         |data: Option<DragToplevel>, _action| match data {
-            Some(toplevel) => Msg::DndWorkspaceDrop(toplevel),
+            Some(toplevel) => Msg::DndToplevelDrop(toplevel),
             None => Msg::Ignore,
         },
     )

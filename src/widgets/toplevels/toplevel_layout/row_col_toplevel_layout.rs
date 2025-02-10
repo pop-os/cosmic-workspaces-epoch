@@ -1,5 +1,4 @@
 use cosmic::iced::{advanced::layout::flex::Axis, Length};
-use std::marker::PhantomData;
 
 use super::{
     axis_toplevel_layout::{AxisPoint, AxisRectangle, AxisSize, AxisToplevelLayout},

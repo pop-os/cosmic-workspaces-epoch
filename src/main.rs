@@ -185,7 +185,7 @@ impl App {
     fn workspaces_for_output<'a>(
         &'a self,
         output: &'a wl_output::WlOutput,
-    ) -> impl Iterator<Item = &Workspace> + 'a {
+    ) -> impl Iterator<Item = &'a Workspace> + 'a {
         self.workspaces
             .iter()
             .filter(|w| w.outputs.contains(output))

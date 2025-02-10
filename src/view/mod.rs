@@ -214,7 +214,6 @@ fn workspace_sidebar_entry<'a>(
     };
     */
     let item = workspace_item(workspace, output, is_drop_target);
-    /* TODO allow moving workspaces (needs compositor support)
     let workspace_clone = workspace.clone(); // TODO avoid clone
     let output_clone = output.clone();
     let source = cosmic::widget::dnd_source(item)
@@ -233,12 +232,11 @@ fn workspace_sidebar_entry<'a>(
         .on_finish(Some(Msg::SourceFinished))
         .on_cancel(Some(Msg::SourceFinished))
         .into();
-    */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
     toplevel_dnd_destination(
         DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
-        item,
+        source,
     )
 }
 

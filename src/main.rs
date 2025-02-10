@@ -619,7 +619,20 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceDrag => {}
-            Msg::DndWorkspaceDrop(_workspace) => {}
+            Msg::DndWorkspaceDrop(_workspace) => {
+                if let Some((DragSurface::Workspace(handle), _)) = &self.drag_surface {
+                    match self.drop_target.take() {
+                        Some(DropTarget::WorkspaceSidebarEntry(other_workspace, _output)) => {
+                            self.send_wayland_cmd(backend::Cmd::MoveWorkspaceBefore(
+                                handle.clone(),
+                                other_workspace,
+                            ));
+                        }
+                        Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))
+                        | None => {}
+                    }
+                }
+            }
             Msg::TogglePinned(workspace_handle) => {
                 if let Some(workspace) = self
                     .workspaces

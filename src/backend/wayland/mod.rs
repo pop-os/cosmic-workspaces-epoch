@@ -103,6 +103,18 @@ impl AppData {
                     }
                 }
             }
+            Cmd::MoveWorkspaceBefore(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    workspace_handle.move_before(&other_workspace_handle, 0);
+                    workspace_manager.commit();
+                }
+            }
+            Cmd::MoveWorkspaceAfter(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    workspace_handle.move_after(&other_workspace_handle, 0);
+                    workspace_manager.commit();
+                }
+            }
             Cmd::ActivateWorkspace(workspace_handle) => {
                 if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
                     workspace_handle.activate();

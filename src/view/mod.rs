@@ -232,12 +232,11 @@ fn workspace_sidebar_entry<'a>(
         .on_finish(Some(Msg::SourceFinished))
         .on_cancel(Some(Msg::SourceFinished))
         .into();
+    let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone());
+    let destination = workspace_dnd_destination(drop_target.clone(), source);
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    toplevel_dnd_destination(
-        DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
-        source,
-    )
+    toplevel_dnd_destination(drop_target, destination)
 }
 
 fn workspaces_sidebar<'a>(

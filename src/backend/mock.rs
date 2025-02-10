@@ -173,7 +173,6 @@ impl AppData {
         for workspace_handle in new_workspaces {
             self.send_event(Event::WorkspaceCapture(
                 workspace_handle,
-                output.clone(),
                 create_solid_capture_image(0, 255, 0),
             ));
         }

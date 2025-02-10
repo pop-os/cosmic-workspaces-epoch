@@ -89,7 +89,7 @@ impl ZcosmicWorkspaceHandleV1 {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub struct ZcosmicToplevelHandleV1(MockObjectId);
+pub struct ExtForeignToplevelHandleV1(MockObjectId);
 
 #[derive(Clone, Debug, Default)]
 pub struct CaptureFilter {
@@ -147,7 +147,7 @@ impl AppData {
             };
             // Add three toplevels for each workspace
             for j in 0..=3 {
-                let toplevel_handle = ZcosmicToplevelHandleV1(MockObjectId::new());
+                let toplevel_handle = ExtForeignToplevelHandleV1(MockObjectId::new());
                 let toplevel_info = ToplevelInfo {
                     title: format!("App {}", j),
                     app_id: "com.example.app".to_string(),

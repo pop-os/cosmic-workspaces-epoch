@@ -106,6 +106,7 @@ enum Msg {
     BgConfig(cosmic_bg_config::state::State),
     UpdateToplevelIcon(String, Option<PathBuf>),
     OnScroll(wl_output::WlOutput, ScrollDelta),
+    TogglePinned(ZcosmicWorkspaceHandleV1),
     Ignore,
 }
 
@@ -117,6 +118,7 @@ struct Workspace {
     handle: ZcosmicWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
     is_active: bool,
+    is_pinned: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -380,6 +382,9 @@ impl Application for App {
                             let is_active = workspace.state.contains(&WEnum::Value(
                                 zcosmic_workspace_handle_v1::State::Active,
                             ));
+                            let is_pinned = workspace.state.contains(&WEnum::Value(
+                                zcosmic_workspace_handle_v1::State::Pinned,
+                            ));
 
                             // XXX efficiency
                             #[allow(clippy::mutable_key_type)]
@@ -395,6 +400,7 @@ impl Application for App {
                                 outputs,
                                 img,
                                 is_active,
+                                is_pinned,
                             });
                         }
                         self.update_capture_filter();
@@ -606,6 +612,18 @@ impl Application for App {
                             workspace.handle.clone(),
                         ));
                     }
+                }
+            }
+            Msg::TogglePinned(workspace_handle) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter()
+                    .find(|w| w.handle == workspace_handle)
+                {
+                    self.send_wayland_cmd(backend::Cmd::SetWorkspacePinned(
+                        workspace_handle,
+                        !workspace.is_pinned,
+                    ));
                 }
             }
             Msg::Ignore => {}

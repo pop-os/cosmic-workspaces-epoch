@@ -47,7 +47,7 @@ use backend::{ToplevelInfo, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1};
 mod dnd;
 mod utils;
 mod widgets;
-use dnd::{DragSurface, DragToplevel, DropTarget};
+use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
 
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
@@ -98,6 +98,8 @@ enum Msg {
     DndEnter(DropTarget, f64, f64, Vec<String>),
     DndLeave(DropTarget),
     DndToplevelDrop(DragToplevel),
+    DndWorkspaceDrag,
+    DndWorkspaceDrop(DragWorkspace),
     SourceFinished,
     #[allow(dead_code)]
     NewWorkspace,
@@ -110,7 +112,7 @@ enum Msg {
     Ignore,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Workspace {
     name: String,
     // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
@@ -521,10 +523,12 @@ impl Application for App {
                                 output,
                             ));
                         }
-                        None => {}
+                        Some(DropTarget::WorkspacesBar(_)) | None => {}
                     }
                 }
             }
+            Msg::DndWorkspaceDrag => {}
+            Msg::DndWorkspaceDrop(_workspace) => {}
             Msg::NewWorkspace => {
                 /*
                 if let WorkspaceAmount::Static(n) = &mut self.conf.workspace_config.workspace_amount

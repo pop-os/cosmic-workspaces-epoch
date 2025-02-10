@@ -380,7 +380,7 @@ impl Application for App {
                         self.wayland_cmd_sender = Some(sender);
                     }
                     backend::Event::Workspaces(mut workspaces) => {
-                        workspaces.sort_by_key(|(_, w)| w.coordinates.clone());
+                        workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
@@ -623,15 +623,14 @@ impl Application for App {
             Msg::DndWorkspaceDrop(_workspace) => {
                 if let Some((DragSurface::Workspace(handle), _)) = &self.drag_surface {
                     match self.drop_target.take() {
-                        Some(
-                            DropTarget::WorkspaceSidebarEntry(other_workspace, _output)
-                        ) => {
+                        Some(DropTarget::WorkspaceSidebarEntry(other_workspace, _output)) => {
                             self.send_wayland_cmd(backend::Cmd::MoveWorkspaceBefore(
                                 handle.clone(),
                                 other_workspace,
                             ));
                         }
-                        Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_)) | None => {}
+                        Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))
+                        | None => {}
                     }
                 }
             }

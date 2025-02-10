@@ -376,7 +376,7 @@ fn toplevel_previews_entry<'a>(
 fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
     layout: WorkspaceLayout,
-    drag_toplevel: Option<&'a backend::ZcosmicToplevelHandleV1>,
+    drag_toplevel: Option<&'a backend::ExtForeignToplevelHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),

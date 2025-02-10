@@ -43,7 +43,7 @@ mod desktop_info;
 mod localize;
 mod backend;
 mod view;
-use backend::{ToplevelInfo, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1};
+use backend::{ExtForeignToplevelHandleV1, ToplevelInfo, ZcosmicWorkspaceHandleV1};
 mod dnd;
 mod utils;
 mod widgets;
@@ -92,8 +92,8 @@ enum Msg {
     ActivateWorkspace(ZcosmicWorkspaceHandleV1),
     #[allow(dead_code)]
     CloseWorkspace(ZcosmicWorkspaceHandleV1),
-    ActivateToplevel(ZcosmicToplevelHandleV1),
-    CloseToplevel(ZcosmicToplevelHandleV1),
+    ActivateToplevel(ExtForeignToplevelHandleV1),
+    CloseToplevel(ExtForeignToplevelHandleV1),
     StartDrag(DragSurface),
     DndEnter(DropTarget, f64, f64, Vec<String>),
     DndLeave(DropTarget),
@@ -125,7 +125,7 @@ struct Workspace {
 
 #[derive(Clone, Debug)]
 struct Toplevel {
-    handle: ZcosmicToplevelHandleV1,
+    handle: ExtForeignToplevelHandleV1,
     info: ToplevelInfo,
     img: Option<backend::CaptureImage>,
     icon: Option<PathBuf>,
@@ -193,7 +193,7 @@ impl App {
 
     fn toplevel_for_handle_mut(
         &mut self,
-        handle: &ZcosmicToplevelHandleV1,
+        handle: &ExtForeignToplevelHandleV1,
     ) -> Option<&mut Toplevel> {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }

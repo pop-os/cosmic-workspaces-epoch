@@ -1,13 +1,11 @@
 use cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-    },
+    cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
     toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
     toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
     wayland_client::{Connection, QueueHandle, WEnum},
 };
 use cosmic::cctk;
+use wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1;
 
 use super::{AppData, CaptureSource, Event};
 
@@ -21,19 +19,20 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &ExtForeignToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
+        let cosmic_toplevel = info.cosmic_toplevel.clone().unwrap();
         self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
 
-        self.add_capture_source(CaptureSource::CosmicToplevel(toplevel.clone()));
+        self.add_capture_source(CaptureSource::CosmicToplevel(cosmic_toplevel));
     }
 
     fn update_toplevel(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &ExtForeignToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
         self.send_event(Event::UpdateToplevel(toplevel.clone(), info.clone()));
@@ -43,11 +42,13 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &ExtForeignToplevelHandleV1,
     ) {
+        let info = self.toplevel_info_state.info(toplevel).unwrap();
+        let cosmic_toplevel = info.cosmic_toplevel.clone().unwrap();
         self.send_event(Event::CloseToplevel(toplevel.clone()));
 
-        self.remove_capture_source(CaptureSource::CosmicToplevel(toplevel.clone()));
+        self.remove_capture_source(CaptureSource::CosmicToplevel(cosmic_toplevel));
     }
 }
 

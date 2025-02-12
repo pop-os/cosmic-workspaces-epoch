@@ -1,5 +1,6 @@
 [Desktop Entry]
 Name=Workspaces
+Name[hu]=Munkaterületek
 Comment=
 Type=Application
 Exec=cosmic-workspaces

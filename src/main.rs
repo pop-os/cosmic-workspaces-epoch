@@ -121,6 +121,7 @@ struct Workspace {
     img: Option<backend::CaptureImage>,
     handle: ZcosmicWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
+    coordinates: Vec<u32>,
     is_active: bool,
     is_pinned: bool,
 }
@@ -403,6 +404,7 @@ impl Application for App {
                                 name: workspace.name,
                                 handle: workspace.handle,
                                 outputs,
+                                coordinates: workspace.coordinates.clone(),
                                 img,
                                 is_active,
                                 is_pinned,
@@ -623,11 +625,30 @@ impl Application for App {
             Msg::DndWorkspaceDrop(_workspace) => {
                 if let Some((DragSurface::Workspace(handle), _)) = &self.drag_surface {
                     match self.drop_target.take() {
-                        Some(DropTarget::WorkspaceSidebarEntry(other_workspace, _output)) => {
-                            self.send_wayland_cmd(backend::Cmd::MoveWorkspaceBefore(
-                                handle.clone(),
-                                other_workspace,
-                            ));
+                        Some(DropTarget::WorkspaceSidebarEntry(other_handle, _output)) => {
+                            let workspace = self.workspaces.iter().find(|i| i.handle == *handle);
+                            let other_workspace =
+                                self.workspaces.iter().find(|i| i.handle == other_handle);
+                            if let (Some(workspace), Some(other_workspace)) =
+                                (workspace, other_workspace)
+                            {
+                                self.send_wayland_cmd(
+                                    if workspace.outputs == other_workspace.outputs
+                                        && workspace.coordinates[0] + 1
+                                            == other_workspace.coordinates[0]
+                                    {
+                                        backend::Cmd::MoveWorkspaceAfter(
+                                            handle.clone(),
+                                            other_handle,
+                                        )
+                                    } else {
+                                        backend::Cmd::MoveWorkspaceBefore(
+                                            handle.clone(),
+                                            other_handle,
+                                        )
+                                    },
+                                );
+                            }
                         }
                         Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))
                         | None => {}

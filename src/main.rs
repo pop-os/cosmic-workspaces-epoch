@@ -43,11 +43,11 @@ mod desktop_info;
 mod localize;
 mod backend;
 mod view;
-use backend::{ToplevelInfo, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1};
+use backend::{ExtForeignToplevelHandleV1, ToplevelInfo, ZcosmicWorkspaceHandleV1};
 mod dnd;
 mod utils;
 mod widgets;
-use dnd::{DragSurface, DragToplevel, DropTarget};
+use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
 
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
@@ -92,12 +92,16 @@ enum Msg {
     ActivateWorkspace(ZcosmicWorkspaceHandleV1),
     #[allow(dead_code)]
     CloseWorkspace(ZcosmicWorkspaceHandleV1),
-    ActivateToplevel(ZcosmicToplevelHandleV1),
-    CloseToplevel(ZcosmicToplevelHandleV1),
+    ActivateToplevel(ExtForeignToplevelHandleV1),
+    CloseToplevel(ExtForeignToplevelHandleV1),
     StartDrag(DragSurface),
     DndEnter(DropTarget, f64, f64, Vec<String>),
     DndLeave(DropTarget),
-    DndWorkspaceDrop(DragToplevel),
+    DndToplevelDrop(DragToplevel),
+    #[allow(dead_code)]
+    DndWorkspaceDrag,
+    #[allow(dead_code)]
+    DndWorkspaceDrop(DragWorkspace),
     SourceFinished,
     #[allow(dead_code)]
     NewWorkspace,
@@ -109,7 +113,7 @@ enum Msg {
     Ignore,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Workspace {
     name: String,
     // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
@@ -121,7 +125,7 @@ struct Workspace {
 
 #[derive(Clone, Debug)]
 struct Toplevel {
-    handle: ZcosmicToplevelHandleV1,
+    handle: ExtForeignToplevelHandleV1,
     info: ToplevelInfo,
     img: Option<backend::CaptureImage>,
     icon: Option<PathBuf>,
@@ -181,7 +185,7 @@ impl App {
     fn workspaces_for_output<'a>(
         &'a self,
         output: &'a wl_output::WlOutput,
-    ) -> impl Iterator<Item = &Workspace> + 'a {
+    ) -> impl Iterator<Item = &'a Workspace> + 'a {
         self.workspaces
             .iter()
             .filter(|w| w.outputs.contains(output))
@@ -189,7 +193,7 @@ impl App {
 
     fn toplevel_for_handle_mut(
         &mut self,
-        handle: &ZcosmicToplevelHandleV1,
+        handle: &ExtForeignToplevelHandleV1,
     ) -> Option<&mut Toplevel> {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
@@ -502,7 +506,7 @@ impl Application for App {
                     self.drop_target = None;
                 }
             }
-            Msg::DndWorkspaceDrop(_toplevel) => {
+            Msg::DndToplevelDrop(_toplevel) => {
                 if let Some((DragSurface::Toplevel(handle), _)) = &self.drag_surface {
                     match self.drop_target.take() {
                         Some(
@@ -515,7 +519,7 @@ impl Application for App {
                                 output,
                             ));
                         }
-                        None => {}
+                        Some(DropTarget::WorkspacesBar(_)) | None => {}
                     }
                 }
             }
@@ -608,6 +612,8 @@ impl Application for App {
                     }
                 }
             }
+            Msg::DndWorkspaceDrag => {}
+            Msg::DndWorkspaceDrop(_workspace) => {}
             Msg::Ignore => {}
         }
 

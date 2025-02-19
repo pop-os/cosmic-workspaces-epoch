@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use crate::{
     backend::{self, CaptureImage},
-    dnd::{DragSurface, DragToplevel, DropTarget},
+    dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget},
     App, LayerSurface, Msg, Toplevel, Workspace,
 };
 
@@ -31,7 +31,26 @@ fn toplevel_dnd_destination<'a>(
     cosmic::widget::dnd_destination::dnd_destination_for_data(
         child,
         |data: Option<DragToplevel>, _action| match data {
-            Some(toplevel) => Msg::DndWorkspaceDrop(toplevel),
+            Some(toplevel) => Msg::DndToplevelDrop(toplevel),
+            None => Msg::Ignore,
+        },
+    )
+    .drag_id(target.drag_id())
+    .on_enter(move |actions, mime, pos| Msg::DndEnter(target.clone(), actions, mime, pos))
+    .on_leave(move || Msg::DndLeave(target2.clone()))
+    .into()
+}
+
+#[allow(dead_code)]
+fn workspace_dnd_destination<'a>(
+    target: DropTarget,
+    child: cosmic::Element<'a, Msg>,
+) -> cosmic::Element<'a, Msg> {
+    let target2 = target.clone();
+    cosmic::widget::dnd_destination::dnd_destination_for_data(
+        child,
+        |data: Option<DragWorkspace>, _action| match data {
+            Some(workspace) => Msg::DndWorkspaceDrop(workspace),
             None => Msg::Ignore,
         },
     )
@@ -142,7 +161,7 @@ fn workspace_item<'a>(
     workspace: &'a Workspace,
     _output: &wl_output::WlOutput,
     is_drop_target: bool,
-) -> cosmic::Element<'a, Msg> {
+) -> cosmic::Element<'static, Msg> {
     let image = capture_image(workspace.img.as_ref(), 1.0);
     let is_active = workspace.is_active;
     // TODO editable name?
@@ -184,26 +203,32 @@ fn workspace_sidebar_entry<'a>(
         iced::mouse::Interaction::Idle
     };
     */
+    let item = workspace_item(workspace, output, is_drop_target);
     /* TODO allow moving workspaces (needs compositor support)
-    iced::widget::dnd_source(workspace_item(workspace, output))
-        .on_drag(|size| {
-            Msg::StartDrag(
-                size,
-                DragSurface::Workspace {
-                    handle: workspace.handle.clone(),
-                    output: output.clone(),
-                },
+    let workspace_clone = workspace.clone(); // TODO avoid clone
+    let output_clone = output.clone();
+    let source = cosmic::widget::dnd_source(item)
+        .drag_threshold(5.)
+        .drag_content(|| DragWorkspace {})
+        .drag_icon(move |offset| {
+            (
+                workspace_item(&workspace_clone, &output_clone, false).map(|_| ()),
+                cosmic::iced_core::widget::tree::State::None,
+                -offset,
             )
         })
-        .on_finished(Msg::SourceFinished)
-        .on_cancelled(Msg::SourceFinished)
-        .into()
+        .on_start(Some(Msg::StartDrag(DragSurface::Workspace(
+            workspace.handle.clone(),
+        ))))
+        .on_finish(Some(Msg::SourceFinished))
+        .on_cancel(Some(Msg::SourceFinished))
+        .into();
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
     toplevel_dnd_destination(
         DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
-        workspace_item(workspace, output, is_drop_target),
+        item,
     )
 }
 
@@ -351,7 +376,7 @@ fn toplevel_previews_entry<'a>(
 fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
     layout: WorkspaceLayout,
-    drag_toplevel: Option<&'a backend::ZcosmicToplevelHandleV1>,
+    drag_toplevel: Option<&'a backend::ExtForeignToplevelHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),

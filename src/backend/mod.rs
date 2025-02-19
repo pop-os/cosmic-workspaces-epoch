@@ -18,13 +18,12 @@ use std::collections::HashSet;
 mod wayland;
 #[cfg(not(feature = "mock-backend"))]
 pub use cosmic::cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        workspace::v1::client::zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    },
-    toplevel_info::ToplevelInfo,
-    workspace::Workspace,
+    cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
+    toplevel_info::ToplevelInfo, workspace::Workspace,
 };
+#[cfg(not(feature = "mock-backend"))]
+pub use wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1;
+
 #[cfg(not(feature = "mock-backend"))]
 pub use wayland::subscription;
 
@@ -33,7 +32,7 @@ pub use wayland::subscription;
 mod mock;
 #[cfg(feature = "mock-backend")]
 pub use mock::{
-    subscription, ToplevelInfo, Workspace, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1,
+    subscription, ExtForeignToplevelHandleV1, ToplevelInfo, Workspace, ZcosmicWorkspaceHandleV1,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -59,19 +58,19 @@ pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
     Workspaces(Vec<(HashSet<wl_output::WlOutput>, Workspace)>),
     WorkspaceCapture(ZcosmicWorkspaceHandleV1, CaptureImage),
-    NewToplevel(ZcosmicToplevelHandleV1, ToplevelInfo),
-    UpdateToplevel(ZcosmicToplevelHandleV1, ToplevelInfo),
-    CloseToplevel(ZcosmicToplevelHandleV1),
-    ToplevelCapture(ZcosmicToplevelHandleV1, CaptureImage),
+    NewToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
+    UpdateToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
+    CloseToplevel(ExtForeignToplevelHandleV1),
+    ToplevelCapture(ExtForeignToplevelHandleV1, CaptureImage),
 }
 
 #[derive(Debug)]
 pub enum Cmd {
     CaptureFilter(CaptureFilter),
-    ActivateToplevel(ZcosmicToplevelHandleV1),
-    CloseToplevel(ZcosmicToplevelHandleV1),
+    ActivateToplevel(ExtForeignToplevelHandleV1),
+    CloseToplevel(ExtForeignToplevelHandleV1),
     MoveToplevelToWorkspace(
-        ZcosmicToplevelHandleV1,
+        ExtForeignToplevelHandleV1,
         ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
     ),

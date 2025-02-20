@@ -6,7 +6,7 @@ use cosmic::{
 };
 use std::{borrow::Cow, sync::LazyLock};
 
-use crate::backend::{ExtForeignToplevelHandleV1, ZcosmicWorkspaceHandleV1};
+use crate::backend::{ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1};
 
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
@@ -19,7 +19,7 @@ static TOPLEVEL_MIME: LazyLock<String> =
 #[derive(Clone, Debug)]
 pub enum DragSurface {
     #[allow(dead_code)]
-    Workspace(ZcosmicWorkspaceHandleV1),
+    Workspace(ExtWorkspaceHandleV1),
     Toplevel(ExtForeignToplevelHandleV1),
 }
 
@@ -95,8 +95,8 @@ impl TryFrom<(Vec<u8>, std::string::String)> for DragWorkspace {
 #[derive(Clone, Debug, PartialEq)]
 #[repr(u8)]
 pub enum DropTarget {
-    WorkspaceSidebarEntry(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
-    OutputToplevels(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
+    WorkspaceSidebarEntry(ExtWorkspaceHandleV1, wl_output::WlOutput),
+    OutputToplevels(ExtWorkspaceHandleV1, wl_output::WlOutput),
     #[allow(dead_code)]
     WorkspacesBar(wl_output::WlOutput),
 }

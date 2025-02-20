@@ -17,12 +17,12 @@ use std::collections::HashSet;
 #[cfg(not(feature = "mock-backend"))]
 mod wayland;
 #[cfg(not(feature = "mock-backend"))]
-pub use cosmic::cctk::{
-    cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    toplevel_info::ToplevelInfo, workspace::Workspace,
-};
+pub use cosmic::cctk::{toplevel_info::ToplevelInfo, workspace::Workspace};
 #[cfg(not(feature = "mock-backend"))]
-pub use wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1;
+pub use wayland_protocols::ext::{
+    foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1,
+    workspace::v1::client::ext_workspace_handle_v1::ExtWorkspaceHandleV1,
+};
 
 #[cfg(not(feature = "mock-backend"))]
 pub use wayland::subscription;
@@ -32,13 +32,13 @@ pub use wayland::subscription;
 mod mock;
 #[cfg(feature = "mock-backend")]
 pub use mock::{
-    subscription, ExtForeignToplevelHandleV1, ToplevelInfo, Workspace, ZcosmicWorkspaceHandleV1,
+    subscription, ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo, Workspace,
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct CaptureFilter {
     pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
-    pub toplevels_on_workspaces: Vec<ZcosmicWorkspaceHandleV1>,
+    pub toplevels_on_workspaces: Vec<ExtWorkspaceHandleV1>,
 }
 
 #[derive(Clone, Debug)]
@@ -57,7 +57,7 @@ pub struct CaptureImage {
 pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
     Workspaces(Vec<(HashSet<wl_output::WlOutput>, Workspace)>),
-    WorkspaceCapture(ZcosmicWorkspaceHandleV1, CaptureImage),
+    WorkspaceCapture(ExtWorkspaceHandleV1, CaptureImage),
     NewToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
     UpdateToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
     CloseToplevel(ExtForeignToplevelHandleV1),
@@ -71,8 +71,8 @@ pub enum Cmd {
     CloseToplevel(ExtForeignToplevelHandleV1),
     MoveToplevelToWorkspace(
         ExtForeignToplevelHandleV1,
-        ZcosmicWorkspaceHandleV1,
+        ExtWorkspaceHandleV1,
         wl_output::WlOutput,
     ),
-    ActivateWorkspace(ZcosmicWorkspaceHandleV1),
+    ActivateWorkspace(ExtWorkspaceHandleV1),
 }

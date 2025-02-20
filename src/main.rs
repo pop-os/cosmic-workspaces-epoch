@@ -555,7 +555,8 @@ impl Application for App {
                 // TODO: Should x scroll be handled too?
                 // Best time/pixel count?
                 let direction = match delta {
-                    ScrollDelta::Pixels { x: _, y } => {
+                    ScrollDelta::Pixels { x: _, mut y } => {
+                        y = -y;
                         let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll
                         {
                             if last_scroll_time.elapsed() > Duration::from_millis(100) {
@@ -584,7 +585,8 @@ impl Application for App {
                             return Task::none();
                         }
                     }
-                    ScrollDelta::Lines { x: _, y } => {
+                    ScrollDelta::Lines { x: _, mut y } => {
+                        y = -y;
                         self.scroll = None;
                         if y < 0. {
                             ScrollDirection::Prev

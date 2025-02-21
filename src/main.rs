@@ -110,6 +110,7 @@ enum Msg {
     BgConfig(cosmic_bg_config::state::State),
     UpdateToplevelIcon(String, Option<PathBuf>),
     OnScroll(wl_output::WlOutput, ScrollDelta),
+    TogglePinned(ZcosmicWorkspaceHandleV1),
     Ignore,
 }
 
@@ -120,7 +121,9 @@ struct Workspace {
     img: Option<backend::CaptureImage>,
     handle: ZcosmicWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
+    coordinates: Vec<u32>,
     is_active: bool,
+    is_pinned: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -377,12 +380,16 @@ impl Application for App {
                     backend::Event::CmdSender(sender) => {
                         self.wayland_cmd_sender = Some(sender);
                     }
-                    backend::Event::Workspaces(workspaces) => {
+                    backend::Event::Workspaces(mut workspaces) => {
+                        workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
                             let is_active = workspace.state.contains(&WEnum::Value(
                                 zcosmic_workspace_handle_v1::State::Active,
+                            ));
+                            let is_pinned = workspace.state.contains(&WEnum::Value(
+                                zcosmic_workspace_handle_v1::State::Pinned,
                             ));
 
                             // XXX efficiency
@@ -397,8 +404,10 @@ impl Application for App {
                                 name: workspace.name,
                                 handle: workspace.handle,
                                 outputs,
+                                coordinates: workspace.coordinates.clone(),
                                 img,
                                 is_active,
+                                is_pinned,
                             });
                         }
                         self.update_capture_filter();
@@ -615,7 +624,51 @@ impl Application for App {
                 }
             }
             Msg::DndWorkspaceDrag => {}
-            Msg::DndWorkspaceDrop(_workspace) => {}
+            Msg::DndWorkspaceDrop(_workspace) => {
+                if let Some((DragSurface::Workspace(handle), _)) = &self.drag_surface {
+                    match self.drop_target.take() {
+                        Some(DropTarget::WorkspaceSidebarEntry(other_handle, _output)) => {
+                            let workspace = self.workspaces.iter().find(|i| i.handle == *handle);
+                            let other_workspace =
+                                self.workspaces.iter().find(|i| i.handle == other_handle);
+                            if let (Some(workspace), Some(other_workspace)) =
+                                (workspace, other_workspace)
+                            {
+                                self.send_wayland_cmd(
+                                    if workspace.outputs == other_workspace.outputs
+                                        && workspace.coordinates[0] + 1
+                                            == other_workspace.coordinates[0]
+                                    {
+                                        backend::Cmd::MoveWorkspaceAfter(
+                                            handle.clone(),
+                                            other_handle,
+                                        )
+                                    } else {
+                                        backend::Cmd::MoveWorkspaceBefore(
+                                            handle.clone(),
+                                            other_handle,
+                                        )
+                                    },
+                                );
+                            }
+                        }
+                        Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))
+                        | None => {}
+                    }
+                }
+            }
+            Msg::TogglePinned(workspace_handle) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter()
+                    .find(|w| w.handle == workspace_handle)
+                {
+                    self.send_wayland_cmd(backend::Cmd::SetWorkspacePinned(
+                        workspace_handle,
+                        !workspace.is_pinned,
+                    ));
+                }
+            }
             Msg::Ignore => {}
         }
 

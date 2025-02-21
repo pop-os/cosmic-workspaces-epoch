@@ -74,5 +74,8 @@ pub enum Cmd {
         ZcosmicWorkspaceHandleV1,
         wl_output::WlOutput,
     ),
+    MoveWorkspaceBefore(ZcosmicWorkspaceHandleV1, ZcosmicWorkspaceHandleV1),
+    MoveWorkspaceAfter(ZcosmicWorkspaceHandleV1, ZcosmicWorkspaceHandleV1),
     ActivateWorkspace(ZcosmicWorkspaceHandleV1),
+    SetWorkspacePinned(ZcosmicWorkspaceHandleV1, bool),
 }

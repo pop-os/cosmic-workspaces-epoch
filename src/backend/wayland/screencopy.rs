@@ -192,19 +192,19 @@ impl ScreencopyHandler for AppData {
             ),
         };
         match &capture.source {
-            CaptureSource::CosmicToplevel(toplevel) => {
+            CaptureSource::Toplevel(toplevel) => {
                 let info = self
                     .toplevel_info_state
                     .toplevels()
-                    .find(|info| info.cosmic_toplevel.as_ref() == Some(&toplevel));
+                    .find(|info| info.foreign_toplevel == *toplevel);
                 if let Some(info) = info {
                     self.send_event(Event::ToplevelCapture(info.foreign_toplevel.clone(), image))
                 }
             }
-            CaptureSource::CosmicWorkspace(workspace) => {
+            CaptureSource::Workspace(workspace) => {
                 self.send_event(Event::WorkspaceCapture(workspace.clone(), image));
             }
-            CaptureSource::Output(_) | CaptureSource::Toplevel(_) => {
+            CaptureSource::Output(_) => {
                 unreachable!()
             }
         };

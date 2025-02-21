@@ -94,7 +94,7 @@ impl AppData {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
                     if self.toplevel_manager_state.manager.version() >= 2 {
-                        self.toplevel_manager_state.manager.move_to_workspace(
+                        self.toplevel_manager_state.manager.move_to_ext_workspace(
                             &cosmic_toplevel,
                             &workspace_handle,
                             &output,
@@ -113,11 +113,11 @@ impl AppData {
 
     fn matches_capture_filter(&self, source: &CaptureSource) -> bool {
         match source {
-            CaptureSource::CosmicToplevel(toplevel) => {
+            CaptureSource::Toplevel(toplevel) => {
                 let info = self
                     .toplevel_info_state
                     .toplevels()
-                    .find(|info| info.cosmic_toplevel.as_ref() == Some(&toplevel));
+                    .find(|info| info.foreign_toplevel == *toplevel);
                 if let Some(info) = info {
                     info.workspace.iter().any(|workspace| {
                         self.capture_filter
@@ -128,18 +128,16 @@ impl AppData {
                     false
                 }
             }
-            CaptureSource::CosmicWorkspace(workspace) => self
+            CaptureSource::Workspace(workspace) => self
                 .workspace_state
                 .workspace_groups()
-                .iter()
-                .find(|g| g.workspaces.iter().any(|w| w.handle == *workspace))
+                .find(|g| g.workspaces.iter().any(|w| w == workspace))
                 .map_or(false, |group| {
                     self.capture_filter
                         .workspaces_on_outputs
                         .iter()
                         .any(|o| group.outputs.contains(o))
                 }),
-            CaptureSource::Toplevel(_) => false,
             CaptureSource::Output(_) => false,
         }
     }

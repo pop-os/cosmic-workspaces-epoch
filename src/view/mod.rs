@@ -162,7 +162,7 @@ fn workspace_item<'a>(
                 )),
                 widget::horizontal_space(),
                 // TODO in Adwaita, but not pop?
-                widget::button::custom(widget::icon::from_name("view-pin-symbolic").size(16))
+                widget::button::custom(widget::icon::from_name("pin-symbolic").size(16))
                     //.class(cosmic::theme::Button::Icon)
                     .class(cosmic::theme::Button::Image)
                     // TODO style selected correctly
@@ -186,6 +186,28 @@ fn workspace_item<'a>(
     .padding(8)
     .width(iced::Length::Fixed(240.0))
     .into()
+}
+
+fn workspace_drag_placeholder(
+    other_workspace: &Workspace,
+    other_output: &wl_output::WlOutput,
+) -> cosmic::Element<'static, Msg> {
+    let (width, height) = other_workspace
+        .img
+        .as_ref()
+        .map(|img| (img.width, img.height))
+        .unwrap_or((1, 1));
+    let drop_target =
+        DropTarget::WorkspaceSidebarEntry(other_workspace.handle.clone(), other_output.clone());
+    // XXX
+    let data = [0, 0, 0, 255].repeat(width as usize * height as usize);
+    /*
+    let placeholder =
+        widget::Image::new(widget::image::Handle::from_rgba(width, height, data)).into();
+    */
+    // .height(iced::Length::Fill)
+    let placeholder = workspace_item(other_workspace, other_output, true).into(); // XXX
+    dnd_destination_for_target(drop_target, placeholder, Msg::DndWorkspaceDrop)
 }
 
 fn workspace_sidebar_entry<'a>(
@@ -220,11 +242,22 @@ fn workspace_sidebar_entry<'a>(
         .on_cancel(Some(Msg::SourceFinished))
         .into();
     let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone());
-    let destination =
-        dnd_destination_for_target(drop_target.clone(), source, Msg::DndWorkspaceDrop);
-    //crate::widgets::mouse_interaction_wrapper(
-    //   mouse_interaction,
-    dnd_destination_for_target(drop_target, destination, Msg::DndToplevelDrop)
+    let destination = dnd_destination_for_target(drop_target.clone(), source, Msg::DndToplevelDrop);
+    // TODO test if workspace is being dragged
+    if is_drop_target {
+        /*
+        println!("foo");
+        // XXX
+        let item2 = workspace_item(workspace, output, is_drop_target);
+        column![
+            dnd_destination_for_target(drop_target, item2, Msg::DndWorkspaceDrop)
+            destination,
+        ].into()
+        */
+        destination
+    } else {
+        dnd_destination_for_target(drop_target, destination, Msg::DndWorkspaceDrop)
+    }
 }
 
 fn workspaces_sidebar<'a>(
@@ -233,9 +266,22 @@ fn workspaces_sidebar<'a>(
     layout: WorkspaceLayout,
     drop_target: Option<&backend::ExtWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
+    let mut sidebar_entries = Vec::new();
+    for w in workspaces {
+        if drop_target == Some(&w.handle) {
+            sidebar_entries.push(workspace_drag_placeholder(w, output));
+        }
+        sidebar_entries.push(workspace_sidebar_entry(
+            w,
+            output,
+            drop_target == Some(&w.handle),
+        ));
+    }
+    /*
     let sidebar_entries = workspaces
         .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))
         .collect();
+    */
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,
         WorkspaceLayout::Horizontal => Axis::Horizontal,

@@ -144,7 +144,7 @@ impl AppData {
                         .find(|w| w.handle == workspace_handle)
                         .and_then(|w| w.cosmic_handle.as_ref())
                     {
-                        if workspace_handle.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
+                        if cosmic_workspace.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
                         {
                             // TODO check capability
                             if pinned {

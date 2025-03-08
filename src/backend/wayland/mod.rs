@@ -3,6 +3,7 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
+    cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
     screencopy::{CaptureSource, ScreencopyState},
     sctk::{
         self,
@@ -94,11 +95,38 @@ impl AppData {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
                     if self.toplevel_manager_state.manager.version() >= 2 {
-                        self.toplevel_manager_state.manager.move_to_workspace(
+                        self.toplevel_manager_state.manager.move_to_ext_workspace(
                             &cosmic_toplevel,
                             &workspace_handle,
                             &output,
                         );
+                    }
+                }
+            }
+            // TODO version check
+            Cmd::MoveWorkspaceBefore(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        cosmic_workspace.move_before(&other_workspace_handle, 0);
+                        workspace_manager.commit();
+                    }
+                }
+            }
+            Cmd::MoveWorkspaceAfter(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        cosmic_workspace.move_after(&other_workspace_handle, 0);
+                        workspace_manager.commit();
                     }
                 }
             }
@@ -108,16 +136,37 @@ impl AppData {
                     workspace_manager.commit();
                 }
             }
+            Cmd::SetWorkspacePinned(workspace_handle, pinned) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        if cosmic_workspace.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
+                        {
+                            // TODO check capability
+                            if pinned {
+                                cosmic_workspace.pin();
+                            } else {
+                                cosmic_workspace.unpin();
+                            }
+                            workspace_manager.commit();
+                        }
+                    }
+                }
+            }
         }
     }
 
     fn matches_capture_filter(&self, source: &CaptureSource) -> bool {
         match source {
-            CaptureSource::CosmicToplevel(toplevel) => {
+            CaptureSource::Toplevel(toplevel) => {
                 let info = self
                     .toplevel_info_state
                     .toplevels()
-                    .find(|info| info.cosmic_toplevel.as_ref() == Some(&toplevel));
+                    .find(|info| info.foreign_toplevel == *toplevel);
                 if let Some(info) = info {
                     info.workspace.iter().any(|workspace| {
                         self.capture_filter
@@ -128,18 +177,16 @@ impl AppData {
                     false
                 }
             }
-            CaptureSource::CosmicWorkspace(workspace) => self
+            CaptureSource::Workspace(workspace) => self
                 .workspace_state
                 .workspace_groups()
-                .iter()
-                .find(|g| g.workspaces.iter().any(|w| w.handle == *workspace))
+                .find(|g| g.workspaces.iter().any(|w| w == workspace))
                 .map_or(false, |group| {
                     self.capture_filter
                         .workspaces_on_outputs
                         .iter()
                         .any(|o| group.outputs.contains(o))
                 }),
-            CaptureSource::Toplevel(_) => false,
             CaptureSource::Output(_) => false,
         }
     }

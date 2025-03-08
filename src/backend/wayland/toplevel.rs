@@ -22,10 +22,9 @@ impl ToplevelInfoHandler for AppData {
         toplevel: &ExtForeignToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
-        let cosmic_toplevel = info.cosmic_toplevel.clone().unwrap();
         self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
 
-        self.add_capture_source(CaptureSource::CosmicToplevel(cosmic_toplevel));
+        self.add_capture_source(CaptureSource::Toplevel(toplevel.clone()));
     }
 
     fn update_toplevel(
@@ -44,11 +43,9 @@ impl ToplevelInfoHandler for AppData {
         _qh: &QueueHandle<Self>,
         toplevel: &ExtForeignToplevelHandleV1,
     ) {
-        let info = self.toplevel_info_state.info(toplevel).unwrap();
-        let cosmic_toplevel = info.cosmic_toplevel.clone().unwrap();
         self.send_event(Event::CloseToplevel(toplevel.clone()));
 
-        self.remove_capture_source(CaptureSource::CosmicToplevel(cosmic_toplevel));
+        self.remove_capture_source(CaptureSource::Toplevel(toplevel.clone()));
     }
 }
 

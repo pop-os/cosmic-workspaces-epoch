@@ -15,11 +15,13 @@ impl WorkspaceHandler for AppData {
         // Handle move to another output
 
         for group in self.workspace_state.workspace_groups() {
-            for workspace in &group.workspaces {
-                workspaces.push((group.outputs.iter().cloned().collect(), workspace.clone()));
+            for workspace_handle in &group.workspaces {
+                if let Some(workspace) = self.workspace_state.workspace_info(workspace_handle) {
+                    workspaces.push((group.outputs.iter().cloned().collect(), workspace.clone()));
 
-                // TODO one capture per output on workspace?
-                self.add_capture_source(CaptureSource::CosmicWorkspace(workspace.handle.clone()));
+                    // TODO one capture per output on workspace?
+                    self.add_capture_source(CaptureSource::Workspace(workspace_handle.clone()));
+                }
             }
         }
 

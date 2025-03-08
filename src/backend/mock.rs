@@ -3,14 +3,12 @@
 
 use cosmic::{
     cctk::{
-        cosmic_protocols::{
-            toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-            workspace::v1::client::zcosmic_workspace_handle_v1,
-        },
+        cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         wayland_client::{
             protocol::{wl_output, wl_shm},
             Connection, WEnum,
         },
+        wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
     iced::{
         self,
@@ -80,9 +78,9 @@ impl MockObjectId {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub struct ZcosmicWorkspaceHandleV1(MockObjectId);
+pub struct ExtWorkspaceHandleV1(MockObjectId);
 
-impl ZcosmicWorkspaceHandleV1 {
+impl ExtWorkspaceHandleV1 {
     pub fn id(&self) -> MockObjectId {
         self.0.clone()
     }
@@ -92,26 +90,20 @@ impl ZcosmicWorkspaceHandleV1 {
 pub struct ExtForeignToplevelHandleV1(MockObjectId);
 
 #[derive(Clone, Debug, Default)]
-pub struct CaptureFilter {
-    pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
-    pub toplevels_on_workspaces: Vec<ZcosmicWorkspaceHandleV1>,
-}
-
-#[derive(Clone, Debug, Default)]
 pub struct ToplevelInfo {
     pub title: String,
     pub app_id: String,
     pub state: HashSet<zcosmic_toplevel_handle_v1::State>,
     pub output: HashSet<wl_output::WlOutput>,
-    pub workspace: HashSet<ZcosmicWorkspaceHandleV1>,
+    pub workspace: HashSet<ExtWorkspaceHandleV1>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Workspace {
-    pub handle: ZcosmicWorkspaceHandleV1,
+    pub handle: ExtWorkspaceHandleV1,
     pub name: String,
     // pub coordinates: Vec<u32>,
-    pub state: Vec<WEnum<zcosmic_workspace_handle_v1::State>>,
+    pub state: ext_workspace_handle_v1::State,
     // pub capabilities: Vec<WEnum<zcosmic_workspace_handle_v1::ZcosmicWorkspaceCapabilitiesV1>>,
     // pub tiling: Option<WEnum<zcosmic_workspace_handle_v1::TilingState>>,
 }
@@ -135,14 +127,14 @@ impl AppData {
         // Add four workspaces for each output
         let mut new_workspaces = Vec::new();
         for i in 0..=4 {
-            let workspace_handle = ZcosmicWorkspaceHandleV1(MockObjectId::new());
+            let workspace_handle = ExtWorkspaceHandleV1(MockObjectId::new());
             let workspace = Workspace {
                 handle: workspace_handle.clone(),
                 name: format!("Workspace {i}"),
                 state: if i == 0 {
-                    vec![WEnum::Value(zcosmic_workspace_handle_v1::State::Active)]
+                    ext_workspace_handle_v1::State::Active
                 } else {
-                    Vec::new()
+                    ext_workspace_handle_v1::State::empty()
                 },
             };
             // Add three toplevels for each workspace

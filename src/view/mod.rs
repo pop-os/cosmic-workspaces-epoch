@@ -236,7 +236,7 @@ fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
-    drop_target: Option<&backend::ZcosmicWorkspaceHandleV1>,
+    drop_target: Option<&backend::ExtWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
         .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))

@@ -4,9 +4,9 @@
 #![allow(clippy::single_match)]
 
 use cctk::{
-    cosmic_protocols::workspace::v1::client::zcosmic_workspace_handle_v1,
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
-    wayland_client::{protocol::wl_output, Connection, Proxy, WEnum},
+    wayland_client::{protocol::wl_output, Connection, Proxy},
+    wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
 };
 use clap::Parser;
 use cosmic::{
@@ -43,7 +43,7 @@ mod desktop_info;
 mod localize;
 mod backend;
 mod view;
-use backend::{ExtForeignToplevelHandleV1, ToplevelInfo, ZcosmicWorkspaceHandleV1};
+use backend::{ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo};
 mod dnd;
 mod utils;
 mod widgets;
@@ -89,9 +89,9 @@ enum Msg {
     WaylandEvent(WaylandEvent),
     Wayland(backend::Event),
     Close,
-    ActivateWorkspace(ZcosmicWorkspaceHandleV1),
+    ActivateWorkspace(ExtWorkspaceHandleV1),
     #[allow(dead_code)]
-    CloseWorkspace(ZcosmicWorkspaceHandleV1),
+    CloseWorkspace(ExtWorkspaceHandleV1),
     ActivateToplevel(ExtForeignToplevelHandleV1),
     CloseToplevel(ExtForeignToplevelHandleV1),
     StartDrag(DragSurface),
@@ -118,7 +118,7 @@ struct Workspace {
     name: String,
     // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
     img: Option<backend::CaptureImage>,
-    handle: ZcosmicWorkspaceHandleV1,
+    handle: ExtWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
     is_active: bool,
 }
@@ -170,13 +170,13 @@ struct App {
 }
 
 impl App {
-    fn workspace_for_handle(&self, handle: &ZcosmicWorkspaceHandleV1) -> Option<&Workspace> {
+    fn workspace_for_handle(&self, handle: &ExtWorkspaceHandleV1) -> Option<&Workspace> {
         self.workspaces.iter().find(|i| &i.handle == handle)
     }
 
     fn workspace_for_handle_mut(
         &mut self,
-        handle: &ZcosmicWorkspaceHandleV1,
+        handle: &ExtWorkspaceHandleV1,
     ) -> Option<&mut Workspace> {
         self.workspaces.iter_mut().find(|i| &i.handle == handle)
     }
@@ -377,13 +377,14 @@ impl Application for App {
                     backend::Event::CmdSender(sender) => {
                         self.wayland_cmd_sender = Some(sender);
                     }
-                    backend::Event::Workspaces(workspaces) => {
+                    backend::Event::Workspaces(mut workspaces) => {
+                        workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
-                            let is_active = workspace.state.contains(&WEnum::Value(
-                                zcosmic_workspace_handle_v1::State::Active,
-                            ));
+                            let is_active = workspace
+                                .state
+                                .contains(ext_workspace_handle_v1::State::Active);
 
                             // XXX efficiency
                             #[allow(clippy::mutable_key_type)]

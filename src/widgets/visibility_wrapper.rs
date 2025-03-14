@@ -4,7 +4,7 @@
 use cosmic::iced::{
     advanced::{
         layout, mouse, renderer,
-        widget::{Operation, OperationOutputWrapper, Tree},
+        widget::{Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
@@ -29,7 +29,7 @@ pub struct VisibilityWrapper<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for VisibilityWrapper<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for VisibilityWrapper<'_, Msg> {
     delegate::delegate! {
         to self.content.as_widget() {
             fn size(&self) -> Size<Length>;
@@ -42,7 +42,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for VisibilityWrapper
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+        operation: &mut dyn Operation<()>,
     ) {
         self.content
             .as_widget()

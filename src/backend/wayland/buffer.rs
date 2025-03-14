@@ -7,7 +7,9 @@ use cctk::{
 };
 use cosmic::{
     cctk,
-    iced_sctk::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf},
+    iced_winit::platform_specific::wayland::subsurface_widget::{
+        BufferSource, Dmabuf, Plane, Shmbuf,
+    },
 };
 use std::{
     os::fd::AsFd,
@@ -29,7 +31,7 @@ pub struct Buffer {
 }
 
 impl AppData {
-    fn create_shm_buffer(&self, format: u32, (width, height): (u32, u32)) -> Buffer {
+    fn create_shm_buffer(&self, format: wl_shm::Format, (width, height): (u32, u32)) -> Buffer {
         let fd = utils::create_memfile().unwrap(); // XXX?
         rustix::fs::ftruncate(&fd, width as u64 * height as u64 * 4).unwrap();
 
@@ -40,7 +42,6 @@ impl AppData {
             (),
         );
 
-        let format = wl_shm::Format::try_from(format).unwrap();
         let buffer = pool.create_buffer(
             0,
             width as i32,
@@ -129,11 +130,11 @@ impl AppData {
         let mut planes = Vec::new();
 
         let params = self.dmabuf_state.create_params(&self.qh)?;
-        let modifier = bo.modifier()?;
-        for i in 0..bo.plane_count()? as i32 {
+        let modifier = bo.modifier();
+        for i in 0..bo.plane_count() as i32 {
             let plane_fd = bo.fd_for_plane(i)?;
-            let plane_offset = bo.offset(i)?;
-            let plane_stride = bo.stride_for_plane(i)?;
+            let plane_offset = bo.offset(i);
+            let plane_stride = bo.stride_for_plane(i);
             params.add(
                 plane_fd.as_fd(),
                 i as u32,
@@ -177,11 +178,15 @@ impl AppData {
 
     pub fn create_buffer(&self, formats: &Formats) -> Buffer {
         // XXX Handle other formats?
-        let format = u32::from(wl_shm::Format::Abgr8888);
+        let format = wl_shm::Format::Abgr8888;
 
         #[cfg(not(feature = "force-shm-screencopy"))]
-        if let Some((_, modifiers)) = formats.dmabuf_formats.iter().find(|(f, _)| *f == format) {
-            match self.create_gbm_buffer(format, &modifiers, formats.buffer_size, false) {
+        if let Some((_, modifiers)) = formats
+            .dmabuf_formats
+            .iter()
+            .find(|(f, _)| *f == u32::from(format))
+        {
+            match self.create_gbm_buffer(u32::from(format), modifiers, formats.buffer_size, false) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }

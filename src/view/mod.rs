@@ -254,7 +254,8 @@ fn workspace_sidebar_entry<'a>(
             destination,
         ].into()
         */
-        destination
+        //destination
+        dnd_destination_for_target(drop_target, destination, Msg::DndWorkspaceDrop)
     } else {
         dnd_destination_for_target(drop_target, destination, Msg::DndWorkspaceDrop)
     }
@@ -268,9 +269,11 @@ fn workspaces_sidebar<'a>(
 ) -> cosmic::Element<'a, Msg> {
     let mut sidebar_entries = Vec::new();
     for w in workspaces {
+        /*
         if drop_target == Some(&w.handle) {
             sidebar_entries.push(workspace_drag_placeholder(w, output));
         }
+        */
         sidebar_entries.push(workspace_sidebar_entry(
             w,
             output,

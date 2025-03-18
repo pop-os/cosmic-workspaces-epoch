@@ -6,6 +6,7 @@ use cosmic::{
     iced::{
         self,
         advanced::layout::flex::Axis,
+        clipboard::mime::AllowedMimeTypes,
         widget::{column, row},
         Border,
     },
@@ -23,34 +24,19 @@ use crate::{
     App, LayerSurface, Msg, Toplevel, Workspace,
 };
 
-fn toplevel_dnd_destination<'a>(
+fn dnd_destination_for_target<'a, T>(
     target: DropTarget,
     child: cosmic::Element<'a, Msg>,
-) -> cosmic::Element<'a, Msg> {
+    on_finish: impl Fn(T) -> Msg + 'static,
+) -> cosmic::Element<'a, Msg>
+where
+    T: AllowedMimeTypes,
+{
     let target2 = target.clone();
     cosmic::widget::dnd_destination::dnd_destination_for_data(
         child,
-        |data: Option<DragToplevel>, _action| match data {
-            Some(toplevel) => Msg::DndToplevelDrop(toplevel),
-            None => Msg::Ignore,
-        },
-    )
-    .drag_id(target.drag_id())
-    .on_enter(move |actions, mime, pos| Msg::DndEnter(target.clone(), actions, mime, pos))
-    .on_leave(move || Msg::DndLeave(target2.clone()))
-    .into()
-}
-
-#[allow(dead_code)]
-fn workspace_dnd_destination<'a>(
-    target: DropTarget,
-    child: cosmic::Element<'a, Msg>,
-) -> cosmic::Element<'a, Msg> {
-    let target2 = target.clone();
-    cosmic::widget::dnd_destination::dnd_destination_for_data(
-        child,
-        |data: Option<DragWorkspace>, _action| match data {
-            Some(workspace) => Msg::DndWorkspaceDrop(workspace),
+        move |data: Option<T>, _action| match data {
+            Some(data) => on_finish(data),
             None => Msg::Ignore,
         },
     )
@@ -100,9 +86,10 @@ pub(crate) fn layer_surface<'a>(
         .workspaces_for_output(&surface.output)
         .find(|w| w.is_active);
     let toplevels = if let Some(workspace) = first_active_workspace {
-        toplevel_dnd_destination(
+        dnd_destination_for_target(
             DropTarget::OutputToplevels(workspace.handle.clone(), surface.output.clone()),
             toplevels,
+            Msg::DndToplevelDrop,
         )
     } else {
         // Shouldn't happen, but no drag destination if no active workspace found for output
@@ -226,9 +213,10 @@ fn workspace_sidebar_entry<'a>(
     */
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
-    toplevel_dnd_destination(
+    dnd_destination_for_target(
         DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
         item,
+        Msg::DndToplevelDrop,
     )
 }
 

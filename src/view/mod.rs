@@ -20,7 +20,7 @@ use std::collections::HashMap;
 
 use crate::{
     backend::{self, CaptureImage},
-    dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget},
+    dnd::{Drag, DragSurface, DragToplevel, DragWorkspace, DropTarget},
     App, LayerSurface, Msg, Toplevel, Workspace,
 };
 
@@ -242,6 +242,7 @@ fn workspace_sidebar_entry<'a>(
         .on_cancel(Some(Msg::SourceFinished))
         .into();
     let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone());
+    /*
     let destination = dnd_destination_for_target(drop_target.clone(), source, Msg::DndToplevelDrop);
     // TODO test if workspace is being dragged
     if is_drop_target {
@@ -259,6 +260,11 @@ fn workspace_sidebar_entry<'a>(
     } else {
         dnd_destination_for_target(drop_target, destination, Msg::DndWorkspaceDrop)
     }
+    */
+    dnd_destination_for_target(drop_target, source, |drag: Drag| match drag {
+        Drag::Toplevel => Msg::DndToplevelDrop(DragToplevel {}),
+        Drag::Workspace => Msg::DndWorkspaceDrop(DragWorkspace {}),
+    })
 }
 
 fn workspaces_sidebar<'a>(

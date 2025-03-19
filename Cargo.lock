@@ -1134,7 +1134,7 @@ dependencies = [
 [[package]]
 name = "cosmic-client-toolkit"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols//?branch=main#6b05c2a157118979cb472a38455ba78ca9729196"
+source = "git+https://github.com/pop-os/cosmic-protocols//?branch=workspace-v2-pin-move#1ed8a9ec28903fba66fd294e016c777f1a164f3f"
 dependencies = [
  "bitflags 2.8.0",
  "cosmic-protocols",
@@ -1198,7 +1198,7 @@ dependencies = [
 [[package]]
 name = "cosmic-protocols"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols//?branch=main#6b05c2a157118979cb472a38455ba78ca9729196"
+source = "git+https://github.com/pop-os/cosmic-protocols//?branch=workspace-v2-pin-move#1ed8a9ec28903fba66fd294e016c777f1a164f3f"
 dependencies = [
  "bitflags 2.8.0",
  "wayland-backend",

@@ -110,6 +110,7 @@ enum Msg {
     BgConfig(cosmic_bg_config::state::State),
     UpdateToplevelIcon(String, Option<PathBuf>),
     OnScroll(wl_output::WlOutput, ScrollDelta),
+    Touch(iced::touch::Event, iced::event::Status, iced::window::Id),
     Ignore,
 }
 
@@ -140,8 +141,15 @@ struct Output {
 }
 
 #[derive(Debug)]
+struct TouchState {
+    finger: iced::touch::Finger,
+    start_position: iced::Point,
+}
+
+#[derive(Debug)]
 struct LayerSurface {
     output: wl_output::WlOutput,
+    touch_state: Option<TouchState>,
     // for transitions, would need windows in more than one workspace? But don't capture all of
     // them all the time every frame.
 }
@@ -204,6 +212,7 @@ impl App {
             id,
             LayerSurface {
                 output: output.clone(),
+                touch_state: None,
             },
         );
         get_layer_surface(SctkLayerSurfaceSettings {
@@ -617,6 +626,71 @@ impl Application for App {
             }
             Msg::DndWorkspaceDrag => {}
             Msg::DndWorkspaceDrop(_workspace) => {}
+            Msg::Touch(event, status, id) => {
+                if let Some(surface) = self.layer_surfaces.get_mut(&id) {
+                    let finger = match event {
+                        iced::touch::Event::FingerPressed { id, .. }
+                        | iced::touch::Event::FingerMoved { id, .. }
+                        | iced::touch::Event::FingerLifted { id, .. }
+                        | iced::touch::Event::FingerLost { id, .. } => id,
+                    };
+                    if let Some(touch_state) = &mut surface.touch_state {
+                        let mut cmd = None;
+
+                        if touch_state.finger == finger {
+                            if let iced::touch::Event::FingerMoved { position, .. }
+                            | iced::touch::Event::FingerLifted { position, .. } = event
+                            {
+                                let delta = position - touch_state.start_position;
+
+                                // XXX
+                                //let workspaces = self.workspaces_for_output(&surface.output).collect::<Vec<_>>();
+                                let workspaces = self
+                                    .workspaces
+                                    .iter()
+                                    .filter(|w| w.outputs.contains(&surface.output))
+                                    .collect::<Vec<_>>();
+                                if let Some(workspace_idx) =
+                                    workspaces.iter().position(|i| i.is_active)
+                                {
+                                    // TODO handle orientation
+                                    let workspace_delta = (delta.y / 100.).round() as isize;
+                                    let new_idx = (workspace_idx as isize + workspace_delta)
+                                        .clamp(0, workspaces.len() as isize - 1)
+                                        as usize;
+                                    if new_idx != workspace_idx {
+                                        // TODO avoid excess activate due to race
+                                        dbg!(new_idx);
+                                        cmd = Some(backend::Cmd::ActivateWorkspace(
+                                            workspaces[new_idx].handle.clone(),
+                                        ));
+                                    }
+                                }
+                            }
+
+                            if matches!(
+                                event,
+                                iced::touch::Event::FingerLifted { .. }
+                                    | iced::touch::Event::FingerLost { .. }
+                            ) {
+                                surface.touch_state = None;
+                            }
+
+                            if let Some(cmd) = cmd {
+                                self.send_wayland_cmd(cmd);
+                            }
+                        }
+                    // Handle finger press if a widget did not capture it
+                    } else if status == iced::event::Status::Ignored {
+                        if let iced::touch::Event::FingerPressed { id, position } = event {
+                            surface.touch_state = Some(TouchState {
+                                finger: id,
+                                start_position: position,
+                            })
+                        }
+                    }
+                }
+            }
             Msg::Ignore => {}
         }
 
@@ -631,22 +705,19 @@ impl Application for App {
     }
 
     fn subscription(&self) -> Subscription<Msg> {
-        let events = iced::event::listen_with(|evt, _, _| {
-            if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
-            {
+        let events = iced::event::listen_with(|evt, status, id| match evt {
+            iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) => {
                 Some(Msg::WaylandEvent(evt))
-            } else if let iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
                 key: Key::Named(Named::Escape),
                 modifiers: _,
                 location: _,
                 modified_key: _,
                 physical_key: _,
-            }) = evt
-            {
-                Some(Msg::Close)
-            } else {
-                None
-            }
+            }) => Some(Msg::Close),
+            iced::Event::Touch(evt) => Some(Msg::Touch(evt, status, id)),
+            _ => None,
         });
         let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(
             "config-sub",

@@ -634,7 +634,11 @@ impl Application for App {
         let events = iced::event::listen_with(|evt, _, _| {
             if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
             {
-                Some(Msg::WaylandEvent(evt))
+                if !matches!(evt, WaylandEvent::RequestResize) {
+                    Some(Msg::WaylandEvent(evt))
+                } else {
+                    None
+                }
             } else if let iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
                 key: Key::Named(Named::Escape),
                 modifiers: _,

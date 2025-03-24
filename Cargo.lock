@@ -1252,6 +1252,7 @@ dependencies = [
 name = "cosmic-workspaces"
 version = "0.1.0"
 dependencies = [
+ "aliasable",
  "anyhow",
  "calloop 0.14.2",
  "calloop-wayland-source 0.4.0",

@@ -1,3 +1,4 @@
+use aliasable::vec::AliasableVec;
 use cosmic::iced::{advanced::layout::flex::Axis, Length, Point, Rectangle, Size};
 use std::marker::PhantomData;
 
@@ -70,7 +71,7 @@ pub trait AxisToplevelLayout {
     fn layout(
         &self,
         max_limit: AxisSize,
-        toplevels: Vec<LayoutToplevel<'_, AxisSize>>,
+        toplevels: &[LayoutToplevel<'_, AxisSize>],
     ) -> impl Iterator<Item = AxisRectangle>;
 }
 
@@ -79,10 +80,10 @@ impl<T: AxisToplevelLayout> ToplevelLayout for T {
         self.size().pack(self.axis())
     }
 
-    fn layout(
+    fn layout<'a>(
         &self,
         max_limit: Size,
-        toplevels: &[LayoutToplevel<'_>],
+        toplevels: &[LayoutToplevel<'a>],
     ) -> impl Iterator<Item = Rectangle> {
         let max_limit = AxisSize::unpack(self.axis(), max_limit);
         let toplevels = toplevels
@@ -92,7 +93,27 @@ impl<T: AxisToplevelLayout> ToplevelLayout for T {
                 _phantom_data: PhantomData,
             })
             .collect::<Vec<_>>();
-        self.layout(max_limit, toplevels)
-            .map(|rect| rect.pack(self.axis()))
+        let toplevels = AliasableVec::from_unique(toplevels);
+        // Extend lifetime
+        let toplevels_slice =
+            unsafe { std::mem::transmute::<_, &'a [LayoutToplevel<'a, AxisSize>]>(&*toplevels) };
+        let inner = self
+            .layout(max_limit, toplevels_slice)
+            .map(|rect| rect.pack(self.axis()));
+        AxisLayoutIterator { inner, toplevels }
+    }
+}
+
+struct AxisLayoutIterator<'a, I: Iterator<Item = Rectangle>> {
+    inner: I,
+    // After `inner` so it is dropped only after that is dropped
+    toplevels: AliasableVec<LayoutToplevel<'a, AxisSize>>,
+}
+
+impl<'a, I: Iterator<Item = Rectangle>> Iterator for AxisLayoutIterator<'a, I> {
+    type Item = Rectangle;
+
+    fn next(&mut self) -> Option<Rectangle> {
+        self.inner.next()
     }
 }

@@ -1,6 +1,7 @@
 [Desktop Entry]
 Name=Workspaces
 Name[pl]=Obszary robocze
+Name[pt_BR]=Áreas de Trabalho
 Comment=
 Type=Application
 Exec=cosmic-workspaces

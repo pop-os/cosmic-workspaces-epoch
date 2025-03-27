@@ -92,6 +92,31 @@ impl TryFrom<(Vec<u8>, std::string::String)> for DragWorkspace {
     }
 }
 
+// TODO name?
+pub enum Drag {
+    Toplevel,
+    Workspace,
+}
+
+impl cosmic::iced::clipboard::mime::AllowedMimeTypes for Drag {
+    fn allowed() -> Cow<'static, [String]> {
+        vec![TOPLEVEL_MIME.clone(), WORKSPACE_MIME.clone()].into()
+    }
+}
+
+impl TryFrom<(Vec<u8>, std::string::String)> for Drag {
+    type Error = ();
+    fn try_from((_bytes, mime_type): (Vec<u8>, String)) -> Result<Self, ()> {
+        if mime_type == *TOPLEVEL_MIME {
+            Ok(Self::Toplevel)
+        } else if mime_type == *WORKSPACE_MIME {
+            Ok(Self::Workspace)
+        } else {
+            Err(())
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[repr(u8)]
 pub enum DropTarget {

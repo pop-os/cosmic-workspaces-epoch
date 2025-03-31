@@ -11,19 +11,19 @@ use cosmic::iced::{
 use std::marker::PhantomData;
 
 mod toplevel_layout;
-use toplevel_layout::{LayoutToplevel, RowColToplevelLayout, ToplevelLayout};
+use toplevel_layout::{LayoutToplevel, ToplevelLayout, TwoRowColToplevelLayout};
 
 pub fn toplevels<Msg>(children: Vec<cosmic::Element<Msg>>) -> Toplevels<Msg> {
     Toplevels {
         // TODO configurable
-        layout: RowColToplevelLayout::new(Axis::Horizontal, 16),
+        layout: TwoRowColToplevelLayout::new(Axis::Horizontal, 16),
         children,
         _msg: PhantomData,
     }
 }
 
 pub struct Toplevels<'a, Msg> {
-    layout: RowColToplevelLayout,
+    layout: TwoRowColToplevelLayout,
     children: Vec<cosmic::Element<'a, Msg>>,
     _msg: PhantomData<Msg>,
 }

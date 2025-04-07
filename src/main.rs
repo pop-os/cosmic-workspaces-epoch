@@ -631,26 +631,22 @@ impl Application for App {
     }
 
     fn subscription(&self) -> Subscription<Msg> {
-        let events = iced::event::listen_with(|evt, _, _| {
-            if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
-            {
+        let events = iced::event::listen_with(|evt, _, _| match evt {
+            iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) => {
                 if !matches!(evt, WaylandEvent::RequestResize) {
                     Some(Msg::WaylandEvent(evt))
                 } else {
                     None
                 }
-            } else if let iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
                 key: Key::Named(Named::Escape),
                 modifiers: _,
                 location: _,
                 modified_key: _,
                 physical_key: _,
-            }) = evt
-            {
-                Some(Msg::Close)
-            } else {
-                None
-            }
+            }) => Some(Msg::Close),
+            _ => None,
         });
         let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(
             "config-sub",

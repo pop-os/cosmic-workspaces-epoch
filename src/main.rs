@@ -210,7 +210,7 @@ impl App {
             id,
             keyboard_interactivity: KeyboardInteractivity::Exclusive,
             namespace: "cosmic-workspace-overview".into(),
-            layer: Layer::Overlay,
+            layer: Layer::Top,
             size: Some((None, None)),
             output: IcedOutput::Output(output),
             anchor: Anchor::all(),

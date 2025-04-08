@@ -15,11 +15,8 @@ use toplevel_layout::{LayoutToplevel, RowColToplevelLayout, ToplevelLayout};
 
 pub fn toplevels<Msg>(children: Vec<cosmic::Element<Msg>>) -> Toplevels<Msg> {
     Toplevels {
-        layout: RowColToplevelLayout {
-            // TODO configurable
-            spacing: 16,
-            axis: Axis::Horizontal,
-        },
+        // TODO configurable
+        layout: RowColToplevelLayout::new(Axis::Horizontal, 16),
         children,
         _msg: PhantomData,
     }

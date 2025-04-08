@@ -11,6 +11,10 @@ pub(crate) struct RowColToplevelLayout {
 }
 
 impl RowColToplevelLayout {
+    pub fn new(axis: Axis, spacing: u32) -> Self {
+        Self { axis, spacing }
+    }
+
     // Get total requested main axis length if widget could have all the space
     pub fn requested_main_total(&self, toplevels: &[LayoutToplevel<'_, AxisSize>]) -> f32 {
         let total_spacing = self.spacing as usize * (toplevels.len().saturating_sub(1)).max(0);

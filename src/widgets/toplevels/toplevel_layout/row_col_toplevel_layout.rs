@@ -12,9 +12,27 @@ pub(crate) struct RowColToplevelLayout {
 
 impl RowColToplevelLayout {
     // Get total requested main axis length if widget could have all the space
-    fn requested_main_total(&self, toplevels: &[LayoutToplevel<'_, AxisSize>]) -> f32 {
+    pub fn requested_main_total(&self, toplevels: &[LayoutToplevel<'_, AxisSize>]) -> f32 {
         let total_spacing = self.spacing as usize * (toplevels.len().saturating_sub(1)).max(0);
         toplevels.iter().map(|t| t.preferred_size.main).sum::<f32>() + total_spacing as f32
+    }
+
+    pub fn requested_cross_max(&self, toplevels: &[LayoutToplevel<'_, AxisSize>]) -> f32 {
+        toplevels
+            .iter()
+            .map(|t| t.preferred_size.cross)
+            .max_by(f32::total_cmp)
+            .unwrap_or(1.0)
+    }
+
+    pub fn scale_factor(
+        &self,
+        max_limit: AxisSize,
+        toplevels: &[LayoutToplevel<'_, AxisSize>],
+    ) -> f32 {
+        let scale_factor_main = max_limit.main / self.requested_main_total(toplevels);
+        let scale_factor_cross = max_limit.cross / self.requested_cross_max(toplevels);
+        scale_factor_main.min(scale_factor_cross).min(1.)
     }
 }
 
@@ -36,10 +54,10 @@ impl AxisToplevelLayout for RowColToplevelLayout {
         toplevels: &[LayoutToplevel<'_, AxisSize>],
     ) -> impl Iterator<Item = AxisRectangle> {
         let requested_main_total = self.requested_main_total(&toplevels);
-        let scale_factor = (max_limit.main / requested_main_total).min(1.0);
+        let scale_factor = self.scale_factor(max_limit, toplevels);
 
         // Add padding to center if total requested size doesn't fill available space
-        let padding = (max_limit.main - requested_main_total).max(0.) / 2.;
+        let padding = (max_limit.main - scale_factor * requested_main_total).max(0.) / 2.;
 
         let mut total_main = padding;
         let mut first = true;

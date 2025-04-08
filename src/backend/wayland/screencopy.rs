@@ -1,15 +1,12 @@
 use cosmic::{
     cctk::{
         self,
-        cosmic_protocols::screencopy::v2::client::{
-            zcosmic_screencopy_frame_v2, zcosmic_screencopy_manager_v2,
-            zcosmic_screencopy_session_v2,
-        },
         screencopy::{
-            capture, Formats, Frame, ScreencopyFrameData, ScreencopyFrameDataExt,
-            ScreencopyHandler, ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
+            CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats,
+            Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
+            ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
         },
-        wayland_client::{Connection, Proxy, QueueHandle, WEnum},
+        wayland_client::{Connection, QueueHandle, WEnum},
     },
     iced_winit::platform_specific::wayland::subsurface_widget::{
         SubsurfaceBuffer, SubsurfaceBufferRelease,
@@ -20,12 +17,12 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use super::{AppData, Buffer, Capture, CaptureImage, CaptureSource, Event};
+use super::{AppData, Buffer, Capture, CaptureImage, Event};
 
 pub struct ScreencopySession {
     // swapchain buffers
     buffers: Option<[Buffer; 2]>,
-    session: zcosmic_screencopy_session_v2::ZcosmicScreencopySessionV2,
+    session: CaptureSession,
     // Future signaled when buffer is signaled.
     // if triple buffer is used, will need more than one.
     release: Option<SubsurfaceBufferRelease>,
@@ -37,32 +34,15 @@ impl ScreencopySession {
         screencopy_state: &ScreencopyState,
         qh: &QueueHandle<AppData>,
     ) -> Self {
-        let image_source = match &capture.source {
-            CaptureSource::Toplevel(toplevel) => screencopy_state
-                .toplevel_source_manager
-                .as_ref()
-                .unwrap()
-                .create_source(toplevel, qh, ()),
-            CaptureSource::Workspace(workspace, _output) => screencopy_state
-                .workspace_source_manager
-                .as_ref()
-                .unwrap()
-                .create_source(workspace, qh, ()),
-        };
-
         let udata = SessionData {
             session_data: Default::default(),
             capture: Arc::downgrade(capture),
         };
 
-        let session = screencopy_state.screencopy_manager.create_session(
-            &image_source,
-            zcosmic_screencopy_manager_v2::Options::empty(),
-            qh,
-            udata,
-        );
-
-        image_source.destroy();
+        let session = screencopy_state
+            .capturer()
+            .create_session(&capture.source, CaptureOptions::empty(), qh, udata)
+            .unwrap();
 
         Self {
             buffers: None,
@@ -73,7 +53,7 @@ impl ScreencopySession {
 
     fn attach_buffer_and_commit(
         &mut self,
-        _capture: &Capture,
+        capture: &Arc<Capture>,
         conn: &Connection,
         qh: &QueueHandle<AppData>,
     ) {
@@ -84,23 +64,16 @@ impl ScreencopySession {
         // TODO
         // let node = back.node().and_then(|x| x.to_str().map(|x| x.to_string()));
 
-        capture(
-            &self.session,
+        self.session.capture(
             &back.buffer,
             &[],
             qh,
             FrameData {
                 frame_data: Default::default(),
-                session: self.session.clone(),
+                capture: Arc::downgrade(&capture),
             },
         );
         conn.flush().unwrap();
-    }
-}
-
-impl Drop for ScreencopySession {
-    fn drop(&mut self) {
-        self.session.destroy();
     }
 }
 
@@ -119,7 +92,7 @@ impl ScreencopySessionDataExt for SessionData {
 
 struct FrameData {
     frame_data: ScreencopyFrameData,
-    session: zcosmic_screencopy_session_v2::ZcosmicScreencopySessionV2,
+    capture: Weak<Capture>,
 }
 
 impl ScreencopyFrameDataExt for FrameData {
@@ -137,7 +110,7 @@ impl ScreencopyHandler for AppData {
         &mut self,
         conn: &Connection,
         _qh: &QueueHandle<Self>,
-        session: &zcosmic_screencopy_session_v2::ZcosmicScreencopySessionV2,
+        session: &CaptureSession,
         formats: &Formats,
     ) {
         let Some(capture) = Capture::for_session(session) else {
@@ -161,11 +134,11 @@ impl ScreencopyHandler for AppData {
         &mut self,
         conn: &Connection,
         qh: &QueueHandle<Self>,
-        screencopy_frame: &zcosmic_screencopy_frame_v2::ZcosmicScreencopyFrameV2,
+        capture_frame: &CaptureFrame,
         frame: Frame,
     ) {
-        let session = &screencopy_frame.data::<FrameData>().unwrap().session;
-        let Some(capture) = Capture::for_session(session) else {
+        let capture = &capture_frame.data::<FrameData>().unwrap().capture;
+        let Some(capture) = capture.upgrade() else {
             return;
         };
         let mut session = capture.session.lock().unwrap();
@@ -220,14 +193,19 @@ impl ScreencopyHandler for AppData {
         };
         match &capture.source {
             CaptureSource::Toplevel(toplevel) => {
-                self.send_event(Event::ToplevelCapture(toplevel.clone(), image))
+                let info = self
+                    .toplevel_info_state
+                    .toplevels()
+                    .find(|info| info.foreign_toplevel == *toplevel);
+                if let Some(info) = info {
+                    self.send_event(Event::ToplevelCapture(info.foreign_toplevel.clone(), image))
+                }
             }
-            CaptureSource::Workspace(workspace, output) => {
-                self.send_event(Event::WorkspaceCapture(
-                    workspace.clone(),
-                    output.clone(),
-                    image,
-                ));
+            CaptureSource::Workspace(workspace) => {
+                self.send_event(Event::WorkspaceCapture(workspace.clone(), image));
+            }
+            CaptureSource::Output(_) => {
+                unreachable!()
             }
         };
     }
@@ -236,23 +214,18 @@ impl ScreencopyHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        screencopy_frame: &zcosmic_screencopy_frame_v2::ZcosmicScreencopyFrameV2,
-        reason: WEnum<zcosmic_screencopy_frame_v2::FailureReason>,
+        capture_frame: &CaptureFrame,
+        reason: WEnum<FailureReason>,
     ) {
         // TODO
         log::error!("Screencopy failed: {:?}", reason);
-        let session = &screencopy_frame.data::<FrameData>().unwrap().session;
-        if let Some(capture) = Capture::for_session(session) {
+        let capture = &capture_frame.data::<FrameData>().unwrap().capture;
+        if let Some(capture) = capture.upgrade() {
             capture.stop();
         }
     }
 
-    fn stopped(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        session: &zcosmic_screencopy_session_v2::ZcosmicScreencopySessionV2,
-    ) {
+    fn stopped(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, session: &CaptureSession) {
         // TODO
         if let Some(capture) = Capture::for_session(session) {
             capture.stop();

@@ -3,7 +3,7 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
-    screencopy::ScreencopyState,
+    screencopy::{CaptureSource, ScreencopyState},
     sctk::{
         self,
         dmabuf::{DmabufFeedback, DmabufState},
@@ -31,7 +31,7 @@ use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, sync::Arc, thr
 mod buffer;
 use buffer::Buffer;
 mod capture;
-use capture::{Capture, CaptureSource};
+use capture::Capture;
 mod dmabuf;
 mod screencopy;
 use screencopy::{ScreencopySession, SessionData};
@@ -75,22 +75,31 @@ impl AppData {
                 self.invalidate_capture_filter();
             }
             Cmd::ActivateToplevel(toplevel_handle) => {
-                for seat in self.seat_state.seats() {
-                    self.toplevel_manager_state
-                        .manager
-                        .activate(&toplevel_handle, &seat);
+                let info = self.toplevel_info_state.info(&toplevel_handle);
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
+                    for seat in self.seat_state.seats() {
+                        self.toplevel_manager_state
+                            .manager
+                            .activate(&cosmic_toplevel, &seat);
+                    }
                 }
             }
             Cmd::CloseToplevel(toplevel_handle) => {
-                self.toplevel_manager_state.manager.close(&toplevel_handle);
+                let info = self.toplevel_info_state.info(&toplevel_handle);
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
+                    self.toplevel_manager_state.manager.close(&cosmic_toplevel);
+                }
             }
             Cmd::MoveToplevelToWorkspace(toplevel_handle, workspace_handle, output) => {
-                if self.toplevel_manager_state.manager.version() >= 2 {
-                    self.toplevel_manager_state.manager.move_to_workspace(
-                        &toplevel_handle,
-                        &workspace_handle,
-                        &output,
-                    );
+                let info = self.toplevel_info_state.info(&toplevel_handle);
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
+                    if self.toplevel_manager_state.manager.version() >= 2 {
+                        self.toplevel_manager_state.manager.move_to_ext_workspace(
+                            &cosmic_toplevel,
+                            &workspace_handle,
+                            &output,
+                        );
+                    }
                 }
             }
             Cmd::ActivateWorkspace(workspace_handle) => {
@@ -105,16 +114,31 @@ impl AppData {
     fn matches_capture_filter(&self, source: &CaptureSource) -> bool {
         match source {
             CaptureSource::Toplevel(toplevel) => {
-                let info = self.toplevel_info_state.info(toplevel).unwrap();
-                info.workspace.iter().any(|workspace| {
+                let info = self
+                    .toplevel_info_state
+                    .toplevels()
+                    .find(|info| info.foreign_toplevel == *toplevel);
+                if let Some(info) = info {
+                    info.workspace.iter().any(|workspace| {
+                        self.capture_filter
+                            .toplevels_on_workspaces
+                            .contains(workspace)
+                    })
+                } else {
+                    false
+                }
+            }
+            CaptureSource::Workspace(workspace) => self
+                .workspace_state
+                .workspace_groups()
+                .find(|g| g.workspaces.iter().any(|w| w == workspace))
+                .map_or(false, |group| {
                     self.capture_filter
-                        .toplevels_on_workspaces
-                        .contains(workspace)
-                })
-            }
-            CaptureSource::Workspace(_, output) => {
-                self.capture_filter.workspaces_on_outputs.contains(output)
-            }
+                        .workspaces_on_outputs
+                        .iter()
+                        .any(|o| group.outputs.contains(o))
+                }),
+            CaptureSource::Output(_) => false,
         }
     }
 

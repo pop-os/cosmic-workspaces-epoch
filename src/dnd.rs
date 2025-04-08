@@ -6,11 +6,10 @@ use cosmic::{
 };
 use std::{borrow::Cow, sync::LazyLock};
 
-use crate::backend::{ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1};
+use crate::backend::{ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1};
 
 // Include `pid` in mime. Want to drag between our surfaces, but not another
 // process, if we use Wayland object ids.
-#[allow(dead_code)]
 static WORKSPACE_MIME: LazyLock<String> =
     LazyLock::new(|| format!("text/x.cosmic-workspace-id-{}", std::process::id()));
 
@@ -20,8 +19,8 @@ static TOPLEVEL_MIME: LazyLock<String> =
 #[derive(Clone, Debug)]
 pub enum DragSurface {
     #[allow(dead_code)]
-    Workspace(ZcosmicWorkspaceHandleV1),
-    Toplevel(ZcosmicToplevelHandleV1),
+    Workspace(ExtWorkspaceHandleV1),
+    Toplevel(ExtForeignToplevelHandleV1),
 }
 
 // TODO store protocol object id?
@@ -59,11 +58,47 @@ impl TryFrom<(Vec<u8>, std::string::String)> for DragToplevel {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DragWorkspace {}
+
+impl AsMimeTypes for DragWorkspace {
+    fn available(&self) -> Cow<'static, [String]> {
+        vec![WORKSPACE_MIME.clone()].into()
+    }
+
+    fn as_bytes(&self, mime_type: &str) -> Option<Cow<'static, [u8]>> {
+        if mime_type == *WORKSPACE_MIME {
+            Some(Vec::new().into())
+        } else {
+            None
+        }
+    }
+}
+
+impl cosmic::iced::clipboard::mime::AllowedMimeTypes for DragWorkspace {
+    fn allowed() -> Cow<'static, [String]> {
+        vec![WORKSPACE_MIME.clone()].into()
+    }
+}
+
+impl TryFrom<(Vec<u8>, std::string::String)> for DragWorkspace {
+    type Error = ();
+    fn try_from((_bytes, mime_type): (Vec<u8>, String)) -> Result<Self, ()> {
+        if mime_type == *WORKSPACE_MIME {
+            Ok(Self {})
+        } else {
+            Err(())
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[repr(u8)]
 pub enum DropTarget {
-    WorkspaceSidebarEntry(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
-    OutputToplevels(ZcosmicWorkspaceHandleV1, wl_output::WlOutput),
+    WorkspaceSidebarEntry(ExtWorkspaceHandleV1, wl_output::WlOutput),
+    OutputToplevels(ExtWorkspaceHandleV1, wl_output::WlOutput),
+    #[allow(dead_code)]
+    WorkspacesBar(wl_output::WlOutput),
 }
 
 impl DropTarget {
@@ -78,6 +113,10 @@ impl DropTarget {
                 (u64::from(discriminant) << 32) | u64::from(id)
             }
             Self::OutputToplevels(_workspace, output) => {
+                let id = output.id().protocol_id();
+                (u64::from(discriminant) << 32) | u64::from(id)
+            }
+            Self::WorkspacesBar(output) => {
                 let id = output.id().protocol_id();
                 (u64::from(discriminant) << 32) | u64::from(id)
             }

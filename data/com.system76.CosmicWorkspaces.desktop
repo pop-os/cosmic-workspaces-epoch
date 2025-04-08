@@ -2,7 +2,7 @@
 Name=Workspaces
 Name[hu]=Munkaterületek
 Name[pl]=Obszary robocze
-Name[pt_BR]=Áreas de Trabalho
+Name[pt]=Áreas de Trabalho
 Comment=
 Type=Application
 Exec=cosmic-workspaces

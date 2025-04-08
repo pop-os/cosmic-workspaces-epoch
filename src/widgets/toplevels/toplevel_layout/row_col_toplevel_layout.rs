@@ -33,7 +33,7 @@ impl AxisToplevelLayout for RowColToplevelLayout {
     fn layout(
         &self,
         max_limit: AxisSize,
-        toplevels: Vec<LayoutToplevel<'_, AxisSize>>,
+        toplevels: &[LayoutToplevel<'_, AxisSize>],
     ) -> impl Iterator<Item = AxisRectangle> {
         let requested_main_total = self.requested_main_total(&toplevels);
         let scale_factor = (max_limit.main / requested_main_total).min(1.0);

@@ -10,8 +10,8 @@ use cctk::{
 };
 use clap::Parser;
 use cosmic::{
-    app::{Application, CosmicFlags, DbusActivationDetails, Message},
-    cctk,
+    app::{Application, CosmicFlags},
+    cctk, dbus_activation,
     iced::{
         self,
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
@@ -198,7 +198,7 @@ impl App {
         self.toplevels.iter_mut().find(|i| &i.handle == handle)
     }
 
-    fn create_surface(&mut self, output: wl_output::WlOutput) -> Task<cosmic::app::Message<Msg>> {
+    fn create_surface(&mut self, output: wl_output::WlOutput) -> Task<cosmic::Action<Msg>> {
         let id = SurfaceId::unique();
         self.layer_surfaces.insert(
             id,
@@ -210,7 +210,7 @@ impl App {
             id,
             keyboard_interactivity: KeyboardInteractivity::Exclusive,
             namespace: "cosmic-workspace-overview".into(),
-            layer: Layer::Overlay,
+            layer: Layer::Top,
             size: Some((None, None)),
             output: IcedOutput::Output(output),
             anchor: Anchor::all(),
@@ -218,7 +218,7 @@ impl App {
         })
     }
 
-    fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Task<cosmic::app::Message<Msg>> {
+    fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Task<cosmic::Action<Msg>> {
         if let Some((id, _)) = self
             .layer_surfaces
             .iter()
@@ -231,7 +231,7 @@ impl App {
         }
     }
 
-    fn toggle(&mut self) -> Task<cosmic::app::Message<Msg>> {
+    fn toggle(&mut self) -> Task<cosmic::Action<Msg>> {
         if self.visible {
             self.hide()
         } else {
@@ -239,7 +239,7 @@ impl App {
         }
     }
 
-    fn show(&mut self) -> Task<cosmic::app::Message<Msg>> {
+    fn show(&mut self) -> Task<cosmic::Action<Msg>> {
         if !self.visible {
             self.visible = true;
             let outputs = self.outputs.clone();
@@ -258,7 +258,7 @@ impl App {
     }
 
     // Close all shell surfaces
-    fn hide(&mut self) -> Task<cosmic::app::Message<Msg>> {
+    fn hide(&mut self) -> Task<cosmic::Action<Msg>> {
         self.visible = false;
         self.update_capture_filter();
         self.drag_surface = None;
@@ -298,7 +298,7 @@ impl Application for App {
     type Flags = Args;
     const APP_ID: &'static str = "com.system76.CosmicWorkspaces";
 
-    fn init(core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<Message<Self::Message>>) {
+    fn init(core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<cosmic::Action<Msg>>) {
         (
             Self {
                 core,
@@ -309,7 +309,7 @@ impl Application for App {
     }
     // TODO: show panel and dock? Drag?
 
-    fn update(&mut self, message: Msg) -> Task<cosmic::app::Message<Msg>> {
+    fn update(&mut self, message: Msg) -> Task<cosmic::Action<Msg>> {
         match message {
             Msg::SourceFinished => {
                 self.drag_surface = None;
@@ -411,7 +411,7 @@ impl Application for App {
                             desktop_info::icon_for_app_id(app_id.clone()),
                             move |path| Msg::UpdateToplevelIcon(app_id.clone(), path),
                         )
-                        .map(cosmic::app::Message::App);
+                        .map(cosmic::Action::App);
                         self.toplevels.push(Toplevel {
                             icon: None,
                             handle,
@@ -436,7 +436,7 @@ impl Application for App {
                                     desktop_info::icon_for_app_id(app_id.clone()),
                                     move |path| Msg::UpdateToplevelIcon(app_id.clone(), path),
                                 )
-                                .map(cosmic::app::Message::App);
+                                .map(cosmic::Action::App);
                             }
                             toplevel.info = info;
                             return task;
@@ -622,11 +622,8 @@ impl Application for App {
 
         Task::none()
     }
-    fn dbus_activation(
-        &mut self,
-        msg: cosmic::app::DbusActivationMessage,
-    ) -> Task<cosmic::app::Message<Self::Message>> {
-        if let DbusActivationDetails::Activate = msg.msg {
+    fn dbus_activation(&mut self, msg: dbus_activation::Message) -> Task<cosmic::Action<Msg>> {
+        if let dbus_activation::Details::Activate = msg.msg {
             self.toggle()
         } else {
             Task::none()
@@ -634,22 +631,22 @@ impl Application for App {
     }
 
     fn subscription(&self) -> Subscription<Msg> {
-        let events = iced::event::listen_with(|evt, _, _| {
-            if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) = evt
-            {
-                Some(Msg::WaylandEvent(evt))
-            } else if let iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
+        let events = iced::event::listen_with(|evt, _, _| match evt {
+            iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) => {
+                if !matches!(evt, WaylandEvent::RequestResize) {
+                    Some(Msg::WaylandEvent(evt))
+                } else {
+                    None
+                }
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
                 key: Key::Named(Named::Escape),
                 modifiers: _,
                 location: _,
                 modified_key: _,
                 physical_key: _,
-            }) = evt
-            {
-                Some(Msg::Close)
-            } else {
-                None
-            }
+            }) => Some(Msg::Close),
+            _ => None,
         });
         let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(
             "config-sub",

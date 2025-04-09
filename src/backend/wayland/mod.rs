@@ -33,6 +33,8 @@ use buffer::Buffer;
 mod capture;
 use capture::Capture;
 mod dmabuf;
+mod gbm_devices;
+use gbm_devices::GbmDevices;
 mod screencopy;
 use screencopy::{ScreencopySession, SessionData};
 mod toplevel;
@@ -58,7 +60,7 @@ pub struct AppData {
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
-    gbm: Option<(PathBuf, gbm::Device<fs::File>)>,
+    gbm_devices: GbmDevices,
     scheduler: calloop::futures::Scheduler<()>,
 }
 
@@ -244,7 +246,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             capture_filter: CaptureFilter::default(),
             captures: RefCell::new(HashMap::new()),
             dmabuf_feedback: None,
-            gbm: None,
+            gbm_devices: GbmDevices::default(),
             scheduler,
         };
 

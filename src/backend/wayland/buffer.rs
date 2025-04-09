@@ -11,11 +11,7 @@ use cosmic::{
         BufferSource, Dmabuf, Plane, Shmbuf,
     },
 };
-use std::{
-    os::fd::AsFd,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{os::fd::AsFd, sync::Arc};
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
 
 use super::AppData;
@@ -24,7 +20,6 @@ use crate::utils;
 pub struct Buffer {
     pub backing: Arc<BufferSource>,
     pub buffer: wl_buffer::WlBuffer,
-    node: Option<PathBuf>,
     pub size: (u32, u32),
     #[cfg(feature = "no-subsurfaces")]
     pub mmap: memmap2::Mmap,
@@ -72,7 +67,6 @@ impl AppData {
             buffer,
             #[cfg(feature = "no-subsurfaces")]
             mmap,
-            node: None,
             size: (width, height),
         }
     }
@@ -90,7 +84,7 @@ impl AppData {
             return Ok(None);
         };
         let drm_dev = drm_dev.unwrap_or(feedback.main_device() as u64);
-        let Some((node, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
+        let Some((_, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };
         let formats = feedback.format_table();
@@ -174,7 +168,6 @@ impl AppData {
                 .into(),
             ),
             buffer,
-            node: Some(node.to_owned()),
             size: (width, height),
         }))
     }
@@ -208,14 +201,6 @@ impl AppData {
         // Assume format is already known to be valid
         assert!(formats.shm_formats.contains(&format));
         self.create_shm_buffer(format, formats.buffer_size)
-    }
-}
-
-impl Buffer {
-    // Use this when dmabuf/screencopy has a way to specify node
-    #[allow(dead_code)]
-    pub fn node(&self) -> Option<&Path> {
-        self.node.as_deref()
     }
 }
 

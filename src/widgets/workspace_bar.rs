@@ -61,8 +61,8 @@ pub struct WorkspaceBar<'a, Msg> {
 impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg> {
     fn size(&self) -> Size<Length> {
         Size {
-            width: Length::Fill,
-            height: Length::Fill,
+            width: Length::Shrink,
+            height: Length::Shrink,
         }
     }
 
@@ -72,50 +72,38 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg>
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        // TODO configurable
-        let spacing = 8.0;
-
-        /*
-        layout::flex::resolve(
-            layout::flex::Axis::Vertical,
-            renderer,
-            &limits,
-            iced::Padding::ZERO,
-            0.0, // spacing
-            iced::Alignment::Start,
-            &self.children,
-            &mut tree.children,
-        )
-        */
-
         if self.children.is_empty() {
             return layout::Node::new(limits.min());
         }
 
-        let total_spacing = spacing * (self.children.len().saturating_sub(1)).max(0) as f32;
-        let max_main =
-            (self.axis.main(limits.max()) - total_spacing) / self.children().len() as f32;
-        let max_cross = self.axis.cross(limits.max());
-        let mut total_main = 0.0;
-        let nodes = self
-            .children
-            .iter()
-            .zip(tree.children.iter_mut())
-            .map(|(child, tree)| {
-                let (max_width, max_height) = self.axis.pack(max_main, max_cross);
-                let child_limits =
-                    layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-                let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
-                let (x, y) = self.axis.pack(total_main, 0.0);
-                layout = layout.move_to(Point::new(x, y));
-                total_main += self.axis.main(layout.size()) + spacing;
-                layout
-            })
-            .collect();
+        // TODO configurable
+        let spacing = 8.0;
 
-        let (total_width, total_height) = self.axis.pack(total_main, max_cross);
-        let size = Size::new(total_width, total_height);
-        layout::Node::with_children(size, nodes)
+        let total_spacing = spacing * (self.children.len() - 1) as f32;
+        let available_main = self.axis.main(limits.max());
+        let available_cross = self.axis.cross(limits.max());
+        let max_child_main = (available_main - total_spacing) / self.children.len() as f32;
+        let mut nodes = Vec::with_capacity(self.children.len());
+        let mut total_main = 0.0;
+        let mut max_cross = 0.0;
+
+        for (child, tree) in self.children.iter().zip(tree.children.iter_mut()) {
+            let (width, height) = self.axis.pack(max_child_main, available_cross);
+            let child_limits = layout::Limits::new(Size::ZERO, Size::new(width, height));
+            let layout = child.as_widget().layout(tree, renderer, &child_limits);
+            let child_size = layout.size();
+            let (x, y) = self.axis.pack(total_main, 0.0);
+            let node = layout.move_to(Point::new(x, y));
+            max_cross = f32::max(max_cross, self.axis.cross(child_size));
+            total_main += self.axis.main(child_size);
+            if nodes.len() < self.children.len() - 1 {
+                total_main += spacing;
+            }
+            nodes.push(node);
+        }
+
+        let (width, height) = self.axis.pack(total_main, max_cross);
+        layout::Node::with_children(Size::new(width, height), nodes)
     }
 
     fn operate(

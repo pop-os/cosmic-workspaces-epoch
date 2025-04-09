@@ -1,7 +1,7 @@
 // Coppied from cosmic-app-list
 // - Put in a library? libcosmic?
 
-use freedesktop_desktop_entry::DesktopEntry;
+use cosmic::desktop::fde;
 use itertools::Itertools;
 use std::path::PathBuf;
 
@@ -47,9 +47,9 @@ fn default_app_icon() -> PathBuf {
 
 fn desktop_info_for_app_ids(mut app_ids: Vec<String>) -> Vec<DesktopInfo> {
     let app_ids_clone = app_ids.clone();
-    let mut ret = freedesktop_desktop_entry::Iter::new(freedesktop_desktop_entry::default_paths())
+    let mut ret = fde::Iter::new(fde::default_paths())
         .filter_map(|path| {
-            DesktopEntry::from_path::<String>(path.clone(), None)
+            fde::DesktopEntry::from_path::<String>(path.clone(), None)
                 .ok()
                 .and_then(|de| {
                     if let Some(i) = app_ids.iter().position(|s| {

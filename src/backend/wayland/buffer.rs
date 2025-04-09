@@ -79,15 +79,18 @@ impl AppData {
 
     #[cfg(not(feature = "force-shm-screencopy"))]
     fn create_gbm_buffer(
-        &self,
+        &mut self,
         format: u32,
         modifiers: &[u64],
         (width, height): (u32, u32),
         needs_linear: bool,
+        drm_dev: Option<u64>,
     ) -> anyhow::Result<Option<Buffer>> {
-        let (Some((node, gbm)), Some(feedback)) =
-            (self.gbm.as_ref(), self.dmabuf_feedback.as_ref())
-        else {
+        let Some(feedback) = self.dmabuf_feedback.as_ref() else {
+            return Ok(None);
+        };
+        let drm_dev = drm_dev.unwrap_or(feedback.main_device() as u64);
+        let Some((node, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };
         let formats = feedback.format_table();
@@ -171,12 +174,12 @@ impl AppData {
                 .into(),
             ),
             buffer,
-            node: Some(node.clone()),
+            node: Some(node.to_owned()),
             size: (width, height),
         }))
     }
 
-    pub fn create_buffer(&self, formats: &Formats) -> Buffer {
+    pub fn create_buffer(&mut self, formats: &Formats) -> Buffer {
         // XXX Handle other formats?
         let format = wl_shm::Format::Abgr8888;
 
@@ -186,7 +189,13 @@ impl AppData {
             .iter()
             .find(|(f, _)| *f == u32::from(format))
         {
-            match self.create_gbm_buffer(u32::from(format), modifiers, formats.buffer_size, false) {
+            match self.create_gbm_buffer(
+                u32::from(format),
+                modifiers,
+                formats.buffer_size,
+                false,
+                formats.dmabuf_device.map(|dev| dev as u64),
+            ) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }

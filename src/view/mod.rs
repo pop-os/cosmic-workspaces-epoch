@@ -12,7 +12,8 @@ use cosmic::{
     },
     iced_core::{text::Wrapping, Shadow},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
-    widget, Apply,
+    widget::{self, Widget},
+    Apply,
 };
 use cosmic_bg_config::Source;
 use cosmic_comp_config::workspace::WorkspaceLayout;
@@ -27,10 +28,11 @@ use crate::{
 fn dnd_source_with_drag_surface<'a, D: AsMimeTypes + Send + Clone + 'static>(
     drag_content: D,
     drag_surface: DragSurface,
+    id: Option<iced::id::Id>,
     child: cosmic::Element<'a, Msg>,
     drag_icon: impl Fn() -> cosmic::Element<'static, Msg> + 'static,
 ) -> cosmic::Element<'a, Msg> {
-    cosmic::widget::dnd_source(child)
+    let mut source = cosmic::widget::dnd_source(child)
         .drag_threshold(5.)
         .drag_content(move || drag_content.clone())
         .drag_icon(move |offset| {
@@ -42,8 +44,11 @@ fn dnd_source_with_drag_surface<'a, D: AsMimeTypes + Send + Clone + 'static>(
         })
         .on_start(Some(Msg::StartDrag(drag_surface)))
         .on_finish(Some(Msg::SourceFinished))
-        .on_cancel(Some(Msg::SourceFinished))
-        .into()
+        .on_cancel(Some(Msg::SourceFinished));
+    if let Some(id) = id {
+        source.set_id(id);
+    }
+    source.into()
 }
 
 fn dnd_destination_for_target<'a, T>(
@@ -306,6 +311,7 @@ fn workspace_sidebar_entry<'a>(
     let source = dnd_source_with_drag_surface(
         DragWorkspace {},
         DragSurface::Workspace(workspace.handle.clone()),
+        Some(workspace.dnd_source_id.clone()),
         item.into(),
         move || workspace_item(&workspace_clone, &output_clone, false),
     );
@@ -472,6 +478,7 @@ fn toplevel_previews_entry<'a>(
     dnd_source_with_drag_surface(
         DragToplevel {},
         DragSurface::Toplevel(toplevel.handle.clone()),
+        None,
         preview.into(),
         move || toplevel_preview(&toplevel2, true),
     )

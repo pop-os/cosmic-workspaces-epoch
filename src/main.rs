@@ -127,6 +127,7 @@ struct Workspace {
     is_active: bool,
     is_pinned: bool,
     has_cursor: bool,
+    dnd_source_id: iced::id::Id,
 }
 
 #[derive(Clone, Debug)]
@@ -400,6 +401,8 @@ impl Application for App {
                                 old_workspaces.iter().find(|i| i.handle == workspace.handle);
                             let img = old_workspace.map(|i| i.img.clone()).unwrap_or_default();
                             let has_cursor = old_workspace.map_or(false, |w| w.has_cursor);
+                            let dnd_source_id = old_workspace
+                                .map_or_else(iced::id::Id::unique, |w| w.dnd_source_id.clone());
 
                             self.workspaces.push(Workspace {
                                 name: workspace.name,
@@ -410,6 +413,7 @@ impl Application for App {
                                 is_active,
                                 is_pinned,
                                 has_cursor,
+                                dnd_source_id,
                             });
                         }
                         self.update_capture_filter();

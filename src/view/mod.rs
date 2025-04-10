@@ -8,7 +8,7 @@ use cosmic::{
         advanced::layout::flex::Axis,
         clipboard::mime::AllowedMimeTypes,
         widget::{column, row},
-        Border,
+        Border, Length,
     },
     iced_core::{text::Wrapping, Shadow},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
@@ -99,14 +99,14 @@ pub(crate) fn layer_surface<'a>(
         WorkspaceLayout::Vertical => widget::layer_container(
             row![sidebar, toplevels]
                 .spacing(12)
-                .height(iced::Length::Fill)
-                .width(iced::Length::Fill),
+                .height(Length::Fill)
+                .width(Length::Fill),
         ),
         WorkspaceLayout::Horizontal => widget::layer_container(
             column![sidebar, toplevels]
                 .spacing(12)
-                .height(iced::Length::Fill)
-                .width(iced::Length::Fill),
+                .height(Length::Fill)
+                .width(Length::Fill),
         ),
     };
     let output = surface.output.clone();
@@ -149,7 +149,35 @@ fn workspace_item<'a>(
     _output: &wl_output::WlOutput,
     is_drop_target: bool,
 ) -> cosmic::Element<'static, Msg> {
-    let image = capture_image(workspace.img.as_ref(), 1.0);
+    let image = if let Some(img) = workspace.img.as_ref() {
+        let is_rotated = matches!(
+            img.transform,
+            wl_output::Transform::_90
+                | wl_output::Transform::_270
+                | wl_output::Transform::Flipped90
+                | wl_output::Transform::Flipped270
+        );
+        let (effective_width, effective_height) = if is_rotated {
+            // If rotated, swap width and height
+            (img.height, img.width)
+        } else {
+            (img.width, img.height)
+        };
+
+        let fixed_size = 126.0;
+        if effective_width > effective_height {
+            // Landscape: fix height
+            widget::container(capture_image(Some(img), 1.0)).max_height(fixed_size)
+        } else {
+            // Portrait: fix width
+            widget::container(capture_image(Some(img), 1.0)).max_width(fixed_size)
+        }
+    } else {
+        widget::container(capture_image(None, 1.0))
+            .width(Length::Fixed(224.0))
+            .height(Length::Fixed(126.0))
+    };
+
     let is_active = workspace.is_active;
     // TODO editable name?
     widget::button::custom(
@@ -174,7 +202,6 @@ fn workspace_item<'a>(
     })
     .on_press(Msg::ActivateWorkspace(workspace.handle.clone()))
     .padding(8)
-    .width(iced::Length::Fixed(240.0))
     .into()
 }
 
@@ -229,17 +256,13 @@ fn workspaces_sidebar<'a>(
     let sidebar_entries = workspaces
         .map(|w| workspace_sidebar_entry(w, output, drop_target == Some(&w.handle)))
         .collect();
-    let axis = match layout {
-        WorkspaceLayout::Vertical => Axis::Vertical,
-        WorkspaceLayout::Horizontal => Axis::Horizontal,
+    let (axis, width, height) = match layout {
+        WorkspaceLayout::Vertical => (Axis::Vertical, Length::Shrink, Length::Fill),
+        WorkspaceLayout::Horizontal => (Axis::Horizontal, Length::Fill, Length::Shrink),
     };
     let sidebar_entries_container =
         widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(8.0);
 
-    let (width, height) = match layout {
-        WorkspaceLayout::Vertical => (iced::Length::Fixed(256.0), iced::Length::Shrink),
-        WorkspaceLayout::Horizontal => (iced::Length::Shrink, iced::Length::Fill),
-    };
     widget::container(
         widget::container(sidebar_entries_container)
             .width(width)
@@ -304,8 +327,8 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
                         }
                     }))
                     .apply(widget::container)
-                    .width(iced::Length::FillPortion(5)),
-                widget::horizontal_space().width(iced::Length::Fixed(8.0)),
+                    .width(Length::FillPortion(5)),
+                widget::horizontal_space().width(Length::Fixed(8.0)),
                 close_button(Msg::CloseToplevel(toplevel.handle.clone()))
             ]
             .padding([0, 0, 4, 0])
@@ -326,7 +349,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     )
     //.spacing(4)
     //.align_items(iced::Alignment::Center)
-    //.width(iced::Length::Fill)
+    //.width(Length::Fill)
     .into()
 }
 
@@ -367,8 +390,8 @@ fn toplevel_previews<'a>(
     drag_toplevel: Option<&'a backend::ExtForeignToplevelHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
-        WorkspaceLayout::Vertical => (iced::Length::FillPortion(4), iced::Length::Fill),
-        WorkspaceLayout::Horizontal => (iced::Length::Fill, iced::Length::FillPortion(4)),
+        WorkspaceLayout::Vertical => (Length::FillPortion(4), Length::Fill),
+        WorkspaceLayout::Horizontal => (Length::Fill, Length::FillPortion(4)),
     };
     let entries = toplevels
         .map(|t| toplevel_previews_entry(t, drag_toplevel == Some(&t.handle)))
@@ -401,12 +424,12 @@ fn bg_element<'a>(
             widget::image::Handle::from_path(path),
         )
         .content_fit(iced::ContentFit::Cover)
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill)
+        .width(Length::Fill)
+        .height(Length::Fill)
         .into(),
         Some(Source::Color(color)) => widget::layer_container(widget::horizontal_space())
-            .width(iced::Length::Fill)
-            .height(iced::Length::Fill)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .class(cosmic::theme::Container::Custom(Box::new(move |_| {
                 let color = color.clone();
                 cosmic::iced::widget::container::Style {
@@ -441,8 +464,8 @@ fn bg_element<'a>(
                 "/usr/share/backgrounds/pop/kate-hazen-COSMIC-desktop-wallpaper.png",
             ))
             .content_fit(iced::ContentFit::Cover)
-            .width(iced::Length::Fill)
-            .height(iced::Length::Fill)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .into()
         }
     }

@@ -330,8 +330,22 @@ fn workspaces_sidebar<'a>(
     drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let mut sidebar_entries = Vec::new();
-    let mut previous_workspace = None;
     for workspace in workspaces {
+        // XXX Need dnd source with same id for drag to work; but give it 0x0 size
+        if drag_workspace == Some(&workspace.handle) {
+            let workspace_clone = workspace.clone();
+            let output_clone = output.clone();
+            let source = dnd_source_with_drag_surface(
+                DragWorkspace {},
+                DragSurface::Workspace(workspace.handle.clone()),
+                Some(workspace.dnd_source_id.clone()),
+                widget::Space::new(iced::Length::Shrink, iced::Length::Shrink).into(),
+                move || workspace_item(&workspace_clone, &output_clone, false),
+            );
+            sidebar_entries.push(source);
+            continue;
+        }
+
         let mut drop_target_is_workspace = false;
         let mut drop_target_is_placeholder = false;
         match drop_target {
@@ -350,7 +364,6 @@ fn workspaces_sidebar<'a>(
 
         if drag_workspace.is_some()
             && drag_workspace != Some(&workspace.handle)
-            && drag_workspace != previous_workspace
             && (drop_target_is_workspace || drop_target_is_placeholder)
         {
             sidebar_entries.push(workspace_drag_placeholder(workspace, output));
@@ -361,7 +374,6 @@ fn workspaces_sidebar<'a>(
             drop_target_is_workspace && drag_workspace.is_none(),
             drag_workspace == Some(&workspace.handle),
         ));
-        previous_workspace = Some(&workspace.handle);
     }
     let axis = match layout {
         WorkspaceLayout::Vertical => Axis::Vertical,

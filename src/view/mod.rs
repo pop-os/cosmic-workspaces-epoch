@@ -286,7 +286,6 @@ fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
     is_drop_target: bool,
-    is_being_dragged: bool,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -307,7 +306,6 @@ fn workspace_sidebar_entry<'a>(
         ));
     let workspace_clone = workspace.clone(); // TODO avoid clone
     let output_clone = output.clone();
-    let item = crate::widgets::visibility_wrapper(item, !is_being_dragged);
     let source = dnd_source_with_drag_surface(
         DragWorkspace {},
         DragSurface::Workspace(workspace.handle.clone()),
@@ -372,7 +370,6 @@ fn workspaces_sidebar<'a>(
             workspace,
             output,
             drop_target_is_workspace && drag_workspace.is_none(),
-            drag_workspace == Some(&workspace.handle),
         ));
     }
     let axis = match layout {

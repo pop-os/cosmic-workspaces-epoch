@@ -108,7 +108,11 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg>
                 let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
                 let (x, y) = self.axis.pack(total_main, 0.0);
                 layout = layout.move_to(Point::new(x, y));
-                total_main += self.axis.main(layout.size()) + spacing;
+                let main = self.axis.main(layout.size());
+                // XXX Don't add spacing for 0 length `dnd_source` placeholder widget
+                if main != 0.0 {
+                    total_main += main + spacing;
+                }
                 layout
             })
             .collect();

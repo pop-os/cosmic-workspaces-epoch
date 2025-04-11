@@ -647,22 +647,17 @@ impl Application for App {
                             if let (Some(workspace), Some(other_workspace)) =
                                 (workspace, other_workspace)
                             {
-                                self.send_wayland_cmd(
-                                    if workspace.outputs == other_workspace.outputs
-                                        && workspace.coordinates[0] + 1
-                                            == other_workspace.coordinates[0]
-                                    {
-                                        backend::Cmd::MoveWorkspaceAfter(
-                                            handle.clone(),
-                                            other_handle,
-                                        )
-                                    } else {
-                                        backend::Cmd::MoveWorkspaceBefore(
-                                            handle.clone(),
-                                            other_handle,
-                                        )
-                                    },
-                                );
+                                if workspace.outputs == other_workspace.outputs
+                                    && workspace.coordinates[0] + 1
+                                        == other_workspace.coordinates[0]
+                                {
+                                    // Workspace is already in requested position
+                                } else {
+                                    self.send_wayland_cmd(backend::Cmd::MoveWorkspaceBefore(
+                                        handle.clone(),
+                                        other_handle,
+                                    ));
+                                }
                             }
                         }
                         Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))

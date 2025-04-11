@@ -17,7 +17,7 @@ use cosmic::{
 };
 use cosmic_bg_config::Source;
 use cosmic_comp_config::workspace::WorkspaceLayout;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     backend::{self, CaptureImage},
@@ -88,9 +88,15 @@ pub(crate) fn layer_surface<'a>(
         }
         _ => {}
     }
+    let workspaces_with_toplevels = app
+        .toplevels
+        .iter()
+        .flat_map(|t| &t.info.workspace)
+        .collect::<HashSet<_>>();
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(
         app.workspaces_for_output(&surface.output),
+        &workspaces_with_toplevels,
         &surface.output,
         layout,
         app.drop_target.as_ref(),
@@ -243,7 +249,7 @@ fn workspace_item<'a>(
         .align_x(iced::Alignment::Center)
         .spacing(4),
     )
-    .selected(workspace.is_active)
+    .selected(is_active)
     .class(cosmic::theme::Button::Custom {
         active: Box::new(move |_focused, theme| {
             workspace_item_appearance(theme, is_active, is_drop_target)
@@ -286,6 +292,7 @@ fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
     is_drop_target: bool,
+    has_toplevels: bool,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -312,17 +319,24 @@ fn workspace_sidebar_entry<'a>(
             Drag::Toplevel => Msg::DndToplevelDrop(DragToplevel {}),
             Drag::Workspace => Msg::DndWorkspaceDrop(DragWorkspace {}),
         });
-    dnd_source_with_drag_surface(
-        DragWorkspace {},
-        DragSurface::Workspace(workspace.handle.clone()),
-        Some(workspace.dnd_source_id.clone()),
-        destination,
-        move || workspace_item(&workspace_clone, &output_clone, false),
-    )
+    // Cosmic-comp auto-removes workspaces that aren't pinned and don't have toplevels when they
+    // aren't the last workspace. So it shouldn't be possible to drag.
+    if has_toplevels || workspace.is_pinned {
+        dnd_source_with_drag_surface(
+            DragWorkspace {},
+            DragSurface::Workspace(workspace.handle.clone()),
+            Some(workspace.dnd_source_id.clone()),
+            destination,
+            move || workspace_item(&workspace_clone, &output_clone, false),
+        )
+    } else {
+        destination
+    }
 }
 
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
+    workspaces_with_toplevels: &HashSet<&backend::ExtWorkspaceHandleV1>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
     drop_target: Option<&DropTarget>,
@@ -371,6 +385,7 @@ fn workspaces_sidebar<'a>(
             workspace,
             output,
             drop_target_is_workspace && drag_workspace.is_none(),
+            workspaces_with_toplevels.contains(&workspace.handle),
         ));
     }
     let axis = match layout {

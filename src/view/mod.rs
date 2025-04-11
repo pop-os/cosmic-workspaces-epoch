@@ -230,9 +230,10 @@ fn workspace_item<'a>(
     workspace: &'a Workspace,
     _output: &wl_output::WlOutput,
     is_drop_target: bool,
+    has_workspace_drag: bool,
 ) -> cosmic::Element<'static, Msg> {
     let image = capture_image(workspace.img.as_ref(), 1.0);
-    let is_active = workspace.is_active;
+    let is_active = workspace.is_active && !has_workspace_drag;
     // TODO editable name?
     widget::button::custom(
         column![
@@ -282,7 +283,7 @@ fn workspace_drag_placeholder(
             })
             .padding(8);
     let placeholder = crate::widgets::match_size(
-        workspace_item(other_workspace, other_output, true),
+        workspace_item(other_workspace, other_output, true, true),
         placeholder,
     );
     dnd_destination_for_target(drop_target, placeholder.into(), Msg::DndWorkspaceDrop)
@@ -293,6 +294,7 @@ fn workspace_sidebar_entry<'a>(
     output: &'a wl_output::WlOutput,
     is_drop_target: bool,
     has_toplevels: bool,
+    has_workspace_drag: bool,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -301,7 +303,7 @@ fn workspace_sidebar_entry<'a>(
         iced::mouse::Interaction::Idle
     };
     */
-    let item = workspace_item(workspace, output, is_drop_target);
+    let item = workspace_item(workspace, output, is_drop_target, has_workspace_drag);
     let item = iced::widget::mouse_area(item)
         .on_enter(Msg::EnteredWorkspaceSidebarEntry(
             workspace.handle.clone(),
@@ -327,7 +329,7 @@ fn workspace_sidebar_entry<'a>(
             DragSurface::Workspace(workspace.handle.clone()),
             Some(workspace.dnd_source_id.clone()),
             destination,
-            move || workspace_item(&workspace_clone, &output_clone, false),
+            move || workspace_item(&workspace_clone, &output_clone, false, true),
         )
     } else {
         destination
@@ -353,7 +355,7 @@ fn workspaces_sidebar<'a>(
                 DragSurface::Workspace(workspace.handle.clone()),
                 Some(workspace.dnd_source_id.clone()),
                 widget::Space::new(iced::Length::Shrink, iced::Length::Shrink).into(),
-                move || workspace_item(&workspace_clone, &output_clone, false),
+                move || workspace_item(&workspace_clone, &output_clone, false, true),
             );
             sidebar_entries.push(source);
             continue;
@@ -386,6 +388,7 @@ fn workspaces_sidebar<'a>(
             output,
             drop_target_is_workspace && drag_workspace.is_none(),
             workspaces_with_toplevels.contains(&workspace.handle),
+            drag_workspace.is_some(),
         ));
     }
     let axis = match layout {

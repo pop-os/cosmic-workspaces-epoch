@@ -306,18 +306,19 @@ fn workspace_sidebar_entry<'a>(
         ));
     let workspace_clone = workspace.clone(); // TODO avoid clone
     let output_clone = output.clone();
-    let source = dnd_source_with_drag_surface(
+    let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone());
+    let destination =
+        dnd_destination_for_target(drop_target, item.into(), |drag: Drag| match drag {
+            Drag::Toplevel => Msg::DndToplevelDrop(DragToplevel {}),
+            Drag::Workspace => Msg::DndWorkspaceDrop(DragWorkspace {}),
+        });
+    dnd_source_with_drag_surface(
         DragWorkspace {},
         DragSurface::Workspace(workspace.handle.clone()),
         Some(workspace.dnd_source_id.clone()),
-        item.into(),
+        destination,
         move || workspace_item(&workspace_clone, &output_clone, false),
-    );
-    let drop_target = DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone());
-    dnd_destination_for_target(drop_target, source, |drag: Drag| match drag {
-        Drag::Toplevel => Msg::DndToplevelDrop(DragToplevel {}),
-        Drag::Workspace => Msg::DndWorkspaceDrop(DragWorkspace {}),
-    })
+    )
 }
 
 fn workspaces_sidebar<'a>(

@@ -15,6 +15,7 @@ use cosmic::{
     cctk, dbus_activation,
     iced::{
         self,
+        clipboard::dnd::{DndEvent, SourceEvent},
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
         mouse::ScrollDelta,
@@ -663,8 +664,6 @@ impl Application for App {
                         Some(DropTarget::OutputToplevels(_, _) | DropTarget::WorkspacesBar(_))
                         | None => {}
                     }
-                    // XXX Not always getting SourceFinished?
-                    self.drag_surface = None;
                 }
             }
             Msg::TogglePinned(workspace_handle) => {
@@ -717,6 +716,11 @@ impl Application for App {
                 modified_key: _,
                 physical_key: _,
             }) => Some(Msg::Close),
+            // XXX Workaround for `on_finish`/`on_cancel` not being called, seemingly
+            // due to state diffing behavior.
+            iced::Event::Dnd(DndEvent::Source(SourceEvent::Finished | SourceEvent::Cancelled)) => {
+                Some(Msg::SourceFinished)
+            }
             _ => None,
         });
         let config_subscription = cosmic_config::config_subscription::<_, CosmicWorkspacesConfig>(

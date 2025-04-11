@@ -242,8 +242,9 @@ fn workspace_item<'a>(
                 widget::text::body(fl!(
                     "workspace",
                     HashMap::from([("number", &workspace.name)])
-                )),
-                widget::horizontal_space(),
+                ))
+                .width(iced::Length::Fill)
+                .align_x(iced::Alignment::Center),
                 pin_button(workspace),
             ],
         ]

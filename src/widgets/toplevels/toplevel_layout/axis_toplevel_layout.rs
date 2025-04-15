@@ -100,14 +100,17 @@ impl<T: AxisToplevelLayout> ToplevelLayout for T {
         let inner = self
             .layout(max_limit, toplevels_slice)
             .map(|rect| rect.pack(self.axis()));
-        AxisLayoutIterator { inner, toplevels }
+        AxisLayoutIterator {
+            inner,
+            _toplevels: toplevels,
+        }
     }
 }
 
 struct AxisLayoutIterator<'a, I: Iterator<Item = Rectangle>> {
     inner: I,
     // After `inner` so it is dropped only after that is dropped
-    toplevels: AliasableVec<LayoutToplevel<'a, AxisSize>>,
+    _toplevels: AliasableVec<LayoutToplevel<'a, AxisSize>>,
 }
 
 impl<'a, I: Iterator<Item = Rectangle>> Iterator for AxisLayoutIterator<'a, I> {

@@ -59,7 +59,7 @@ pub struct AppData {
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
     gbm: Option<(PathBuf, gbm::Device<fs::File>)>,
-    scheduler: calloop::futures::Scheduler<()>,
+    thread_pool: futures_executor::ThreadPool,
 }
 
 impl AppData {
@@ -227,7 +227,12 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     }
 
     thread::spawn(move || {
-        let (executor, scheduler) = calloop::futures::executor().unwrap();
+        // TODO: The `calloop` executor doesn't seem to be working properly, so
+        // spawn an executor using one additional thread.
+        let thread_pool = futures_executor::ThreadPool::builder()
+            .pool_size(1)
+            .create()
+            .unwrap();
 
         let registry_state = RegistryState::new(&globals);
         let mut app_data = AppData {
@@ -245,7 +250,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             captures: RefCell::new(HashMap::new()),
             dmabuf_feedback: None,
             gbm: None,
-            scheduler,
+            thread_pool,
         };
 
         let (cmd_sender, cmd_channel) = calloop::channel::channel();
@@ -262,10 +267,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
                     app_data.handle_cmd(msg)
                 }
             })
-            .unwrap();
-        event_loop
-            .handle()
-            .insert_source(executor, |(), _, _| {})
             .unwrap();
 
         loop {

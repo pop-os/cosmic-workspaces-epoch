@@ -1265,6 +1265,7 @@ dependencies = [
  "freedesktop-desktop-entry",
  "freedesktop-icons",
  "futures-channel",
+ "futures-executor",
  "gbm",
  "i18n-embed",
  "i18n-embed-fl",

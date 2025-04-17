@@ -232,7 +232,7 @@ fn workspace_item<'a>(
     is_drop_target: bool,
     has_workspace_drag: bool,
 ) -> cosmic::Element<'static, Msg> {
-    let (image, image_height) = if let Some(img) = workspace.img.as_ref() {
+    let (mut image, image_height) = if let Some(img) = workspace.img.as_ref() {
         let is_rotated = matches!(
             img.transform,
             wl_output::Transform::_90
@@ -275,23 +275,28 @@ fn workspace_item<'a>(
             "workspace",
             HashMap::from([("number", &workspace.name)])
         ))
-        // .width(Length::Fill) // XXX mades workspace bar fill screen
+        .width(Length::Fill) // XXX mades workspace bar fill screen
         .align_x(iced::Alignment::Center),
         pin_button(workspace),
     ];
 
     // Needed to prevent text getting pushed out when scaling on Vertical layout
-    let content = match layout {
-        WorkspaceLayout::Horizontal => column![image, workspace_name]
-            .align_x(iced::Alignment::Center)
-            .spacing(4)
-            .apply(widget::container),
-        WorkspaceLayout::Vertical => column![image.height(Length::Fill), workspace_name]
-            .align_x(iced::Alignment::Center)
-            .spacing(4)
-            .apply(widget::container)
-            .max_height(image_height + 21.0 + 4.0), // text height + spacing
-    };
+    if layout == WorkspaceLayout::Vertical {
+        image = image.height(Length::Fill);
+    }
+    let mut content = crate::widgets::size_cross_nth(
+        vec![
+            image.into(),
+            iced::widget::Space::with_height(4.0).into(),
+            workspace_name.into(),
+        ],
+        Axis::Vertical,
+        0, // Size container to match image size
+    )
+    .apply(widget::container);
+    if layout == WorkspaceLayout::Vertical {
+        content = content.max_height(image_height + 21.0 + 4.0); // text height + spacing
+    }
 
     let is_active = workspace.is_active && !has_workspace_drag;
     // TODO editable name?

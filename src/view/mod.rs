@@ -275,7 +275,7 @@ fn workspace_item<'a>(
             "workspace",
             HashMap::from([("number", &workspace.name)])
         ))
-        .width(Length::Fill)
+        // .width(Length::Fill) // XXX mades workspace bar fill screen
         .align_x(iced::Alignment::Center),
         pin_button(workspace),
     ];

@@ -327,7 +327,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     }
     .align_y(iced::Alignment::Center);
     let alpha = if is_being_dragged { 0.5 } else { 1.0 };
-    crate::widgets::toplevel_item(
+    crate::widgets::size_cross_nth(
         vec![
             row![
                 widget::button::custom(label)
@@ -368,6 +368,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
                 .into(),
         ],
         Axis::Vertical,
+        1, // Allocate width to match capture image
     )
     //.spacing(4)
     //.align_items(iced::Alignment::Center)

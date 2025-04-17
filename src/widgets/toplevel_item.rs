@@ -83,9 +83,10 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'_, Msg>
         // Get layout of main widget, to set overall cross axis size
         let (max_width, max_height) = self.axis.pack(max_main, max_cross);
         let child_limits = layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-        let layout = self.children[1]
-            .as_widget()
-            .layout(tree, renderer, &child_limits);
+        let layout =
+            self.children[1]
+                .as_widget()
+                .layout(&mut tree.children[1], renderer, &child_limits);
 
         let max_cross = self.axis.cross(layout.size());
 

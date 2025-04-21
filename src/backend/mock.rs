@@ -3,7 +3,10 @@
 
 use cosmic::{
     cctk::{
-        cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        cosmic_protocols::{
+            toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+            workspace::v2::client::zcosmic_workspace_handle_v2,
+        },
         wayland_client::{
             protocol::{wl_output, wl_shm},
             Connection, WEnum,
@@ -102,9 +105,10 @@ pub struct ToplevelInfo {
 pub struct Workspace {
     pub handle: ExtWorkspaceHandleV1,
     pub name: String,
-    // pub coordinates: Vec<u32>,
+    pub coordinates: Vec<u32>,
     pub state: ext_workspace_handle_v1::State,
-    // pub capabilities: Vec<WEnum<zcosmic_workspace_handle_v1::ZcosmicWorkspaceCapabilitiesV1>>,
+    pub capabilities: ext_workspace_handle_v1::WorkspaceCapabilities,
+    pub cosmic_capabilities: zcosmic_workspace_handle_v2::WorkspaceCapabilities,
     // pub tiling: Option<WEnum<zcosmic_workspace_handle_v1::TilingState>>,
 }
 
@@ -131,11 +135,14 @@ impl AppData {
             let workspace = Workspace {
                 handle: workspace_handle.clone(),
                 name: format!("Workspace {i}"),
+                coordinates: vec![i],
                 state: if i == 0 {
                     ext_workspace_handle_v1::State::Active
                 } else {
                     ext_workspace_handle_v1::State::empty()
                 },
+                capabilities: ext_workspace_handle_v1::WorkspaceCapabilities::Activate,
+                cosmic_capabilities: zcosmic_workspace_handle_v2::WorkspaceCapabilities::empty(),
             };
             // Add three toplevels for each workspace
             for j in 0..=3 {

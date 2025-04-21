@@ -115,7 +115,7 @@ enum Msg {
 
 #[derive(Clone, Debug)]
 struct Workspace {
-    info: cctk::workspace::Workspace,
+    info: backend::Workspace,
     // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
     img: Option<backend::CaptureImage>,
     outputs: HashSet<wl_output::WlOutput>,

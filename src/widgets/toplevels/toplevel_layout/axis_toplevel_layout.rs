@@ -87,7 +87,7 @@ impl<T: AxisToplevelLayout> ToplevelLayout for T {
     ) -> impl Iterator<Item = Rectangle> {
         let max_limit = AxisSize::unpack(self.axis(), max_limit);
         let toplevels = toplevels
-            .into_iter()
+            .iter()
             .map(|t| LayoutToplevel {
                 preferred_size: AxisSize::unpack(self.axis(), t.preferred_size),
                 _phantom_data: PhantomData,
@@ -95,8 +95,11 @@ impl<T: AxisToplevelLayout> ToplevelLayout for T {
             .collect::<Vec<_>>();
         let toplevels = AliasableVec::from_unique(toplevels);
         // Extend lifetime
-        let toplevels_slice =
-            unsafe { std::mem::transmute::<_, &'a [LayoutToplevel<'a, AxisSize>]>(&*toplevels) };
+        let toplevels_slice = unsafe {
+            std::mem::transmute::<&[LayoutToplevel<'_, AxisSize>], &'a [LayoutToplevel<'a, AxisSize>]>(
+                &*toplevels,
+            )
+        };
         let inner = self
             .layout(max_limit, toplevels_slice)
             .map(|rect| rect.pack(self.axis()));
@@ -113,7 +116,7 @@ struct AxisLayoutIterator<'a, I: Iterator<Item = Rectangle>> {
     _toplevels: AliasableVec<LayoutToplevel<'a, AxisSize>>,
 }
 
-impl<'a, I: Iterator<Item = Rectangle>> Iterator for AxisLayoutIterator<'a, I> {
+impl<I: Iterator<Item = Rectangle>> Iterator for AxisLayoutIterator<'_, I> {
     type Item = Rectangle;
 
     fn next(&mut self) -> Option<Rectangle> {

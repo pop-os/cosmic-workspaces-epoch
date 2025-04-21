@@ -80,14 +80,14 @@ impl AppData {
                     for seat in self.seat_state.seats() {
                         self.toplevel_manager_state
                             .manager
-                            .activate(&cosmic_toplevel, &seat);
+                            .activate(cosmic_toplevel, &seat);
                     }
                 }
             }
             Cmd::CloseToplevel(toplevel_handle) => {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
-                    self.toplevel_manager_state.manager.close(&cosmic_toplevel);
+                    self.toplevel_manager_state.manager.close(cosmic_toplevel);
                 }
             }
             Cmd::MoveToplevelToWorkspace(toplevel_handle, workspace_handle, output) => {
@@ -95,7 +95,7 @@ impl AppData {
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
                     if self.toplevel_manager_state.manager.version() >= 2 {
                         self.toplevel_manager_state.manager.move_to_ext_workspace(
-                            &cosmic_toplevel,
+                            cosmic_toplevel,
                             &workspace_handle,
                             &output,
                         );
@@ -132,7 +132,7 @@ impl AppData {
                 .workspace_state
                 .workspace_groups()
                 .find(|g| g.workspaces.iter().any(|w| w == workspace))
-                .map_or(false, |group| {
+                .is_some_and(|group| {
                     self.capture_filter
                         .workspaces_on_outputs
                         .iter()

@@ -23,11 +23,11 @@ use crate::{
     App, LayerSurface, Msg, Toplevel, Workspace,
 };
 
-fn dnd_destination_for_target<'a, T>(
+fn dnd_destination_for_target<T>(
     target: DropTarget,
-    child: cosmic::Element<'a, Msg>,
+    child: cosmic::Element<'_, Msg>,
     on_finish: impl Fn(T) -> Msg + 'static,
-) -> cosmic::Element<'a, Msg>
+) -> cosmic::Element<'_, Msg>
 where
     T: AllowedMimeTypes,
 {
@@ -74,7 +74,7 @@ pub(crate) fn layer_surface<'a>(
 
             i.info.workspace.iter().any(|workspace| {
                 app.workspace_for_handle(workspace)
-                    .map_or(false, |x| x.is_active())
+                    .is_some_and(|x| x.is_active())
             })
         }),
         layout,
@@ -143,8 +143,8 @@ fn workspace_item_appearance(
     appearance
 }
 
-fn workspace_item<'a>(
-    workspace: &'a Workspace,
+fn workspace_item(
+    workspace: &Workspace,
     _output: &wl_output::WlOutput,
     layout: WorkspaceLayout,
     is_drop_target: bool,
@@ -376,10 +376,10 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     .into()
 }
 
-fn toplevel_previews_entry<'a>(
-    toplevel: &'a Toplevel,
+fn toplevel_previews_entry(
+    toplevel: &Toplevel,
     is_being_dragged: bool,
-) -> cosmic::Element<'a, Msg> {
+) -> cosmic::Element<'_, Msg> {
     // Dragged window still takes up space until moved, but isn't rendered while drag surface is
     // shown.
     let preview = crate::widgets::visibility_wrapper(

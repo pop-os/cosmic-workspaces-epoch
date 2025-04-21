@@ -1,7 +1,7 @@
 use cosmic::iced::{advanced::layout::flex::Axis, Length};
 
 use super::{
-    axis_toplevel_layout::{AxisPoint, AxisRectangle, AxisSize, AxisToplevelLayout},
+    axis_toplevel_layout::{AxisRectangle, AxisSize, AxisToplevelLayout},
     row_col_toplevel_layout::RowColToplevelLayout,
     LayoutToplevel,
 };
@@ -31,7 +31,7 @@ impl AxisToplevelLayout for TwoRowColToplevelLayout {
         max_limit: AxisSize,
         toplevels: &[LayoutToplevel<'_, AxisSize>],
     ) -> impl Iterator<Item = AxisRectangle> {
-        let requested_main_total = self.0.requested_main_total(&toplevels);
+        let requested_main_total = self.0.requested_main_total(toplevels);
         let scale_factor = self.0.scale_factor(max_limit, toplevels);
 
         let half_max_limit = AxisSize {

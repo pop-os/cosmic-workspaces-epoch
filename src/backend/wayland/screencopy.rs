@@ -70,7 +70,7 @@ impl ScreencopySession {
             qh,
             FrameData {
                 frame_data: Default::default(),
-                capture: Arc::downgrade(&capture),
+                capture: Arc::downgrade(capture),
             },
         );
         conn.flush().unwrap();

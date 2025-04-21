@@ -4,6 +4,7 @@
 #![allow(clippy::single_match)]
 
 use cctk::{
+    cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     wayland_client::{protocol::wl_output, Connection, Proxy},
     wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
@@ -169,6 +170,8 @@ struct App {
     outputs: Vec<Output>,
     workspaces: Vec<Workspace>,
     toplevels: Vec<Toplevel>,
+    toplevel_capabilities:
+        Vec<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
     conn: Option<Connection>,
     visible: bool,
     wayland_cmd_sender: Option<calloop::channel::Sender<backend::Cmd>>,
@@ -462,6 +465,9 @@ impl Application for App {
                             // println!("Got toplevel image!");
                             toplevel.img = Some(image);
                         }
+                    }
+                    backend::Event::ToplevelCapabilities(capabilities) => {
+                        self.toplevel_capabilities = capabilities;
                     }
                 }
             }

@@ -8,7 +8,10 @@
 //! backend for testing without any special protocols.
 
 use cosmic::{
-    cctk::wayland_client::protocol::wl_output,
+    cctk::{
+        cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
+        wayland_client::protocol::wl_output,
+    },
     iced_winit::platform_specific::wayland::subsurface_widget::SubsurfaceBuffer,
 };
 use std::collections::HashSet;
@@ -62,6 +65,9 @@ pub enum Event {
     UpdateToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
     CloseToplevel(ExtForeignToplevelHandleV1),
     ToplevelCapture(ExtForeignToplevelHandleV1, CaptureImage),
+    ToplevelCapabilities(
+        Vec<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
+    ),
 }
 
 #[derive(Debug)]

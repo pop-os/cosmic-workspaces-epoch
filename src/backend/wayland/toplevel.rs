@@ -58,10 +58,18 @@ impl ToplevelManagerHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _capabilities: Vec<
+        capabilities: Vec<
             WEnum<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
         >,
     ) {
+        let capabilities = capabilities
+            .into_iter()
+            .filter_map(|i| match i {
+                WEnum::Value(value) => Some(value),
+                WEnum::Unknown(_) => None,
+            })
+            .collect();
+        self.send_event(Event::ToplevelCapabilities(capabilities));
     }
 }
 

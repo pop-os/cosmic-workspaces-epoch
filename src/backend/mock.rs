@@ -5,6 +5,7 @@ use cosmic::{
     cctk::{
         cosmic_protocols::{
             toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+            toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
             workspace::v2::client::zcosmic_workspace_handle_v2,
         },
         wayland_client::{
@@ -219,6 +220,11 @@ fn start(_conn: Connection) -> mpsc::Receiver<Event> {
             outputs: Vec::new(),
             workspaces: Vec::new(),
         };
+        app_data.send_event(Event::ToplevelCapabilities(vec![
+            zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1::Close,
+            zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1::Activate,
+            zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1::MoveToWorkspace,
+        ]));
         app_data.send_event(Event::CmdSender(cmd_sender));
         loop {
             event_loop.dispatch(None, &mut app_data).unwrap();

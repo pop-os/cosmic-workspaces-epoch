@@ -53,7 +53,7 @@ pub struct AppData {
     screencopy_state: ScreencopyState,
     seat_state: SeatState,
     shm_state: Shm,
-    toplevel_manager_state: ToplevelManagerState,
+    toplevel_manager_state: Option<ToplevelManagerState>,
     sender: mpsc::Sender<Event>,
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
@@ -78,27 +78,31 @@ impl AppData {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
                     for seat in self.seat_state.seats() {
-                        self.toplevel_manager_state
-                            .manager
-                            .activate(cosmic_toplevel, &seat);
+                        if let Some(state) = &self.toplevel_manager_state {
+                            state.manager.activate(cosmic_toplevel, &seat);
+                        }
                     }
                 }
             }
             Cmd::CloseToplevel(toplevel_handle) => {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
-                    self.toplevel_manager_state.manager.close(cosmic_toplevel);
+                    if let Some(state) = &self.toplevel_manager_state {
+                        state.manager.close(cosmic_toplevel);
+                    }
                 }
             }
             Cmd::MoveToplevelToWorkspace(toplevel_handle, workspace_handle, output) => {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
                 if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
-                    if self.toplevel_manager_state.manager.version() >= 2 {
-                        self.toplevel_manager_state.manager.move_to_ext_workspace(
-                            cosmic_toplevel,
-                            &workspace_handle,
-                            &output,
-                        );
+                    if let Some(state) = &self.toplevel_manager_state {
+                        if state.manager.version() >= 2 {
+                            state.manager.move_to_ext_workspace(
+                                cosmic_toplevel,
+                                &workspace_handle,
+                                &output,
+                            );
+                        }
                     }
                 }
             }
@@ -240,7 +244,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             dmabuf_state,
             workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
             toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
-            toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
+            toplevel_manager_state: ToplevelManagerState::try_new(&registry_state, &qh),
             screencopy_state: ScreencopyState::new(&globals, &qh),
             registry_state,
             seat_state: SeatState::new(&globals, &qh),

@@ -51,7 +51,7 @@ impl ToplevelInfoHandler for AppData {
 
 impl ToplevelManagerHandler for AppData {
     fn toplevel_manager_state(&mut self) -> &mut ToplevelManagerState {
-        &mut self.toplevel_manager_state
+        self.toplevel_manager_state.as_mut().unwrap()
     }
 
     fn capabilities(

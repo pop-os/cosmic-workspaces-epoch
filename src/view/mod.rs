@@ -2,6 +2,7 @@ use cosmic::{
     cctk::{
         cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         wayland_client::protocol::wl_output,
+        wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
     iced::{
         self,
@@ -207,13 +208,15 @@ fn workspace_item(
 
     let is_active = workspace.is_active();
     // TODO editable name?
-    widget::button::custom(content)
+    let mut button = widget::button::custom(content)
         .selected(workspace.is_active())
         .class(cosmic::theme::Button::Custom {
             active: Box::new(move |_focused, theme| {
                 workspace_item_appearance(theme, is_active, is_drop_target)
             }),
-            disabled: Box::new(|_theme| unreachable!()),
+            disabled: Box::new(move |theme| {
+                workspace_item_appearance(theme, is_active, is_drop_target)
+            }),
             hovered: Box::new(move |_focused, theme| {
                 workspace_item_appearance(theme, is_active, true)
             }),
@@ -221,9 +224,15 @@ fn workspace_item(
                 workspace_item_appearance(theme, is_active, true)
             }),
         })
-        .on_press(Msg::ActivateWorkspace(workspace.handle().clone()))
-        .padding(8)
-        .into()
+        .padding(8);
+    if workspace
+        .info
+        .capabilities
+        .contains(ext_workspace_handle_v1::WorkspaceCapabilities::Activate)
+    {
+        button = button.on_press(Msg::ActivateWorkspace(workspace.handle().clone()));
+    }
+    button.into()
 }
 
 fn workspace_sidebar_entry<'a>(

@@ -74,7 +74,7 @@ pub(crate) fn layer_surface<'a>(
 
             i.info.workspace.iter().any(|workspace| {
                 app.workspace_for_handle(workspace)
-                    .map_or(false, |x| x.is_active)
+                    .map_or(false, |x| x.is_active())
             })
         }),
         layout,
@@ -83,10 +83,10 @@ pub(crate) fn layer_surface<'a>(
     // TODO multiple active workspaces? Not currently supported by cosmic.
     let first_active_workspace = app
         .workspaces_for_output(&surface.output)
-        .find(|w| w.is_active);
+        .find(|w| w.is_active());
     let toplevels = if let Some(workspace) = first_active_workspace {
         dnd_destination_for_target(
-            DropTarget::OutputToplevels(workspace.handle.clone(), surface.output.clone()),
+            DropTarget::OutputToplevels(workspace.handle().clone(), surface.output.clone()),
             toplevels,
             Msg::DndToplevelDrop,
         )
@@ -189,7 +189,7 @@ fn workspace_item<'a>(
 
     let workspace_name = widget::text::body(fl!(
         "workspace",
-        HashMap::from([("number", &workspace.name)])
+        HashMap::from([("number", &workspace.info.name)])
     ));
 
     // Needed to prevent text getting pushed out when scaling on Vertical layout
@@ -205,10 +205,10 @@ fn workspace_item<'a>(
             .max_height(image_height + 21.0 + 4.0), // text height + spacing
     };
 
-    let is_active = workspace.is_active;
+    let is_active = workspace.is_active();
     // TODO editable name?
     widget::button::custom(content)
-        .selected(workspace.is_active)
+        .selected(workspace.is_active())
         .class(cosmic::theme::Button::Custom {
             active: Box::new(move |_focused, theme| {
                 workspace_item_appearance(theme, is_active, is_drop_target)
@@ -221,7 +221,7 @@ fn workspace_item<'a>(
                 workspace_item_appearance(theme, is_active, true)
             }),
         })
-        .on_press(Msg::ActivateWorkspace(workspace.handle.clone()))
+        .on_press(Msg::ActivateWorkspace(workspace.handle().clone()))
         .padding(8)
         .into()
 }
@@ -263,7 +263,7 @@ fn workspace_sidebar_entry<'a>(
     //crate::widgets::mouse_interaction_wrapper(
     //   mouse_interaction,
     dnd_destination_for_target(
-        DropTarget::WorkspaceSidebarEntry(workspace.handle.clone(), output.clone()),
+        DropTarget::WorkspaceSidebarEntry(workspace.handle().clone(), output.clone()),
         item,
         Msg::DndToplevelDrop,
     )
@@ -276,7 +276,7 @@ fn workspaces_sidebar<'a>(
     drop_target: Option<&backend::ExtWorkspaceHandleV1>,
 ) -> cosmic::Element<'a, Msg> {
     let sidebar_entries = workspaces
-        .map(|w| workspace_sidebar_entry(w, output, layout, drop_target == Some(&w.handle)))
+        .map(|w| workspace_sidebar_entry(w, output, layout, drop_target == Some(w.handle())))
         .collect();
     let (axis, width, height) = match layout {
         WorkspaceLayout::Vertical => (Axis::Vertical, Length::Shrink, Length::Fill),

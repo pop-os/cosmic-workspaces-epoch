@@ -115,12 +115,22 @@ enum Msg {
 
 #[derive(Clone, Debug)]
 struct Workspace {
-    name: String,
+    info: cctk::workspace::Workspace,
     // img_for_output: HashMap<wl_output::WlOutput, backend::CaptureImage>,
     img: Option<backend::CaptureImage>,
-    handle: ExtWorkspaceHandleV1,
     outputs: HashSet<wl_output::WlOutput>,
-    is_active: bool,
+}
+
+impl Workspace {
+    fn handle(&self) -> &ExtWorkspaceHandleV1 {
+        &self.info.handle
+    }
+
+    fn is_active(&self) -> bool {
+        self.info
+            .state
+            .contains(ext_workspace_handle_v1::State::Active)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -171,14 +181,14 @@ struct App {
 
 impl App {
     fn workspace_for_handle(&self, handle: &ExtWorkspaceHandleV1) -> Option<&Workspace> {
-        self.workspaces.iter().find(|i| &i.handle == handle)
+        self.workspaces.iter().find(|i| i.handle() == handle)
     }
 
     fn workspace_for_handle_mut(
         &mut self,
         handle: &ExtWorkspaceHandleV1,
     ) -> Option<&mut Workspace> {
-        self.workspaces.iter_mut().find(|i| &i.handle == handle)
+        self.workspaces.iter_mut().find(|i| i.handle() == handle)
     }
 
     // TODO iterate in order based on `coordinates`
@@ -284,8 +294,8 @@ impl App {
             capture_filter.toplevels_on_workspaces = self
                 .workspaces
                 .iter()
-                .filter(|x| x.is_active)
-                .map(|x| x.handle.clone())
+                .filter(|x| x.is_active())
+                .map(|x| x.handle().clone())
                 .collect();
         }
         self.send_wayland_cmd(backend::Cmd::CaptureFilter(capture_filter));
@@ -382,24 +392,18 @@ impl Application for App {
                         let old_workspaces = mem::take(&mut self.workspaces);
                         self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
-                            let is_active = workspace
-                                .state
-                                .contains(ext_workspace_handle_v1::State::Active);
-
                             // XXX efficiency
                             #[allow(clippy::mutable_key_type)]
                             let img = old_workspaces
                                 .iter()
-                                .find(|i| i.handle == workspace.handle)
+                                .find(|i| *i.handle() == workspace.handle)
                                 .map(|i| i.img.clone())
                                 .unwrap_or_default();
 
                             self.workspaces.push(Workspace {
-                                name: workspace.name,
-                                handle: workspace.handle,
+                                info: workspace,
                                 outputs,
                                 img,
-                                is_active,
                             });
                         }
                         self.update_capture_filter();
@@ -466,7 +470,7 @@ impl Application for App {
             }
             Msg::ActivateWorkspace(workspace_handle) => {
                 if let Some(workspace) = self.workspace_for_handle(&workspace_handle) {
-                    if workspace.is_active {
+                    if workspace.is_active() {
                         return self.hide();
                     }
                 }
@@ -601,7 +605,7 @@ impl Application for App {
 
                 // TODO assumes only one active workspace per output
                 let workspaces = self.workspaces_for_output(&output).collect::<Vec<_>>();
-                if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active) {
+                if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
                     let workspace = match direction {
                         // Next workspace on output
                         ScrollDirection::Next => workspaces[workspace_idx + 1..].iter().next(),
@@ -610,7 +614,7 @@ impl Application for App {
                     };
                     if let Some(workspace) = workspace {
                         self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
-                            workspace.handle.clone(),
+                            workspace.handle().clone(),
                         ));
                     }
                 }

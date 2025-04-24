@@ -12,7 +12,7 @@ use cosmic::{
         advanced::layout::flex::Axis,
         clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
         widget::{column, row},
-        Border, Length,
+        Alignment, Border, Length,
     },
     iced_core::{text::Wrapping, Shadow},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
@@ -175,7 +175,7 @@ fn pin_button_style(theme: &cosmic::Theme, is_pinned: bool) -> cosmic::widget::b
     cosmic::widget::button::Style {
         icon_color: Some(icon_color),
         background: Some(iced::Background::Color(bg_color)),
-        border_radius: theme.cosmic().corner_radii.radius_s.into(),
+        border_radius: theme.cosmic().corner_radii.radius_m.into(),
         ..cosmic::widget::button::Style::new()
     }
 }
@@ -188,6 +188,7 @@ fn pin_button(workspace: &Workspace) -> cosmic::Element<'static, Msg> {
                 .symbolic(true)
                 .size(16), //.style(|theme, status| todo!())
         )
+        .padding([4, 8])
         //.class(cosmic::theme::Button::Icon)
         //.class(cosmic::theme::Button::Image)
         .class(cosmic::theme::Button::Custom {
@@ -237,11 +238,10 @@ fn workspace_item_appearance(
 fn workspace_item(
     workspace: &Workspace,
     _output: &wl_output::WlOutput,
-    layout: WorkspaceLayout,
     is_drop_target: bool,
     has_workspace_drag: bool,
 ) -> cosmic::Element<'static, Msg> {
-    let (mut image, image_height) = if let Some(img) = workspace.img.as_ref() {
+    let (image, image_height, image_width) = if let Some(img) = workspace.img.as_ref() {
         let is_rotated = matches!(
             img.transform,
             wl_output::Transform::_90
@@ -262,50 +262,52 @@ fn workspace_item(
                 // Landscape: fix height
                 widget::container(capture_image(Some(img), 1.0)).max_height(fixed_size),
                 fixed_size,
+                fixed_size * effective_width as f32 / effective_height as f32,
             )
         } else {
             (
                 // Portrait: fix width
                 widget::container(capture_image(Some(img), 1.0)).max_width(fixed_size),
                 fixed_size * effective_height as f32 / effective_width as f32,
+                fixed_size,
             )
         }
     } else {
         (
             widget::container(capture_image(None, 1.0))
-                .max_width(224.0)
-                .max_height(126.0),
+                .max_height(126.0)
+                .max_width(224.0),
             126.0,
+            224.0,
         )
     };
 
     let workspace_name = row![
+        widget::horizontal_space().width(Length::Fixed(if image_width < 160.0 {
+            0.0
+        } else {
+            32.0
+        })),
         widget::text::body(fl!(
             "workspace",
             HashMap::from([("number", &workspace.info.name)])
         ))
         .width(Length::Fill) // XXX mades workspace bar fill screen
-        .align_x(iced::Alignment::Center),
+        .align_x(Alignment::Center),
         pin_button(workspace),
     ];
 
-    // Needed to prevent text getting pushed out when scaling on Vertical layout
-    if layout == WorkspaceLayout::Vertical {
-        image = image.height(Length::Fill);
-    }
-    let mut content = crate::widgets::size_cross_nth(
+    let content = crate::widgets::size_cross_nth(
         vec![
-            image.into(),
+            image.height(Length::Fill).into(),
             iced::widget::Space::with_height(4.0).into(),
             workspace_name.into(),
         ],
         Axis::Vertical,
         0, // Size container to match image size
     )
-    .apply(widget::container);
-    if layout == WorkspaceLayout::Vertical {
-        content = content.max_height(image_height + 21.0 + 4.0); // text height + spacing
-    }
+    .apply(widget::container)
+    .max_height(image_height + 26.0);
 
     let is_active = workspace.is_active() && !has_workspace_drag;
     // TODO editable name?
@@ -339,7 +341,6 @@ fn workspace_item(
 fn workspace_drag_placeholder(
     other_workspace: &Workspace,
     other_output: &wl_output::WlOutput,
-    layout: WorkspaceLayout,
 ) -> cosmic::Element<'static, Msg> {
     let drop_target = DropTarget::WorkspaceSidebarDragPlaceholder(
         other_workspace.handle().clone(),
@@ -354,7 +355,7 @@ fn workspace_drag_placeholder(
         })
         .padding(8);
     let placeholder = crate::widgets::match_size(
-        workspace_item(other_workspace, other_output, layout, true, true),
+        workspace_item(other_workspace, other_output, true, true),
         placeholder,
     );
     dnd_destination_for_target(drop_target, placeholder.into(), Msg::DndWorkspaceDrop)
@@ -363,7 +364,6 @@ fn workspace_drag_placeholder(
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
-    layout: WorkspaceLayout,
     is_drop_target: bool,
     has_toplevels: bool,
     has_workspace_drag: bool,
@@ -375,13 +375,7 @@ fn workspace_sidebar_entry<'a>(
         iced::mouse::Interaction::Idle
     };
     */
-    let item = workspace_item(
-        workspace,
-        output,
-        layout,
-        is_drop_target,
-        has_workspace_drag,
-    );
+    let item = workspace_item(workspace, output, is_drop_target, has_workspace_drag);
     let item = iced::widget::mouse_area(item)
         .on_enter(Msg::EnteredWorkspaceSidebarEntry(
             workspace.handle().clone(),
@@ -412,7 +406,7 @@ fn workspace_sidebar_entry<'a>(
             DragSurface::Workspace(workspace.handle().clone()),
             Some(workspace.dnd_source_id.clone()),
             destination,
-            move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+            move || workspace_item(&workspace_clone, &output_clone, false, true),
         )
     } else {
         destination
@@ -439,7 +433,7 @@ fn workspaces_sidebar<'a>(
                 DragSurface::Workspace(workspace.handle().clone()),
                 Some(workspace.dnd_source_id.clone()),
                 widget::Space::new(Length::Shrink, Length::Shrink).into(),
-                move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+                move || workspace_item(&workspace_clone, &output_clone, false, true),
             );
             sidebar_entries.push(source);
             continue;
@@ -465,12 +459,11 @@ fn workspaces_sidebar<'a>(
             && drag_workspace != Some(workspace.handle())
             && (drop_target_is_workspace || drop_target_is_placeholder)
         {
-            sidebar_entries.push(workspace_drag_placeholder(workspace, output, layout));
+            sidebar_entries.push(workspace_drag_placeholder(workspace, output));
         }
         sidebar_entries.push(workspace_sidebar_entry(
             workspace,
             output,
-            layout,
             drop_target_is_workspace && drag_workspace.is_none(),
             workspaces_with_toplevels.contains(workspace.handle()),
             drag_workspace.is_some(),
@@ -523,7 +516,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     } else {
         row![label]
     }
-    .align_y(iced::Alignment::Center);
+    .align_y(Alignment::Center);
     let alpha = if is_being_dragged { 0.5 } else { 1.0 };
     crate::widgets::size_cross_nth(
         vec![
@@ -552,7 +545,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
                 close_button(Msg::CloseToplevel(toplevel.handle.clone()))
             ]
             .padding([0, 0, 4, 0])
-            .align_y(iced::Alignment::Center)
+            .align_y(Alignment::Center)
             .into(),
             widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
                 .selected(
@@ -569,7 +562,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
         1, // Allocate width to match capture image
     )
     //.spacing(4)
-    //.align_items(iced::Alignment::Center)
+    //.align_items(Alignment::Center)
     //.width(Length::Fill)
     .into()
 }
@@ -609,14 +602,14 @@ fn toplevel_previews<'a>(
     //row(entries)
     widget::mouse_area(
         widget::container(crate::widgets::toplevels(entries))
-            .align_x(iced::alignment::Horizontal::Center)
+            .align_x(Alignment::Center)
             .width(width)
             .height(height)
             //.spacing(16)
             .padding(12),
     )
     .on_press(Msg::Close)
-    //.align_items(iced::Alignment::Center)
+    //.align_items(Alignment::Center)
     .into()
 }
 

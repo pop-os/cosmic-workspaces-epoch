@@ -238,10 +238,11 @@ fn workspace_item_appearance(
 fn workspace_item(
     workspace: &Workspace,
     _output: &wl_output::WlOutput,
+    layout: WorkspaceLayout,
     is_drop_target: bool,
     has_workspace_drag: bool,
 ) -> cosmic::Element<'static, Msg> {
-    let (image, image_height, image_width) = if let Some(img) = workspace.img.as_ref() {
+    let (mut image, image_height, image_width) = if let Some(img) = workspace.img.as_ref() {
         let is_rotated = matches!(
             img.transform,
             wl_output::Transform::_90
@@ -256,20 +257,19 @@ fn workspace_item(
             (img.width, img.height)
         };
 
-        let fixed_size = 126.0;
         if effective_width > effective_height {
             (
                 // Landscape: fix height
-                widget::container(capture_image(Some(img), 1.0)).max_height(fixed_size),
-                fixed_size,
-                fixed_size * effective_width as f32 / effective_height as f32,
+                widget::container(capture_image(Some(img), 1.0)).max_height(126.0),
+                126.0,
+                126.0 * effective_width as f32 / effective_height as f32,
             )
         } else {
             (
                 // Portrait: fix width
-                widget::container(capture_image(Some(img), 1.0)).max_width(fixed_size),
-                fixed_size * effective_height as f32 / effective_width as f32,
-                fixed_size,
+                widget::container(capture_image(Some(img), 1.0)).max_width(160),
+                160.0 * effective_height as f32 / effective_width as f32,
+                160.0,
             )
         }
     } else {
@@ -282,32 +282,27 @@ fn workspace_item(
         )
     };
 
-    let workspace_name = row![
-        widget::horizontal_space().width(Length::Fixed(if image_width < 160.0 {
-            0.0
-        } else {
-            32.0
-        })),
+    let workspace_footer = row![
+        widget::horizontal_space().width(Length::Fixed(32.0)),
         widget::text::body(fl!(
             "workspace",
             HashMap::from([("number", &workspace.info.name)])
         ))
-        .width(Length::Fill) // XXX mades workspace bar fill screen
+        .width(Length::Fill)
         .align_x(Alignment::Center),
         pin_button(workspace),
     ];
 
-    let content = crate::widgets::size_cross_nth(
-        vec![
-            image.height(Length::Fill).into(),
-            iced::widget::Space::with_height(4.0).into(),
-            workspace_name.into(),
-        ],
-        Axis::Vertical,
-        0, // Size container to match image size
-    )
-    .apply(widget::container)
-    .max_height(image_height + 26.0);
+    // Needed to prevent footer content getting pushed out when scaling on Vertical layout
+    if layout == WorkspaceLayout::Vertical {
+        image = image.height(Length::Fill);
+    }
+    let content = column![image, workspace_footer]
+        .spacing(4)
+        .align_x(Alignment::Center)
+        .apply(widget::container)
+        .max_height(image_height + 26.0)
+        .max_width(image_width);
 
     let is_active = workspace.is_active() && !has_workspace_drag;
     // TODO editable name?
@@ -341,6 +336,7 @@ fn workspace_item(
 fn workspace_drag_placeholder(
     other_workspace: &Workspace,
     other_output: &wl_output::WlOutput,
+    layout: WorkspaceLayout,
 ) -> cosmic::Element<'static, Msg> {
     let drop_target = DropTarget::WorkspaceSidebarDragPlaceholder(
         other_workspace.handle().clone(),
@@ -355,7 +351,7 @@ fn workspace_drag_placeholder(
         })
         .padding(8);
     let placeholder = crate::widgets::match_size(
-        workspace_item(other_workspace, other_output, true, true),
+        workspace_item(other_workspace, other_output, layout, true, true),
         placeholder,
     );
     dnd_destination_for_target(drop_target, placeholder.into(), Msg::DndWorkspaceDrop)
@@ -364,6 +360,7 @@ fn workspace_drag_placeholder(
 fn workspace_sidebar_entry<'a>(
     workspace: &'a Workspace,
     output: &'a wl_output::WlOutput,
+    layout: WorkspaceLayout,
     is_drop_target: bool,
     has_toplevels: bool,
     has_workspace_drag: bool,
@@ -375,7 +372,13 @@ fn workspace_sidebar_entry<'a>(
         iced::mouse::Interaction::Idle
     };
     */
-    let item = workspace_item(workspace, output, is_drop_target, has_workspace_drag);
+    let item = workspace_item(
+        workspace,
+        output,
+        layout,
+        is_drop_target,
+        has_workspace_drag,
+    );
     let item = iced::widget::mouse_area(item)
         .on_enter(Msg::EnteredWorkspaceSidebarEntry(
             workspace.handle().clone(),
@@ -406,7 +409,7 @@ fn workspace_sidebar_entry<'a>(
             DragSurface::Workspace(workspace.handle().clone()),
             Some(workspace.dnd_source_id.clone()),
             destination,
-            move || workspace_item(&workspace_clone, &output_clone, false, true),
+            move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
         )
     } else {
         destination
@@ -433,7 +436,7 @@ fn workspaces_sidebar<'a>(
                 DragSurface::Workspace(workspace.handle().clone()),
                 Some(workspace.dnd_source_id.clone()),
                 widget::Space::new(Length::Shrink, Length::Shrink).into(),
-                move || workspace_item(&workspace_clone, &output_clone, false, true),
+                move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
             );
             sidebar_entries.push(source);
             continue;
@@ -459,11 +462,12 @@ fn workspaces_sidebar<'a>(
             && drag_workspace != Some(workspace.handle())
             && (drop_target_is_workspace || drop_target_is_placeholder)
         {
-            sidebar_entries.push(workspace_drag_placeholder(workspace, output));
+            sidebar_entries.push(workspace_drag_placeholder(workspace, output, layout));
         }
         sidebar_entries.push(workspace_sidebar_entry(
             workspace,
             output,
+            layout,
             drop_target_is_workspace && drag_workspace.is_none(),
             workspaces_with_toplevels.contains(workspace.handle()),
             drag_workspace.is_some(),

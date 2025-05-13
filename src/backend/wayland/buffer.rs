@@ -84,22 +84,15 @@ impl AppData {
             return Ok(None);
         };
         let drm_dev = drm_dev.unwrap_or(feedback.main_device() as u64);
-        let Some((_, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
+        let Some((dev_path, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };
         let formats = feedback.format_table();
 
-        let modifiers = feedback
-            .tranches()
+        let modifiers = modifiers
             .iter()
-            .flat_map(|x| &x.formats)
-            .filter_map(|x| formats.get(*x as usize))
-            .filter(|x| {
-                x.format == format
-                    && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
-            })
-            .map(|x| gbm::Modifier::from(x.modifier))
-            .filter(|x| modifiers.contains(&u64::from(*x)))
+            .map(|modifier| gbm::Modifier::from(*modifier))
+            .filter(|modifier| !needs_linear || *modifier == gbm::Modifier::Linear)
             .collect::<Vec<_>>();
 
         if modifiers.is_empty() {

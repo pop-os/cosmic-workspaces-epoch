@@ -1222,9 +1222,9 @@ dependencies = [
  "cosmic-bg-config",
  "cosmic-comp-config",
  "cosmic-config",
+ "cosmic-freedesktop-icons",
  "delegate",
  "env_logger",
- "freedesktop-icons",
  "futures-channel",
  "futures-executor",
  "gbm",
@@ -1955,20 +1955,6 @@ dependencies = [
  "memchr",
  "thiserror 2.0.12",
  "unicase",
- "xdg",
-]
-
-[[package]]
-name = "freedesktop-icons"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e592df580f8f0e7c48135383e9c0e0d18d9de346b95f9839857fe27a67ad47"
-dependencies = [
- "dirs 5.0.1",
- "ini_core",
- "once_cell",
- "thiserror 1.0.69",
- "tracing",
  "xdg",
 ]
 

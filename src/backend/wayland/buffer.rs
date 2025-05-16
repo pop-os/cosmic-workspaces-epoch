@@ -11,11 +11,7 @@ use cosmic::{
         BufferSource, Dmabuf, Plane, Shmbuf,
     },
 };
-use std::{
-    os::fd::AsFd,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{os::fd::AsFd, sync::Arc};
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
 
 use super::AppData;
@@ -24,7 +20,6 @@ use crate::utils;
 pub struct Buffer {
     pub backing: Arc<BufferSource>,
     pub buffer: wl_buffer::WlBuffer,
-    node: Option<PathBuf>,
     pub size: (u32, u32),
     #[cfg(feature = "no-subsurfaces")]
     pub mmap: memmap2::Mmap,
@@ -72,37 +67,32 @@ impl AppData {
             buffer,
             #[cfg(feature = "no-subsurfaces")]
             mmap,
-            node: None,
             size: (width, height),
         }
     }
 
     #[cfg(not(feature = "force-shm-screencopy"))]
     fn create_gbm_buffer(
-        &self,
+        &mut self,
         format: u32,
         modifiers: &[u64],
         (width, height): (u32, u32),
         needs_linear: bool,
+        drm_dev: Option<u64>,
     ) -> anyhow::Result<Option<Buffer>> {
-        let (Some((node, gbm)), Some(feedback)) =
-            (self.gbm.as_ref(), self.dmabuf_feedback.as_ref())
-        else {
+        let Some(feedback) = self.dmabuf_feedback.as_ref() else {
+            return Ok(None);
+        };
+        let drm_dev = drm_dev.unwrap_or(feedback.main_device() as u64);
+        let Some((dev_path, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };
         let formats = feedback.format_table();
 
-        let modifiers = feedback
-            .tranches()
+        let modifiers = modifiers
             .iter()
-            .flat_map(|x| &x.formats)
-            .filter_map(|x| formats.get(*x as usize))
-            .filter(|x| {
-                x.format == format
-                    && (!needs_linear || x.modifier == u64::from(gbm::Modifier::Linear))
-            })
-            .map(|x| gbm::Modifier::from(x.modifier))
-            .filter(|x| modifiers.contains(&u64::from(*x)))
+            .map(|modifier| gbm::Modifier::from(*modifier))
+            .filter(|modifier| !needs_linear || *modifier == gbm::Modifier::Linear)
             .collect::<Vec<_>>();
 
         if modifiers.is_empty() {
@@ -171,12 +161,11 @@ impl AppData {
                 .into(),
             ),
             buffer,
-            node: Some(node.clone()),
             size: (width, height),
         }))
     }
 
-    pub fn create_buffer(&self, formats: &Formats) -> Buffer {
+    pub fn create_buffer(&mut self, formats: &Formats) -> Buffer {
         // XXX Handle other formats?
         let format = wl_shm::Format::Abgr8888;
 
@@ -186,7 +175,13 @@ impl AppData {
             .iter()
             .find(|(f, _)| *f == u32::from(format))
         {
-            match self.create_gbm_buffer(u32::from(format), modifiers, formats.buffer_size, false) {
+            match self.create_gbm_buffer(
+                u32::from(format),
+                modifiers,
+                formats.buffer_size,
+                false,
+                formats.dmabuf_device.map(|dev| dev as u64),
+            ) {
                 Ok(Some(buffer)) => {
                     return buffer;
                 }
@@ -199,14 +194,6 @@ impl AppData {
         // Assume format is already known to be valid
         assert!(formats.shm_formats.contains(&format));
         self.create_shm_buffer(format, formats.buffer_size)
-    }
-}
-
-impl Buffer {
-    // Use this when dmabuf/screencopy has a way to specify node
-    #[allow(dead_code)]
-    pub fn node(&self) -> Option<&Path> {
-        self.node.as_deref()
     }
 }
 

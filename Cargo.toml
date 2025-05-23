@@ -26,7 +26,6 @@ freedesktop-icons = { package = "cosmic-freedesktop-icons", git = "https://githu
 memmap2 = "0.9.0"
 tokio = "1.23.0"
 wayland-protocols = "0.32.1"
-zbus = { version = "4.0.0", default-features = false, features = ["tokio"] }
 delegate = "0.13.0"
 itertools = "0.14.0"
 log = "0.4.20"

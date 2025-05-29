@@ -103,7 +103,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for SizeCrossNth<'_, Msg>
             .iter()
             .zip(tree.children.iter_mut())
             .map(|(child, tree)| {
-                let (max_width, max_height) = self.axis.pack(max_main, max_cross);
+                let (max_width, max_height) = self.axis.pack(max_main - total_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
                 let mut layout = child.as_widget().layout(tree, renderer, &child_limits);

@@ -36,7 +36,7 @@ impl AxisToplevelLayout for TwoRowColToplevelLayout {
 
         let half_max_limit = AxisSize {
             main: max_limit.main,
-            cross: max_limit.cross / 2. - self.0.spacing as f32,
+            cross: (max_limit.cross - self.0.spacing as f32) / 2.,
         };
 
         // See if two row layout is better
@@ -60,7 +60,7 @@ impl AxisToplevelLayout for TwoRowColToplevelLayout {
                     .0
                     .layout(half_max_limit, &toplevels[split_point..])
                     .map(move |mut rect| {
-                        rect.origin.cross += max_limit.cross / 2. + self.0.spacing as f32;
+                        rect.origin.cross += half_max_limit.cross + self.0.spacing as f32;
                         rect
                     });
                 return itertools::Either::Left(row1.chain(row2));

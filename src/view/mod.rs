@@ -94,12 +94,13 @@ pub(crate) fn layer_surface<'a>(
     #[allow(clippy::mutable_key_type)]
     let workspaces_with_toplevels = app
         .toplevels
+        .0
         .iter()
         .flat_map(|t| &t.info.workspace)
         .collect::<HashSet<_>>();
     let layout = app.conf.workspace_config.workspace_layout;
     let sidebar = workspaces_sidebar(
-        app.workspaces_for_output(&surface.output),
+        app.workspaces.for_output(&surface.output),
         &workspaces_with_toplevels,
         &surface.output,
         layout,
@@ -107,13 +108,14 @@ pub(crate) fn layer_surface<'a>(
         drag_workspace,
     );
     let toplevels = toplevel_previews(
-        app.toplevels.iter().filter(|i| {
+        app.toplevels.0.iter().filter(|i| {
             if !i.info.output.contains(&surface.output) {
                 return false;
             }
 
             i.info.workspace.iter().any(|workspace| {
-                app.workspace_for_handle(workspace)
+                app.workspaces
+                    .for_handle(workspace)
                     .is_some_and(|x| x.is_active())
             })
         }),
@@ -122,7 +124,8 @@ pub(crate) fn layer_surface<'a>(
     );
     // TODO multiple active workspaces? Not currently supported by cosmic.
     let first_active_workspace = app
-        .workspaces_for_output(&surface.output)
+        .workspaces
+        .for_output(&surface.output)
         .find(|w| w.is_active());
     let toplevels = if let Some(workspace) = first_active_workspace {
         dnd_destination_for_target(

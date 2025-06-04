@@ -181,8 +181,8 @@ struct App {
     capture_filter: backend::CaptureFilter,
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     outputs: Vec<Output>,
-    workspaces: Vec<Workspace>,
-    toplevels: Vec<Toplevel>,
+    workspaces: Workspaces,
+    toplevels: Toplevels,
     toplevel_capabilities:
         Vec<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
     conn: Option<Connection>,
@@ -195,35 +195,36 @@ struct App {
     scroll: Option<(f32, Instant)>,
 }
 
-impl App {
-    fn workspace_for_handle(&self, handle: &ExtWorkspaceHandleV1) -> Option<&Workspace> {
-        self.workspaces.iter().find(|i| i.handle() == handle)
+#[derive(Debug, Default)]
+struct Workspaces(Vec<Workspace>);
+
+impl Workspaces {
+    fn for_handle(&self, handle: &ExtWorkspaceHandleV1) -> Option<&Workspace> {
+        self.0.iter().find(|i| i.handle() == handle)
     }
 
-    fn workspace_for_handle_mut(
-        &mut self,
-        handle: &ExtWorkspaceHandleV1,
-    ) -> Option<&mut Workspace> {
-        self.workspaces.iter_mut().find(|i| i.handle() == handle)
+    fn for_handle_mut(&mut self, handle: &ExtWorkspaceHandleV1) -> Option<&mut Workspace> {
+        self.0.iter_mut().find(|i| i.handle() == handle)
     }
 
-    // TODO iterate in order based on `coordinates`
-    fn workspaces_for_output<'a>(
+    fn for_output<'a>(
         &'a self,
         output: &'a wl_output::WlOutput,
     ) -> impl Iterator<Item = &'a Workspace> + 'a {
-        self.workspaces
-            .iter()
-            .filter(|w| w.outputs.contains(output))
+        self.0.iter().filter(|w| w.outputs.contains(output))
     }
+}
 
-    fn toplevel_for_handle_mut(
-        &mut self,
-        handle: &ExtForeignToplevelHandleV1,
-    ) -> Option<&mut Toplevel> {
-        self.toplevels.iter_mut().find(|i| &i.handle == handle)
+#[derive(Debug, Default)]
+struct Toplevels(Vec<Toplevel>);
+
+impl Toplevels {
+    fn for_handle_mut(&mut self, handle: &ExtForeignToplevelHandleV1) -> Option<&mut Toplevel> {
+        self.0.iter_mut().find(|i| &i.handle == handle)
     }
+}
 
+impl App {
     fn create_surface(&mut self, output: wl_output::WlOutput) -> Task<cosmic::Action<Msg>> {
         let id = SurfaceId::unique();
         self.layer_surfaces.insert(
@@ -309,6 +310,7 @@ impl App {
                 self.outputs.iter().map(|x| x.handle.clone()).collect();
             capture_filter.toplevels_on_workspaces = self
                 .workspaces
+                .0
                 .iter()
                 .filter(|x| x.is_active())
                 .map(|x| x.handle().clone())
@@ -317,12 +319,12 @@ impl App {
 
         // Drop `CaptureImage` for workspaces and toplevels not matching new
         // filter.
-        for workspace in &mut self.workspaces {
+        for workspace in &mut self.workspaces.0 {
             if !capture_filter.workspace_outputs_matches(&workspace.outputs) {
                 workspace.img = None;
             }
         }
-        for toplevel in &mut self.toplevels {
+        for toplevel in &mut self.toplevels.0 {
             if !capture_filter.toplevel_matches(&toplevel.info) {
                 toplevel.img = None;
             }
@@ -421,18 +423,15 @@ impl Application for App {
                     backend::Event::Workspaces(mut workspaces) => {
                         workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
                         let old_workspaces = mem::take(&mut self.workspaces);
-                        self.workspaces = Vec::new();
                         for (outputs, workspace) in workspaces {
                             // XXX efficiency
-                            let old_workspace = old_workspaces
-                                .iter()
-                                .find(|i| *i.handle() == workspace.handle);
+                            let old_workspace = old_workspaces.for_handle(&workspace.handle);
                             let img = old_workspace.map(|i| i.img.clone()).unwrap_or_default();
                             let has_cursor = old_workspace.is_some_and(|w| w.has_cursor);
                             let dnd_source_id = old_workspace
                                 .map_or_else(iced::id::Id::unique, |w| w.dnd_source_id.clone());
 
-                            self.workspaces.push(Workspace {
+                            self.workspaces.0.push(Workspace {
                                 info: workspace,
                                 outputs,
                                 img,
@@ -450,7 +449,7 @@ impl Application for App {
                             move |path| Msg::UpdateToplevelIcon(app_id.clone(), path),
                         )
                         .map(cosmic::Action::App);
-                        self.toplevels.push(Toplevel {
+                        self.toplevels.0.push(Toplevel {
                             icon: None,
                             handle,
                             info,
@@ -464,9 +463,7 @@ impl Application for App {
                         return icon_task;
                     }
                     backend::Event::UpdateToplevel(handle, info) => {
-                        if let Some(toplevel) =
-                            self.toplevels.iter_mut().find(|x| x.handle == handle)
-                        {
+                        if let Some(toplevel) = self.toplevels.for_handle_mut(&handle) {
                             let mut task = Task::none();
                             if toplevel.info.app_id != info.app_id {
                                 let app_id = info.app_id.clone();
@@ -481,24 +478,26 @@ impl Application for App {
                         }
                     }
                     backend::Event::CloseToplevel(handle) => {
-                        if let Some(idx) = self.toplevels.iter().position(|x| x.handle == handle) {
-                            self.toplevels.remove(idx);
+                        if let Some(idx) = self.toplevels.0.iter().position(|x| x.handle == handle)
+                        {
+                            self.toplevels.0.remove(idx);
                         }
                     }
                     backend::Event::WorkspaceCapture(handle, image) => {
                         //println!("Workspace capture");
-                        let capture_filter = self.capture_filter.clone(); // XXX
-                        if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
-                            if capture_filter.workspace_outputs_matches(&workspace.outputs) {
+                        if let Some(workspace) = self.workspaces.for_handle_mut(&handle) {
+                            if self
+                                .capture_filter
+                                .workspace_outputs_matches(&workspace.outputs)
+                            {
                                 workspace.img = Some(image);
                             }
                         }
                     }
                     backend::Event::ToplevelCapture(handle, image) => {
-                        let capture_filter = self.capture_filter.clone(); // XXX
-                        if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
+                        if let Some(toplevel) = self.toplevels.for_handle_mut(&handle) {
                             // println!("Got toplevel image!");
-                            if capture_filter.toplevel_matches(&toplevel.info) {
+                            if self.capture_filter.toplevel_matches(&toplevel.info) {
                                 toplevel.img = Some(image);
                             }
                         }
@@ -512,7 +511,7 @@ impl Application for App {
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
-                if let Some(workspace) = self.workspace_for_handle(&workspace_handle) {
+                if let Some(workspace) = self.workspaces.for_handle(&workspace_handle) {
                     if workspace.is_active() {
                         return self.hide();
                     }
@@ -596,7 +595,7 @@ impl Application for App {
                 self.conf.bg = c;
             }
             Msg::UpdateToplevelIcon(app_id, path) => {
-                for toplevel in self.toplevels.iter_mut() {
+                for toplevel in self.toplevels.0.iter_mut() {
                     if toplevel.info.app_id == app_id {
                         toplevel.icon = path.clone();
                     }
@@ -651,7 +650,7 @@ impl Application for App {
                 };
 
                 // TODO assumes only one active workspace per output
-                let workspaces = self.workspaces_for_output(&output).collect::<Vec<_>>();
+                let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
                 if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
                     let workspace = match direction {
                         // Next workspace on output
@@ -674,9 +673,8 @@ impl Application for App {
                             DropTarget::WorkspaceSidebarEntry(other_handle, _output)
                             | DropTarget::WorkspaceSidebarDragPlaceholder(other_handle, _output),
                         ) => {
-                            let workspace = self.workspaces.iter().find(|i| i.handle() == handle);
-                            let other_workspace =
-                                self.workspaces.iter().find(|i| *i.handle() == other_handle);
+                            let workspace = self.workspaces.for_handle(handle);
+                            let other_workspace = self.workspaces.for_handle(&other_handle);
                             if let (Some(workspace), Some(other_workspace)) =
                                 (workspace, other_workspace)
                             {
@@ -699,11 +697,7 @@ impl Application for App {
                 }
             }
             Msg::TogglePinned(workspace_handle) => {
-                if let Some(workspace) = self
-                    .workspaces
-                    .iter()
-                    .find(|w| *w.handle() == workspace_handle)
-                {
+                if let Some(workspace) = self.workspaces.for_handle(&workspace_handle) {
                     self.send_wayland_cmd(backend::Cmd::SetWorkspacePinned(
                         workspace_handle,
                         !workspace.is_pinned(),
@@ -711,11 +705,7 @@ impl Application for App {
                 }
             }
             Msg::EnteredWorkspaceSidebarEntry(workspace_handle, entered) => {
-                if let Some(workspace) = self
-                    .workspaces
-                    .iter_mut()
-                    .find(|w| *w.handle() == workspace_handle)
-                {
+                if let Some(workspace) = self.workspaces.for_handle_mut(&workspace_handle) {
                     workspace.has_cursor = entered;
                 }
             }

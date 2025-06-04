@@ -110,6 +110,7 @@ pub struct Workspace {
     pub state: ext_workspace_handle_v1::State,
     pub capabilities: ext_workspace_handle_v1::WorkspaceCapabilities,
     pub cosmic_capabilities: zcosmic_workspace_handle_v2::WorkspaceCapabilities,
+    pub cosmic_state: zcosmic_workspace_handle_v2::State,
     // pub tiling: Option<WEnum<zcosmic_workspace_handle_v1::TilingState>>,
 }
 
@@ -144,6 +145,7 @@ impl AppData {
                 },
                 capabilities: ext_workspace_handle_v1::WorkspaceCapabilities::Activate,
                 cosmic_capabilities: zcosmic_workspace_handle_v2::WorkspaceCapabilities::empty(),
+                cosmic_state: zcosmic_workspace_handle_v2::State::empty(),
             };
             // Add three toplevels for each workspace
             for j in 0..=3 {
@@ -198,6 +200,10 @@ impl AppData {
             Cmd::ActivateWorkspace(workspace_handle) => {
                 println!("Activate {:?}", workspace_handle);
             }
+            // TODO
+            Cmd::MoveWorkspaceBefore(_, _)
+            | Cmd::MoveWorkspaceAfter(_, _)
+            | Cmd::SetWorkspacePinned(_, _) => {}
         }
     }
 }

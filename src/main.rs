@@ -301,7 +301,7 @@ impl App {
         }
     }
 
-    fn update_capture_filter(&self) {
+    fn update_capture_filter(&mut self) {
         let mut capture_filter = backend::CaptureFilter::default();
         if self.visible {
             capture_filter.workspaces_on_outputs =
@@ -313,6 +313,20 @@ impl App {
                 .map(|x| x.handle().clone())
                 .collect();
         }
+
+        // Drop `CaptureImage` for workspaces and toplevels not matching new
+        // filter.
+        for workspace in &mut self.workspaces {
+            if !capture_filter.workspace_outputs_matches(&workspace.outputs) {
+                workspace.img = None;
+            }
+        }
+        for toplevel in &mut self.toplevels {
+            if !capture_filter.toplevel_matches(&toplevel.info) {
+                toplevel.img = None;
+            }
+        }
+
         self.send_wayland_cmd(backend::Cmd::CaptureFilter(capture_filter));
     }
 }

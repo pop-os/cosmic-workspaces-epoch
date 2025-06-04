@@ -178,6 +178,7 @@ struct Conf {
 
 #[derive(Default)]
 struct App {
+    capture_filter: backend::CaptureFilter,
     layer_surfaces: HashMap<SurfaceId, LayerSurface>,
     outputs: Vec<Output>,
     workspaces: Vec<Workspace>,
@@ -327,6 +328,7 @@ impl App {
             }
         }
 
+        self.capture_filter = capture_filter.clone();
         self.send_wayland_cmd(backend::Cmd::CaptureFilter(capture_filter));
     }
 }
@@ -485,14 +487,20 @@ impl Application for App {
                     }
                     backend::Event::WorkspaceCapture(handle, image) => {
                         //println!("Workspace capture");
+                        let capture_filter = self.capture_filter.clone(); // XXX
                         if let Some(workspace) = self.workspace_for_handle_mut(&handle) {
-                            workspace.img = Some(image);
+                            if capture_filter.workspace_outputs_matches(&workspace.outputs) {
+                                workspace.img = Some(image);
+                            }
                         }
                     }
                     backend::Event::ToplevelCapture(handle, image) => {
+                        let capture_filter = self.capture_filter.clone(); // XXX
                         if let Some(toplevel) = self.toplevel_for_handle_mut(&handle) {
                             // println!("Got toplevel image!");
-                            toplevel.img = Some(image);
+                            if capture_filter.toplevel_matches(&toplevel.info) {
+                                toplevel.img = Some(image);
+                            }
                         }
                     }
                     backend::Event::ToplevelCapabilities(capabilities) => {

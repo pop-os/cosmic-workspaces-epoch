@@ -44,6 +44,23 @@ pub struct CaptureFilter {
     pub toplevels_on_workspaces: Vec<ExtWorkspaceHandleV1>,
 }
 
+impl CaptureFilter {
+    pub fn workspace_outputs_matches<'a>(
+        &self,
+        outputs: impl IntoIterator<Item = &'a wl_output::WlOutput>,
+    ) -> bool {
+        outputs
+            .into_iter()
+            .any(|o| self.workspaces_on_outputs.contains(o))
+    }
+
+    pub fn toplevel_matches(&self, info: &ToplevelInfo) -> bool {
+        info.workspace
+            .iter()
+            .any(|workspace| self.toplevels_on_workspaces.contains(workspace))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CaptureImage {
     #[allow(dead_code)]

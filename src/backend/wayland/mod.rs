@@ -182,11 +182,7 @@ impl AppData {
                     .toplevels()
                     .find(|info| info.foreign_toplevel == *toplevel);
                 if let Some(info) = info {
-                    info.workspace.iter().any(|workspace| {
-                        self.capture_filter
-                            .toplevels_on_workspaces
-                            .contains(workspace)
-                    })
+                    self.capture_filter.toplevel_matches(info)
                 } else {
                     false
                 }
@@ -197,9 +193,7 @@ impl AppData {
                 .find(|g| g.workspaces.iter().any(|w| w == workspace))
                 .is_some_and(|group| {
                     self.capture_filter
-                        .workspaces_on_outputs
-                        .iter()
-                        .any(|o| group.outputs.contains(o))
+                        .workspace_outputs_matches(&group.outputs)
                 }),
             CaptureSource::Output(_) => false,
         }

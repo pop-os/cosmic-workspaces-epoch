@@ -1224,7 +1224,7 @@ dependencies = [
  "log",
  "memmap2 0.9.5",
  "rust-embed",
- "rustix 0.38.44",
+ "rustix 1.0.7",
  "tokio",
  "wayland-protocols",
 ]

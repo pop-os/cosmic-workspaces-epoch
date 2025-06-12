@@ -1,4 +1,4 @@
-use rustix::{io::Errno, shm::ShmOFlags};
+use rustix::{io::Errno, shm};
 use std::{
     os::fd::OwnedFd,
     time::{SystemTime, UNIX_EPOCH},
@@ -26,7 +26,7 @@ pub fn create_memfile() -> rustix::io::Result<OwnedFd> {
     }
 
     loop {
-        let flags = ShmOFlags::CREATE | ShmOFlags::EXCL | ShmOFlags::RDWR;
+        let flags = shm::OFlags::CREATE | shm::OFlags::EXCL | shm::OFlags::RDWR;
 
         let time = SystemTime::now();
         let name = format!(
@@ -34,8 +34,8 @@ pub fn create_memfile() -> rustix::io::Result<OwnedFd> {
             time.duration_since(UNIX_EPOCH).unwrap().subsec_nanos()
         );
 
-        match rustix::shm::shm_open(&name, flags, 0o600.into()) {
-            Ok(fd) => match rustix::shm::shm_unlink(&name) {
+        match shm::open(&name, flags, 0o600.into()) {
+            Ok(fd) => match shm::unlink(&name) {
                 Ok(_) => return Ok(fd),
                 Err(errno) => {
                     return Err(errno);

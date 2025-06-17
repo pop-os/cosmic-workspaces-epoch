@@ -159,17 +159,19 @@ impl ScreencopyHandler for AppData {
         let conn = conn.clone();
         let release = session.release.take();
         let qh = qh.clone();
-        self.thread_pool.spawn_ok(async move {
-            if let Some(release) = release {
-                // Wait for buffer to be released by server
-                release.await;
-            }
-            let mut session = capture_clone.session.lock().unwrap();
-            let Some(session) = session.as_mut() else {
-                return;
-            };
-            session.attach_buffer_and_commit(&capture_clone, &conn, &qh);
-        });
+        self.scheduler
+            .schedule(async move {
+                if let Some(release) = release {
+                    // Wait for buffer to be released by server
+                    release.await;
+                }
+                let mut session = capture_clone.session.lock().unwrap();
+                let Some(session) = session.as_mut() else {
+                    return;
+                };
+                session.attach_buffer_and_commit(&capture_clone, &conn, &qh);
+            })
+            .unwrap();
 
         let front = session.buffers.as_mut().unwrap().first_mut().unwrap();
         let (buffer, release) = SubsurfaceBuffer::new(front.backing.clone());

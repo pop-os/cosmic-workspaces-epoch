@@ -1,12 +1,10 @@
-// combine widgets
-// Hack: this widget defines it's width as the second child's width
-// So the width of the image will be the overall width.
+// This widget defines it's cross axis size as the `index`th child's size
 
 use cosmic::iced::{
     advanced::{
         layout::{self, flex::Axis},
         mouse, renderer,
-        widget::{Operation, OperationOutputWrapper, Tree},
+        widget::{Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
@@ -44,21 +42,27 @@ impl AxisExt for Axis {
     }
 }
 
-pub fn toplevel_item<Msg>(children: Vec<cosmic::Element<Msg>>, axis: Axis) -> ToplevelItem<Msg> {
-    ToplevelItem {
+pub fn size_cross_nth<Msg>(
+    children: Vec<cosmic::Element<Msg>>,
+    axis: Axis,
+    index: usize,
+) -> SizeCrossNth<Msg> {
+    SizeCrossNth {
         axis,
         children,
+        index,
         _msg: PhantomData,
     }
 }
 
-pub struct ToplevelItem<'a, Msg> {
+pub struct SizeCrossNth<'a, Msg> {
     axis: Axis,
     children: Vec<cosmic::Element<'a, Msg>>,
+    index: usize,
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for SizeCrossNth<'_, Msg> {
     fn size(&self) -> Size<Length> {
         Size {
             // width: Length::Fill
@@ -83,9 +87,11 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, 
         // Get layout of main widget, to set overall cross axis size
         let (max_width, max_height) = self.axis.pack(max_main, max_cross);
         let child_limits = layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-        let layout = self.children[1]
-            .as_widget()
-            .layout(tree, renderer, &child_limits);
+        let layout = self.children[self.index].as_widget().layout(
+            &mut tree.children[self.index],
+            renderer,
+            &child_limits,
+        );
 
         let max_cross = self.axis.cross(layout.size());
 
@@ -97,7 +103,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, 
             .iter()
             .zip(tree.children.iter_mut())
             .map(|(child, tree)| {
-                let (max_width, max_height) = self.axis.pack(max_main, max_cross);
+                let (max_width, max_height) = self.axis.pack(max_main - total_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
                 let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
@@ -120,7 +126,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, 
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+        operation: &mut dyn Operation<()>,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children
@@ -219,8 +225,8 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for ToplevelItem<'a, 
     }
 }
 
-impl<'a, Msg: 'static> From<ToplevelItem<'a, Msg>> for cosmic::Element<'a, Msg> {
-    fn from(widget: ToplevelItem<'a, Msg>) -> Self {
+impl<'a, Msg: 'static> From<SizeCrossNth<'a, Msg>> for cosmic::Element<'a, Msg> {
+    fn from(widget: SizeCrossNth<'a, Msg>) -> Self {
         cosmic::Element::new(widget)
     }
 }

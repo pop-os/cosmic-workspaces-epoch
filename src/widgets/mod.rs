@@ -1,26 +1,26 @@
 use cosmic::iced::{
     advanced::{
         layout, mouse, overlay, renderer,
-        widget::{tree, Id, Operation, OperationOutputWrapper, Tree},
+        widget::{tree, Id, Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Rectangle, Size,
+    Length, Rectangle, Size, Vector,
 };
 use std::marker::PhantomData;
 
 mod image_bg;
-pub use image_bg::image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
-mod toplevel_item;
-pub use toplevel_item::toplevel_item;
+mod size_cross_nth;
+pub use size_cross_nth::size_cross_nth;
 mod mouse_interaction_wrapper;
-pub use mouse_interaction_wrapper::mouse_interaction_wrapper;
 mod toplevels;
 pub use toplevels::toplevels;
 mod visibility_wrapper;
 pub use visibility_wrapper::visibility_wrapper;
+mod match_size;
+pub use match_size::match_size;
 
 // Widget for debugging
 #[allow(dead_code)]
@@ -38,7 +38,7 @@ pub struct LayoutWrapper<'a, Msg> {
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'_, Msg> {
     fn layout(
         &self,
         tree: &mut Tree,
@@ -61,7 +61,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
                     tree: &mut Tree,
                     layout: Layout<'_>,
                     renderer: &cosmic::Renderer,
-                    operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+                    operation: &mut dyn Operation<()>,
                 );
             fn draw(
                 &self,
@@ -102,6 +102,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'a,
                 tree: &'b mut Tree,
                 layout: Layout<'_>,
                 renderer: &cosmic::Renderer,
+                transation: Vector,
             ) -> Option<overlay::Element<'b, Msg, cosmic::Theme, cosmic::Renderer>>;
             fn set_id(&mut self, id: Id);
         }

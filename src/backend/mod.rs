@@ -8,7 +8,11 @@
 //! backend for testing without any special protocols.
 
 use cosmic::{
-    cctk::wayland_client::protocol::wl_output, iced_sctk::subsurface_widget::SubsurfaceBuffer,
+    cctk::{
+        cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
+        wayland_client::protocol::wl_output,
+    },
+    iced_winit::platform_specific::wayland::subsurface_widget::SubsurfaceBuffer,
 };
 use std::collections::HashSet;
 
@@ -16,14 +20,13 @@ use std::collections::HashSet;
 #[cfg(not(feature = "mock-backend"))]
 mod wayland;
 #[cfg(not(feature = "mock-backend"))]
-pub use cosmic::cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
-        workspace::v1::client::zcosmic_workspace_handle_v1::ZcosmicWorkspaceHandleV1,
-    },
-    toplevel_info::ToplevelInfo,
-    workspace::Workspace,
+pub use cosmic::cctk::{toplevel_info::ToplevelInfo, workspace::Workspace};
+#[cfg(not(feature = "mock-backend"))]
+pub use wayland_protocols::ext::{
+    foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1,
+    workspace::v1::client::ext_workspace_handle_v1::ExtWorkspaceHandleV1,
 };
+
 #[cfg(not(feature = "mock-backend"))]
 pub use wayland::subscription;
 
@@ -32,20 +35,40 @@ pub use wayland::subscription;
 mod mock;
 #[cfg(feature = "mock-backend")]
 pub use mock::{
-    subscription, ToplevelInfo, Workspace, ZcosmicToplevelHandleV1, ZcosmicWorkspaceHandleV1,
+    subscription, ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo, Workspace,
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct CaptureFilter {
     pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
-    pub toplevels_on_workspaces: Vec<ZcosmicWorkspaceHandleV1>,
+    pub toplevels_on_workspaces: Vec<ExtWorkspaceHandleV1>,
+}
+
+impl CaptureFilter {
+    pub fn workspace_outputs_matches<'a>(
+        &self,
+        outputs: impl IntoIterator<Item = &'a wl_output::WlOutput>,
+    ) -> bool {
+        outputs
+            .into_iter()
+            .any(|o| self.workspaces_on_outputs.contains(o))
+    }
+
+    pub fn toplevel_matches(&self, info: &ToplevelInfo) -> bool {
+        info.workspace
+            .iter()
+            .any(|workspace| self.toplevels_on_workspaces.contains(workspace))
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct CaptureImage {
+    #[allow(dead_code)]
     pub width: u32,
+    #[allow(dead_code)]
     pub height: u32,
     pub wl_buffer: SubsurfaceBuffer,
+    pub transform: wl_output::Transform,
     #[cfg(feature = "no-subsurfaces")]
     pub image: cosmic::widget::image::Handle,
 }
@@ -54,22 +77,28 @@ pub struct CaptureImage {
 pub enum Event {
     CmdSender(calloop::channel::Sender<Cmd>),
     Workspaces(Vec<(HashSet<wl_output::WlOutput>, Workspace)>),
-    WorkspaceCapture(ZcosmicWorkspaceHandleV1, wl_output::WlOutput, CaptureImage),
-    NewToplevel(ZcosmicToplevelHandleV1, ToplevelInfo),
-    UpdateToplevel(ZcosmicToplevelHandleV1, ToplevelInfo),
-    CloseToplevel(ZcosmicToplevelHandleV1),
-    ToplevelCapture(ZcosmicToplevelHandleV1, CaptureImage),
+    WorkspaceCapture(ExtWorkspaceHandleV1, CaptureImage),
+    NewToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
+    UpdateToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
+    CloseToplevel(ExtForeignToplevelHandleV1),
+    ToplevelCapture(ExtForeignToplevelHandleV1, CaptureImage),
+    ToplevelCapabilities(
+        Vec<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
+    ),
 }
 
 #[derive(Debug)]
 pub enum Cmd {
     CaptureFilter(CaptureFilter),
-    ActivateToplevel(ZcosmicToplevelHandleV1),
-    CloseToplevel(ZcosmicToplevelHandleV1),
+    ActivateToplevel(ExtForeignToplevelHandleV1),
+    CloseToplevel(ExtForeignToplevelHandleV1),
     MoveToplevelToWorkspace(
-        ZcosmicToplevelHandleV1,
-        ZcosmicWorkspaceHandleV1,
+        ExtForeignToplevelHandleV1,
+        ExtWorkspaceHandleV1,
         wl_output::WlOutput,
     ),
-    ActivateWorkspace(ZcosmicWorkspaceHandleV1),
+    MoveWorkspaceBefore(ExtWorkspaceHandleV1, ExtWorkspaceHandleV1),
+    MoveWorkspaceAfter(ExtWorkspaceHandleV1, ExtWorkspaceHandleV1),
+    ActivateWorkspace(ExtWorkspaceHandleV1),
+    SetWorkspacePinned(ExtWorkspaceHandleV1, bool),
 }

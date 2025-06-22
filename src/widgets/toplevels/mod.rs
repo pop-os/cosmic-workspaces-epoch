@@ -2,65 +2,35 @@ use cosmic::iced::{
     advanced::{
         layout::{self, flex::Axis},
         mouse, renderer,
-        widget::{Operation, OperationOutputWrapper, Tree},
+        widget::{Operation, Tree},
         Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Point, Rectangle, Size,
+    Length, Rectangle, Size, Vector,
 };
 use std::marker::PhantomData;
 
-// Duplicate of private methods
-trait AxisExt {
-    fn main(&self, size: Size) -> f32;
-    fn cross(&self, size: Size) -> f32;
-    fn pack(&self, main: f32, cross: f32) -> (f32, f32);
-}
-
-impl AxisExt for Axis {
-    fn main(&self, size: Size) -> f32 {
-        match self {
-            Axis::Horizontal => size.width,
-            Axis::Vertical => size.height,
-        }
-    }
-
-    fn cross(&self, size: Size) -> f32 {
-        match self {
-            Axis::Horizontal => size.height,
-            Axis::Vertical => size.width,
-        }
-    }
-
-    fn pack(&self, main: f32, cross: f32) -> (f32, f32) {
-        match self {
-            Axis::Horizontal => (main, cross),
-            Axis::Vertical => (cross, main),
-        }
-    }
-}
+mod toplevel_layout;
+use toplevel_layout::{LayoutToplevel, ToplevelLayout, TwoRowColToplevelLayout};
 
 pub fn toplevels<Msg>(children: Vec<cosmic::Element<Msg>>) -> Toplevels<Msg> {
     Toplevels {
-        axis: Axis::Horizontal,
+        // TODO configurable
+        layout: TwoRowColToplevelLayout::new(Axis::Horizontal, 16),
         children,
         _msg: PhantomData,
     }
 }
 
 pub struct Toplevels<'a, Msg> {
-    axis: Axis,
+    layout: TwoRowColToplevelLayout,
     children: Vec<cosmic::Element<'a, Msg>>,
     _msg: PhantomData<Msg>,
 }
 
-impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'a, Msg> {
+impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
     fn size(&self) -> Size<Length> {
-        Size {
-            width: Length::Fill,
-            // TODO Make depend on orientation or drop that option
-            height: Length::Shrink,
-        }
+        self.layout.size()
     }
 
     fn layout(
@@ -69,60 +39,42 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'a, Msg
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        // TODO configurable
-        let spacing = 16;
-
-        // Get total requested main axis length if widget could have all the space
-        let total_spacing = spacing * (self.children.len().saturating_sub(1)).max(0);
-        let requested_mains = self
+        // Call `.layout()` on each child with full limits to determine "preferred" sizes
+        let layout_toplevels = self
             .children
             .iter()
             .zip(tree.children.iter_mut())
             .map(|(child, tree)| {
-                let child_limits = layout::Limits::new(Size::ZERO, limits.max());
-                let layout = child.as_widget().layout(tree, renderer, &child_limits);
-                self.axis.main(layout.size())
+                let preferred_size = child.as_widget().layout(tree, renderer, limits).size();
+                LayoutToplevel {
+                    preferred_size,
+                    _phantom_data: PhantomData,
+                }
             })
             .collect::<Vec<_>>();
-        let requested_main_total: f32 = requested_mains.iter().sum::<f32>() + total_spacing as f32;
 
-        let scale_factor = (self.axis.main(limits.max()) / requested_main_total).min(1.0);
+        // Assign rectangles for each child using `ToplevelLayout` backend
+        let assigned_rects = self.layout.layout(limits.max(), &layout_toplevels);
 
-        let max_cross = self.axis.cross(limits.max());
-
-        // XXX sill allocating maximum main axis?
-        // - what was it doing before?
-        let mut total_main = 0.0;
-        let mut first = true;
         let nodes = self
             .children
             .iter()
             .zip(tree.children.iter_mut())
-            .zip(requested_mains.iter())
-            .map(|((child, tree), requested_main)| {
-                if !first {
-                    total_main += spacing as f32;
-                }
-                first = false;
+            .zip(assigned_rects)
+            .map(|((child, tree), assigned_rect)| {
+                let child_limits = layout::Limits::new(Size::ZERO, assigned_rect.size());
+                let layout = child.as_widget().layout(tree, renderer, &child_limits);
 
-                let max_main = requested_main * scale_factor;
+                // Center on both axes, if child didn't consume full size allocation
+                let centering_offset = Vector::new(
+                    ((assigned_rect.size().width - layout.size().width) / 2.).max(0.),
+                    ((assigned_rect.size().height - layout.size().height) / 2.).max(0.),
+                );
 
-                let (max_width, max_height) = self.axis.pack(max_main, max_cross);
-                let child_limits =
-                    layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-                let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
-                // Center on cross axis
-                let cross = ((max_cross - self.axis.cross(layout.size())) / 2.).max(0.);
-                let (x, y) = self.axis.pack(total_main, cross);
-                layout = layout.move_to(Point::new(x, y));
-                total_main += self.axis.main(layout.size());
-                layout
+                layout.move_to(assigned_rect.position() + centering_offset)
             })
             .collect();
-
-        let (total_width, total_height) = self.axis.pack(total_main, max_cross);
-        let size = Size::new(total_width, total_height);
-        layout::Node::with_children(size, nodes)
+        layout::Node::with_children(limits.max(), nodes)
     }
 
     fn operate(
@@ -130,7 +82,7 @@ impl<'a, Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'a, Msg
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Msg>>,
+        operation: &mut dyn Operation<()>,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children

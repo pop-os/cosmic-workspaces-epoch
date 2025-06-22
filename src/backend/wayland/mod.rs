@@ -3,7 +3,8 @@
 
 use calloop_wayland_source::WaylandSource;
 use cctk::{
-    screencopy::ScreencopyState,
+    cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
+    screencopy::{CaptureSource, ScreencopyState},
     sctk::{
         self,
         dmabuf::{DmabufFeedback, DmabufState},
@@ -26,13 +27,15 @@ use cosmic::{
     },
 };
 use futures_channel::mpsc;
-use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, sync::Arc, thread};
+use std::{cell::RefCell, collections::HashMap, sync::Arc, thread};
 
 mod buffer;
 use buffer::Buffer;
 mod capture;
-use capture::{Capture, CaptureSource};
+use capture::Capture;
 mod dmabuf;
+mod gbm_devices;
+use gbm_devices::GbmDevices;
 mod screencopy;
 use screencopy::{ScreencopySession, SessionData};
 mod toplevel;
@@ -41,7 +44,7 @@ mod workspace;
 use super::{CaptureFilter, CaptureImage, Cmd, Event};
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {
-    iced::subscription::run_with_id("wayland-sub", async { start(conn) }.flatten_stream())
+    iced::Subscription::run_with_id("wayland-sub", async { start(conn) }.flatten_stream())
 }
 
 pub struct AppData {
@@ -53,13 +56,13 @@ pub struct AppData {
     screencopy_state: ScreencopyState,
     seat_state: SeatState,
     shm_state: Shm,
-    toplevel_manager_state: ToplevelManagerState,
+    toplevel_manager_state: Option<ToplevelManagerState>,
     sender: mpsc::Sender<Event>,
     capture_filter: CaptureFilter,
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
-    gbm: Option<(PathBuf, gbm::Device<fs::File>)>,
-    scheduler: calloop::futures::Scheduler<()>,
+    gbm_devices: GbmDevices,
+    thread_pool: futures_executor::ThreadPool,
 }
 
 impl AppData {
@@ -75,22 +78,70 @@ impl AppData {
                 self.invalidate_capture_filter();
             }
             Cmd::ActivateToplevel(toplevel_handle) => {
-                for seat in self.seat_state.seats() {
-                    self.toplevel_manager_state
-                        .manager
-                        .activate(&toplevel_handle, &seat);
+                let info = self.toplevel_info_state.info(&toplevel_handle);
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
+                    for seat in self.seat_state.seats() {
+                        if let Some(state) = &self.toplevel_manager_state {
+                            state.manager.activate(cosmic_toplevel, &seat);
+                        }
+                    }
                 }
             }
             Cmd::CloseToplevel(toplevel_handle) => {
-                self.toplevel_manager_state.manager.close(&toplevel_handle);
+                let info = self.toplevel_info_state.info(&toplevel_handle);
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
+                    if let Some(state) = &self.toplevel_manager_state {
+                        state.manager.close(cosmic_toplevel);
+                    }
+                }
             }
             Cmd::MoveToplevelToWorkspace(toplevel_handle, workspace_handle, output) => {
-                if self.toplevel_manager_state.manager.version() >= 2 {
-                    self.toplevel_manager_state.manager.move_to_workspace(
-                        &toplevel_handle,
-                        &workspace_handle,
-                        &output,
-                    );
+                let info = self.toplevel_info_state.info(&toplevel_handle);
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
+                    if let Some(state) = &self.toplevel_manager_state {
+                        if state.manager.version() >= 2 {
+                            state.manager.move_to_ext_workspace(
+                                cosmic_toplevel,
+                                &workspace_handle,
+                                &output,
+                            );
+                        }
+                    }
+                }
+            }
+            // TODO version check
+            Cmd::MoveWorkspaceBefore(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        if cosmic_workspace.version()
+                            >= zcosmic_workspace_handle_v2::REQ_MOVE_BEFORE_SINCE
+                        {
+                            cosmic_workspace.move_before(&other_workspace_handle, 0);
+                            workspace_manager.commit();
+                        }
+                    }
+                }
+            }
+            Cmd::MoveWorkspaceAfter(workspace_handle, other_workspace_handle) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        if cosmic_workspace.version()
+                            >= zcosmic_workspace_handle_v2::REQ_MOVE_AFTER_SINCE
+                        {
+                            cosmic_workspace.move_after(&other_workspace_handle, 0);
+                            workspace_manager.commit();
+                        }
+                    }
                 }
             }
             Cmd::ActivateWorkspace(workspace_handle) => {
@@ -99,22 +150,52 @@ impl AppData {
                     workspace_manager.commit();
                 }
             }
+            Cmd::SetWorkspacePinned(workspace_handle, pinned) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
+                    if let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                    {
+                        if cosmic_workspace.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
+                        {
+                            // TODO check capability
+                            if pinned {
+                                cosmic_workspace.pin();
+                            } else {
+                                cosmic_workspace.unpin();
+                            }
+                            workspace_manager.commit();
+                        }
+                    }
+                }
+            }
         }
     }
 
     fn matches_capture_filter(&self, source: &CaptureSource) -> bool {
         match source {
             CaptureSource::Toplevel(toplevel) => {
-                let info = self.toplevel_info_state.info(toplevel).unwrap();
-                info.workspace.iter().any(|workspace| {
+                let info = self
+                    .toplevel_info_state
+                    .toplevels()
+                    .find(|info| info.foreign_toplevel == *toplevel);
+                if let Some(info) = info {
+                    self.capture_filter.toplevel_matches(info)
+                } else {
+                    false
+                }
+            }
+            CaptureSource::Workspace(workspace) => self
+                .workspace_state
+                .workspace_groups()
+                .find(|g| g.workspaces.iter().any(|w| w == workspace))
+                .is_some_and(|group| {
                     self.capture_filter
-                        .toplevels_on_workspaces
-                        .contains(workspace)
-                })
-            }
-            CaptureSource::Workspace(_, output) => {
-                self.capture_filter.workspaces_on_outputs.contains(output)
-            }
+                        .workspace_outputs_matches(&group.outputs)
+                }),
+            CaptureSource::Output(_) => false,
         }
     }
 
@@ -203,7 +284,12 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     }
 
     thread::spawn(move || {
-        let (executor, scheduler) = calloop::futures::executor().unwrap();
+        // TODO: The `calloop` executor doesn't seem to be working properly, so
+        // spawn an executor using one additional thread.
+        let thread_pool = futures_executor::ThreadPool::builder()
+            .pool_size(1)
+            .create()
+            .unwrap();
 
         let registry_state = RegistryState::new(&globals);
         let mut app_data = AppData {
@@ -211,7 +297,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             dmabuf_state,
             workspace_state: WorkspaceState::new(&registry_state, &qh), // Create before toplevel info state
             toplevel_info_state: ToplevelInfoState::new(&registry_state, &qh),
-            toplevel_manager_state: ToplevelManagerState::new(&registry_state, &qh),
+            toplevel_manager_state: ToplevelManagerState::try_new(&registry_state, &qh),
             screencopy_state: ScreencopyState::new(&globals, &qh),
             registry_state,
             seat_state: SeatState::new(&globals, &qh),
@@ -220,8 +306,8 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             capture_filter: CaptureFilter::default(),
             captures: RefCell::new(HashMap::new()),
             dmabuf_feedback: None,
-            gbm: None,
-            scheduler,
+            gbm_devices: GbmDevices::default(),
+            thread_pool,
         };
 
         let (cmd_sender, cmd_channel) = calloop::channel::channel();
@@ -238,10 +324,6 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
                     app_data.handle_cmd(msg)
                 }
             })
-            .unwrap();
-        event_loop
-            .handle()
-            .insert_source(executor, |(), _, _| {})
             .unwrap();
 
         loop {

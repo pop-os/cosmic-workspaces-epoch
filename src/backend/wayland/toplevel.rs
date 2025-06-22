@@ -1,13 +1,11 @@
 use cctk::{
-    cosmic_protocols::{
-        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-    },
+    cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
     toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
     toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
     wayland_client::{Connection, QueueHandle, WEnum},
 };
 use cosmic::cctk;
+use wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1;
 
 use super::{AppData, CaptureSource, Event};
 
@@ -21,7 +19,7 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &ExtForeignToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
         self.send_event(Event::NewToplevel(toplevel.clone(), info.clone()));
@@ -33,7 +31,7 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &ExtForeignToplevelHandleV1,
     ) {
         let info = self.toplevel_info_state.info(toplevel).unwrap();
         self.send_event(Event::UpdateToplevel(toplevel.clone(), info.clone()));
@@ -43,7 +41,7 @@ impl ToplevelInfoHandler for AppData {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
+        toplevel: &ExtForeignToplevelHandleV1,
     ) {
         self.send_event(Event::CloseToplevel(toplevel.clone()));
 
@@ -53,17 +51,25 @@ impl ToplevelInfoHandler for AppData {
 
 impl ToplevelManagerHandler for AppData {
     fn toplevel_manager_state(&mut self) -> &mut ToplevelManagerState {
-        &mut self.toplevel_manager_state
+        self.toplevel_manager_state.as_mut().unwrap()
     }
 
     fn capabilities(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _capabilities: Vec<
+        capabilities: Vec<
             WEnum<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
         >,
     ) {
+        let capabilities = capabilities
+            .into_iter()
+            .filter_map(|i| match i {
+                WEnum::Value(value) => Some(value),
+                WEnum::Unknown(_) => None,
+            })
+            .collect();
+        self.send_event(Event::ToplevelCapabilities(capabilities));
     }
 }
 

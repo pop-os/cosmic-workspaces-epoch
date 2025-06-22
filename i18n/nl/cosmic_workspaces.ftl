@@ -1,1 +1,2 @@
-new-workspace = Nieuwe Werkruimte
+workspace = Werkblad { $number }
+new-workspace = Nieuw werkblad

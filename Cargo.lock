@@ -1264,6 +1264,7 @@ dependencies = [
  "rustix 1.1.2",
  "tokio",
  "wayland-protocols",
+ "zbus 5.11.0",
 ]
 
 [[package]]

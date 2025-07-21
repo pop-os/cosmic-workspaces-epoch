@@ -40,6 +40,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod dbus;
 mod desktop_info;
 #[macro_use]
 mod localize;
@@ -114,6 +115,7 @@ enum Msg {
     OnScroll(wl_output::WlOutput, ScrollDelta),
     TogglePinned(ExtWorkspaceHandleV1),
     EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
+    DbusInterface(zbus::Result<dbus::Interface>),
     Ignore,
 }
 
@@ -192,6 +194,7 @@ struct App {
     core: cosmic::app::Core,
     drop_target: Option<DropTarget>,
     scroll: Option<(f32, Instant)>,
+    dbus_interface: Option<dbus::Interface>,
 }
 
 #[derive(Debug, Default)]
@@ -277,6 +280,12 @@ impl App {
             );
             self.update_capture_filter();
 
+            if let Some(interface) = self.dbus_interface.clone() {
+                tokio::spawn(async move {
+                    let _ = interface.shown().await;
+                });
+            }
+
             cmd
         } else {
             Task::none()
@@ -285,6 +294,12 @@ impl App {
 
     // Close all shell surfaces
     fn hide(&mut self) -> Task<cosmic::Action<Msg>> {
+        if let Some(interface) = self.dbus_interface.clone() {
+            tokio::spawn(async move {
+                let _ = interface.hidden().await;
+            });
+        }
+
         self.visible = false;
         self.update_capture_filter();
         self.drag_surface = None;
@@ -708,6 +723,11 @@ impl Application for App {
                     workspace.has_cursor = entered;
                 }
             }
+            Msg::DbusInterface(interface) => {
+                if let Ok(interface) = interface {
+                    self.dbus_interface = Some(interface);
+                }
+            }
             Msg::Ignore => {}
         }
 
@@ -719,6 +739,10 @@ impl Application for App {
         } else {
             Task::none()
         }
+    }
+
+    fn dbus_connection(&mut self, conn: zbus::Connection) -> Task<cosmic::Action<Msg>> {
+        Task::perform(dbus::Interface::new(conn), Msg::DbusInterface).map(cosmic::Action::App)
     }
 
     fn subscription(&self) -> Subscription<Msg> {

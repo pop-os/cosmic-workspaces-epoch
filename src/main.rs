@@ -792,11 +792,11 @@ impl Application for App {
         iced::Subscription::batch(subscriptions)
     }
 
-    fn view(&self) -> cosmic::prelude::Element<Self::Message> {
+    fn view(&self) -> cosmic::Element<'_, Self::Message> {
         unreachable!()
     }
 
-    fn view_window(&self, id: iced::window::Id) -> cosmic::prelude::Element<Self::Message> {
+    fn view_window(&self, id: iced::window::Id) -> cosmic::Element<'_, Self::Message> {
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
         }

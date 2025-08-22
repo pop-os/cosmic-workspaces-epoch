@@ -68,7 +68,6 @@ impl AxisToplevelLayout for RowColToplevelLayout {
         max_limit: AxisSize,
         toplevels: &[LayoutToplevel<'_, AxisSize>],
     ) -> impl Iterator<Item = AxisRectangle> {
-        let requested_main_total = self.requested_main_total(toplevels);
         let scale_factor = self.scale_factor(max_limit, toplevels);
 
         // Add padding to center if total requested size doesn't fill available space

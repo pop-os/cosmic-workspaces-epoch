@@ -84,7 +84,7 @@ impl AppData {
             return Ok(None);
         };
         let drm_dev = drm_dev.unwrap_or(feedback.main_device() as u64);
-        let Some((dev_path, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
+        let Some((_dev_path, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };
         let formats = feedback.format_table();

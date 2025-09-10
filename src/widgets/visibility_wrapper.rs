@@ -2,13 +2,12 @@
 //! takes the same space but does not draw.
 
 use cosmic::iced::{
+    Length, Rectangle, Size,
     advanced::{
-        layout, mouse, renderer,
+        Clipboard, Layout, Shell, Widget, layout, mouse, renderer,
         widget::{Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Rectangle, Size,
 };
 use std::marker::PhantomData;
 

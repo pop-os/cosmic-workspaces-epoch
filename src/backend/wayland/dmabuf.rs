@@ -3,7 +3,7 @@ use cctk::{
         self,
         dmabuf::{DmabufFeedback, DmabufHandler, DmabufState},
     },
-    wayland_client::{protocol::wl_buffer, Connection, QueueHandle},
+    wayland_client::{Connection, QueueHandle, protocol::wl_buffer},
 };
 use cosmic::cctk;
 

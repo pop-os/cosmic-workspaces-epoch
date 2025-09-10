@@ -1,8 +1,8 @@
 use cctk::{
     screencopy::Formats,
     wayland_client::{
-        protocol::{wl_buffer, wl_shm, wl_shm_pool},
         Connection, Dispatch, QueueHandle,
+        protocol::{wl_buffer, wl_shm, wl_shm_pool},
     },
 };
 use cosmic::{
@@ -87,7 +87,6 @@ impl AppData {
         let Some((_dev_path, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };
-        let formats = feedback.format_table();
 
         let modifiers = modifiers
             .iter()

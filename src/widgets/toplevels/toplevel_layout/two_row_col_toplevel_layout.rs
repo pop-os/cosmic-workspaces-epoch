@@ -1,9 +1,9 @@
-use cosmic::iced::{advanced::layout::flex::Axis, Length};
+use cosmic::iced::{Length, advanced::layout::flex::Axis};
 
 use super::{
+    LayoutToplevel,
     axis_toplevel_layout::{AxisRectangle, AxisSize, AxisToplevelLayout},
     row_col_toplevel_layout::RowColToplevelLayout,
-    LayoutToplevel,
 };
 
 pub(crate) struct TwoRowColToplevelLayout(RowColToplevelLayout);

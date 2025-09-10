@@ -7,7 +7,7 @@ use cctk::{
     cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
     cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
-    wayland_client::{protocol::wl_output, Connection, Proxy},
+    wayland_client::{Connection, Proxy, protocol::wl_output},
     wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
 };
 use clap::Parser;
@@ -15,12 +15,11 @@ use cosmic::{
     app::{Application, CosmicFlags},
     cctk, dbus_activation,
     iced::{
-        self,
+        self, Size, Subscription, Task,
         clipboard::dnd::{DndEvent, SourceEvent},
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
         mouse::ScrollDelta,
-        Size, Subscription, Task,
     },
     iced_core::window::Id as SurfaceId,
     iced_runtime::platform_specific::wayland::layer_surface::{
@@ -31,7 +30,7 @@ use cosmic::{
     },
 };
 use cosmic_comp_config::CosmicCompConfig;
-use cosmic_config::{cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
+use cosmic_config::{CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
 use std::{
     collections::{HashMap, HashSet},

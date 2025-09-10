@@ -2,14 +2,14 @@
 
 use cosmic::{
     iced::{
+        Length, Rectangle, Size, Vector,
         advanced::{
+            Clipboard, Layout, Shell, Widget,
             layout::{self},
             mouse, overlay, renderer,
-            widget::{tree, Operation, Tree},
-            Clipboard, Layout, Shell, Widget,
+            widget::{Operation, Tree, tree},
         },
         event::{self, Event},
-        Length, Rectangle, Size, Vector,
     },
     iced_core::Renderer,
 };

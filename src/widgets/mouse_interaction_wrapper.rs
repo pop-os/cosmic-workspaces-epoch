@@ -1,11 +1,10 @@
 use cosmic::iced::{
+    Length, Rectangle, Size, Vector,
     advanced::{
-        layout, mouse, overlay, renderer,
-        widget::{tree, Id, Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
+        Clipboard, Layout, Shell, Widget, layout, mouse, overlay, renderer,
+        widget::{Id, Operation, Tree, tree},
     },
     event::{self, Event},
-    Length, Rectangle, Size, Vector,
 };
 
 use std::marker::PhantomData;

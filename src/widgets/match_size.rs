@@ -1,13 +1,12 @@
 //! Show one surface, sized to match the size of another (invisible) widget
 
 use cosmic::iced::{
+    Length, Rectangle, Size,
     advanced::{
-        layout, mouse, renderer,
+        Clipboard, Layout, Shell, Widget, layout, mouse, renderer,
         widget::{Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Rectangle, Size,
 };
 use std::marker::PhantomData;
 

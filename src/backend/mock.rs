@@ -9,14 +9,14 @@ use cosmic::{
             workspace::v2::client::zcosmic_workspace_handle_v2,
         },
         wayland_client::{
-            protocol::{wl_output, wl_shm},
             Connection, WEnum,
+            protocol::{wl_output, wl_shm},
         },
         wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
     iced::{
         self,
-        futures::{executor::block_on, FutureExt, SinkExt},
+        futures::{FutureExt, SinkExt, executor::block_on},
     },
     iced_winit::platform_specific::wayland::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
 };
@@ -27,8 +27,8 @@ use std::{
     fs,
     io::{self, Write},
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
     },
     thread,
 };

@@ -35,7 +35,7 @@ pub use wayland::subscription;
 mod mock;
 #[cfg(feature = "mock-backend")]
 pub use mock::{
-    subscription, ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo, Workspace,
+    ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo, Workspace, subscription,
 };
 
 #[derive(Clone, Debug, Default)]

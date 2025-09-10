@@ -1,14 +1,14 @@
 // This widget defines it's cross axis size as the `index`th child's size
 
 use cosmic::iced::{
+    Length, Point, Rectangle, Size,
     advanced::{
+        Clipboard, Layout, Shell, Widget,
         layout::{self, flex::Axis},
         mouse, renderer,
         widget::{Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Point, Rectangle, Size,
 };
 use std::marker::PhantomData;
 

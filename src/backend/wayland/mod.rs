@@ -15,7 +15,7 @@ use cctk::{
     toplevel_info::ToplevelInfoState,
     toplevel_management::ToplevelManagerState,
     wayland_client::{
-        globals::registry_queue_init, protocol::wl_seat, Connection, Proxy, QueueHandle,
+        Connection, Proxy, QueueHandle, globals::registry_queue_init, protocol::wl_seat,
     },
     workspace::WorkspaceState,
 };
@@ -23,7 +23,7 @@ use cosmic::{
     cctk,
     iced::{
         self,
-        futures::{executor::block_on, FutureExt, SinkExt},
+        futures::{FutureExt, SinkExt, executor::block_on},
     },
 };
 use futures_channel::mpsc;

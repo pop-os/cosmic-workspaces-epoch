@@ -2,15 +2,15 @@
 // Gives each child widget a maximum size on main axis of total/n
 
 use cosmic::iced::{
+    Length, Point, Rectangle, Size,
     advanced::{
+        Clipboard, Layout, Shell, Widget,
         layout::{self, flex::Axis},
         mouse, renderer,
         widget::{Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
     },
     core::clipboard::DndDestinationRectangles,
     event::{self, Event},
-    Length, Point, Rectangle, Size,
 };
 use std::marker::PhantomData;
 

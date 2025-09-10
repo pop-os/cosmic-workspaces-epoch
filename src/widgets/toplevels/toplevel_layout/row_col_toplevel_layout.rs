@@ -1,8 +1,8 @@
-use cosmic::iced::{advanced::layout::flex::Axis, Length};
+use cosmic::iced::{Length, advanced::layout::flex::Axis};
 
 use super::{
-    axis_toplevel_layout::{AxisPoint, AxisRectangle, AxisSize, AxisToplevelLayout},
     LayoutToplevel,
+    axis_toplevel_layout::{AxisPoint, AxisRectangle, AxisSize, AxisToplevelLayout},
 };
 
 pub(crate) struct RowColToplevelLayout {

@@ -1,4 +1,5 @@
 use cosmic::{
+    Apply,
     cctk::{
         cosmic_protocols::{
             toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
@@ -8,24 +9,22 @@ use cosmic::{
         wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
     iced::{
-        self,
+        self, Alignment, Border, Length,
         advanced::layout::flex::Axis,
         clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
         widget::{column, row},
-        Alignment, Border, Length,
     },
-    iced_core::{text::Wrapping, Shadow},
+    iced_core::{Shadow, text::Wrapping},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
     widget::{self, Widget},
-    Apply,
 };
 use cosmic_comp_config::workspace::WorkspaceLayout;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
+    App, LayerSurface, Msg, Toplevel, Workspace,
     backend::{self, CaptureImage},
     dnd::{Drag, DragSurface, DragToplevel, DragWorkspace, DropTarget},
-    App, LayerSurface, Msg, Toplevel, Workspace,
 };
 
 fn dnd_source_with_drag_surface<D: AsMimeTypes + Send + Clone + 'static>(
@@ -291,8 +290,8 @@ fn workspace_item(
             "workspace",
             HashMap::from([("number", &workspace.info.name)])
         ))
-        .width(Length::Fill)
-        .align_x(Alignment::Center),
+        .apply(widget::container)
+        .center_x(Length::Fill),
         pin_button(workspace),
     ];
 
@@ -304,7 +303,7 @@ fn workspace_item(
         .spacing(4)
         .align_x(Alignment::Center)
         .apply(widget::container)
-        .max_height(image_height + 26.0)
+        .max_height(image_height + 28.0)
         .max_width(image_width);
 
     let is_active = workspace.is_active() && !has_workspace_drag;

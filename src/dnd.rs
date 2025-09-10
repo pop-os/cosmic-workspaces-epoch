@@ -1,7 +1,7 @@
 //! Types related to drag-and-drop
 
 use cosmic::{
-    cctk::wayland_client::{protocol::wl_output, Proxy},
+    cctk::wayland_client::{Proxy, protocol::wl_output},
     iced::clipboard::mime::AsMimeTypes,
 };
 use std::{borrow::Cow, sync::LazyLock};

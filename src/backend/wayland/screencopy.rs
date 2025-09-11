@@ -20,6 +20,7 @@ use std::{
 use super::{AppData, Buffer, Capture, CaptureImage, Event};
 
 pub struct ScreencopySession {
+    formats: Option<Formats>,
     // swapchain buffers
     buffers: Option<[Buffer; 2]>,
     session: CaptureSession,
@@ -45,6 +46,7 @@ impl ScreencopySession {
             .unwrap();
 
         Self {
+            formats: None,
             buffers: None,
             session,
             release: None,
@@ -121,8 +123,9 @@ impl ScreencopyHandler for AppData {
             return;
         };
 
+        session.formats = Some(formats.clone());
+
         // Create new buffer if none, then start capturing
-        // XXX What if formats have changed?
         if session.buffers.is_none() {
             session.buffers = Some(array::from_fn(|_| self.create_buffer(formats)));
             session.attach_buffer_and_commit(&capture, conn, &self.qh);
@@ -209,15 +212,29 @@ impl ScreencopyHandler for AppData {
 
     fn failed(
         &mut self,
-        _conn: &Connection,
+        conn: &Connection,
         _qh: &QueueHandle<Self>,
         capture_frame: &CaptureFrame,
         reason: WEnum<FailureReason>,
     ) {
-        // TODO
-        log::error!("Screencopy failed: {:?}", reason);
         let capture = &capture_frame.data::<FrameData>().unwrap().capture;
-        if let Some(capture) = capture.upgrade() {
+        let Some(capture) = capture.upgrade() else {
+            return;
+        };
+        if reason == WEnum::Value(FailureReason::BufferConstraints) {
+            // Re-allocate buffers, then trigger another capture
+            log::info!("buffer constraint failure; re-allocating");
+            let mut session = capture.session.lock().unwrap();
+            let Some(session) = session.as_mut() else {
+                return;
+            };
+            if let Some(formats) = &session.formats {
+                session.buffers = Some(array::from_fn(|_| self.create_buffer(&formats)));
+            }
+            session.attach_buffer_and_commit(&capture, conn, &self.qh);
+        } else {
+            // TODO
+            log::error!("Screencopy failed: {:?}", reason);
             capture.stop();
         }
     }

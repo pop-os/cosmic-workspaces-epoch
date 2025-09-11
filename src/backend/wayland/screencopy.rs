@@ -121,13 +121,12 @@ impl ScreencopyHandler for AppData {
             return;
         };
 
-        // Create new buffer if none
+        // Create new buffer if none, then start capturing
         // XXX What if formats have changed?
         if session.buffers.is_none() {
             session.buffers = Some(array::from_fn(|_| self.create_buffer(formats)));
+            session.attach_buffer_and_commit(&capture, conn, &self.qh);
         }
-
-        session.attach_buffer_and_commit(&capture, conn, &self.qh);
     }
 
     fn ready(

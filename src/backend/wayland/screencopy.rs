@@ -3,7 +3,7 @@ use cosmic::{
         self,
         screencopy::{
             CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats,
-            Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
+            Frame, Rect, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
             ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
         },
         wayland_client::{Connection, QueueHandle, WEnum},
@@ -66,9 +66,18 @@ impl ScreencopySession {
         // TODO
         // let node = back.node().and_then(|x| x.to_str().map(|x| x.to_string()));
 
+        // TODO: accumulate damage
+        let (width, height) = back.size;
+        let full_damage = &[Rect {
+            x: 0,
+            y: 0,
+            width: width as i32,
+            height: height as i32,
+        }];
+
         self.session.capture(
             &back.buffer,
-            &[],
+            full_damage,
             qh,
             FrameData {
                 frame_data: Default::default(),

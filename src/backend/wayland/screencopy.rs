@@ -3,7 +3,7 @@ use cosmic::{
         self,
         screencopy::{
             CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats,
-            Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
+            Frame, Rect, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
             ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
         },
         wayland_client::{Connection, QueueHandle, WEnum},
@@ -20,6 +20,7 @@ use std::{
 use super::{AppData, Buffer, Capture, CaptureImage, Event};
 
 pub struct ScreencopySession {
+    formats: Option<Formats>,
     // swapchain buffers
     buffers: Option<[Buffer; 2]>,
     session: CaptureSession,
@@ -45,6 +46,7 @@ impl ScreencopySession {
             .unwrap();
 
         Self {
+            formats: None,
             buffers: None,
             session,
             release: None,
@@ -64,9 +66,18 @@ impl ScreencopySession {
         // TODO
         // let node = back.node().and_then(|x| x.to_str().map(|x| x.to_string()));
 
+        // TODO: accumulate damage
+        let (width, height) = back.size;
+        let full_damage = &[Rect {
+            x: 0,
+            y: 0,
+            width: width as i32,
+            height: height as i32,
+        }];
+
         self.session.capture(
             &back.buffer,
-            &[],
+            full_damage,
             qh,
             FrameData {
                 frame_data: Default::default(),
@@ -121,13 +132,13 @@ impl ScreencopyHandler for AppData {
             return;
         };
 
-        // Create new buffer if none
-        // XXX What if formats have changed?
+        session.formats = Some(formats.clone());
+
+        // Create new buffer if none, then start capturing
         if session.buffers.is_none() {
             session.buffers = Some(array::from_fn(|_| self.create_buffer(formats)));
+            session.attach_buffer_and_commit(&capture, conn, &self.qh);
         }
-
-        session.attach_buffer_and_commit(&capture, conn, &self.qh);
     }
 
     fn ready(
@@ -210,15 +221,29 @@ impl ScreencopyHandler for AppData {
 
     fn failed(
         &mut self,
-        _conn: &Connection,
+        conn: &Connection,
         _qh: &QueueHandle<Self>,
         capture_frame: &CaptureFrame,
         reason: WEnum<FailureReason>,
     ) {
-        // TODO
-        log::error!("Screencopy failed: {:?}", reason);
         let capture = &capture_frame.data::<FrameData>().unwrap().capture;
-        if let Some(capture) = capture.upgrade() {
+        let Some(capture) = capture.upgrade() else {
+            return;
+        };
+        if reason == WEnum::Value(FailureReason::BufferConstraints) {
+            // Re-allocate buffers, then trigger another capture
+            log::info!("buffer constraint failure; re-allocating");
+            let mut session = capture.session.lock().unwrap();
+            let Some(session) = session.as_mut() else {
+                return;
+            };
+            if let Some(formats) = &session.formats {
+                session.buffers = Some(array::from_fn(|_| self.create_buffer(&formats)));
+            }
+            session.attach_buffer_and_commit(&capture, conn, &self.qh);
+        } else {
+            // TODO
+            log::error!("Screencopy failed: {:?}", reason);
             capture.stop();
         }
     }

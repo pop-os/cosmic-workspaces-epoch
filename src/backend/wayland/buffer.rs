@@ -1,5 +1,5 @@
 use cctk::{
-    screencopy::Formats,
+    screencopy::{Formats, Rect},
     wayland_client::{
         Connection, Dispatch, QueueHandle,
         protocol::{wl_buffer, wl_shm, wl_shm_pool},
@@ -20,6 +20,7 @@ use crate::utils;
 pub struct Buffer {
     pub backing: Arc<BufferSource>,
     pub buffer: wl_buffer::WlBuffer,
+    pub buffer_damage: Vec<Rect>,
     pub size: (u32, u32),
     #[cfg(feature = "no-subsurfaces")]
     pub mmap: memmap2::Mmap,
@@ -52,6 +53,13 @@ impl AppData {
         #[cfg(feature = "no-subsurfaces")]
         let mmap = unsafe { memmap2::Mmap::map(&fd).unwrap() };
 
+        let full_damage = vec![Rect {
+            x: 0,
+            y: 0,
+            width: width as i32,
+            height: height as i32,
+        }];
+
         Buffer {
             backing: Arc::new(
                 Shmbuf {
@@ -65,6 +73,7 @@ impl AppData {
                 .into(),
             ),
             buffer,
+            buffer_damage: full_damage,
             #[cfg(feature = "no-subsurfaces")]
             mmap,
             size: (width, height),
@@ -148,6 +157,13 @@ impl AppData {
             )
             .0;
 
+        let full_damage = vec![Rect {
+            x: 0,
+            y: 0,
+            width: width as i32,
+            height: height as i32,
+        }];
+
         Ok(Some(Buffer {
             backing: Arc::new(
                 Dmabuf {
@@ -160,6 +176,7 @@ impl AppData {
                 .into(),
             ),
             buffer,
+            buffer_damage: full_damage,
             size: (width, height),
         }))
     }

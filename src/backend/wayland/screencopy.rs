@@ -69,18 +69,9 @@ impl ScreencopySession {
         // TODO
         // let node = back.node().and_then(|x| x.to_str().map(|x| x.to_string()));
 
-        // TODO: accumulate damage
-        let (width, height) = back.size;
-        let full_damage = &[Rect {
-            x: 0,
-            y: 0,
-            width: width as i32,
-            height: height as i32,
-        }];
-
         self.session.capture(
             &back.buffer,
-            full_damage,
+            &back.buffer_damage,
             qh,
             FrameData {
                 frame_data: Default::default(),
@@ -185,7 +176,13 @@ impl ScreencopyHandler for AppData {
             session.attach_buffer_and_commit(&capture_clone, &conn, &qh);
         });
 
-        let front = session.buffers.as_mut().unwrap().first_mut().unwrap();
+        // Clear `buffer_damage` for front buffer; accumulate for other buffers.
+        session.buffers.as_mut().unwrap()[0].buffer_damage.clear();
+        for buffer in &mut session.buffers.as_mut().unwrap()[1..] {
+            buffer.buffer_damage.extend_from_slice(&frame.damage);
+        }
+
+        let front = &session.buffers.as_ref().unwrap()[0];
         let (buffer, release) = SubsurfaceBuffer::new(front.backing.clone());
         session.release = Some(release);
         let image = CaptureImage {

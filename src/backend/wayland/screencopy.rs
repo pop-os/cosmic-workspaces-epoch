@@ -19,10 +19,13 @@ use std::{
 
 use super::{AppData, Buffer, Capture, CaptureImage, Event};
 
+// Number of buffers to swap between
+const BUFFER_COUNT: usize = 2;
+
 pub struct ScreencopySession {
     formats: Option<Formats>,
     // swapchain buffers
-    buffers: Option<[Buffer; 2]>,
+    buffers: Option<[Buffer; BUFFER_COUNT]>,
     session: CaptureSession,
     // Future signaled when buffer is signaled.
     // if triple buffer is used, will need more than one.

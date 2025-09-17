@@ -256,4 +256,4 @@ impl ScreencopyHandler for AppData {
     }
 }
 
-cctk::delegate_screencopy!(AppData, session: [SessionData], frame: [FrameData]);
+cctk::delegate_screencopy!(AppData);

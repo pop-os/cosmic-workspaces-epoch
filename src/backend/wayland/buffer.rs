@@ -93,6 +93,14 @@ impl AppData {
             return Ok(None);
         };
         let drm_dev = drm_dev.unwrap_or(feedback.main_device() as u64);
+        if let Some(vulkan) = &mut self.vulkan {
+            if let Ok(Some(name)) = vulkan.device_name(drm_dev) {
+                // TODO Workaround: force shm on Meteor/Arrow/Lunar Lake
+                if name.contains("MTL") || name.contains("ARL") || name.contains("LNL") {
+                    return Ok(None);
+                }
+            }
+        }
         let Some((_dev_path, gbm)) = self.gbm_devices.gbm_device(drm_dev)? else {
             return Ok(None);
         };

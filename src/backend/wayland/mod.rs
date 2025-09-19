@@ -39,6 +39,7 @@ use gbm_devices::GbmDevices;
 mod screencopy;
 use screencopy::{ScreencopySession, SessionData};
 mod toplevel;
+mod vulkan;
 mod workspace;
 
 use super::{CaptureFilter, CaptureImage, Cmd, Event};
@@ -63,6 +64,7 @@ pub struct AppData {
     dmabuf_feedback: Option<DmabufFeedback>,
     gbm_devices: GbmDevices,
     thread_pool: futures_executor::ThreadPool,
+    vulkan: Option<vulkan::Vulkan>,
 }
 
 impl AppData {
@@ -308,6 +310,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             dmabuf_feedback: None,
             gbm_devices: GbmDevices::default(),
             thread_pool,
+            vulkan: vulkan::Vulkan::new(),
         };
 
         let (cmd_sender, cmd_channel) = calloop::channel::channel();

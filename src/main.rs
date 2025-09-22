@@ -635,10 +635,10 @@ impl Application for App {
                         };
 
                         let scroll = previous_scroll + y;
-                        if scroll <= -4. {
+                        if scroll <= -16. {
                             self.scroll = None;
                             ScrollDirection::Prev
-                        } else if scroll >= 4. {
+                        } else if scroll >= 16. {
                             self.scroll = None;
                             ScrollDirection::Next
                         } else {

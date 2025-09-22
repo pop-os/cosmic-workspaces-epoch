@@ -36,6 +36,7 @@ calloop-wayland-source = "0.4.1"
 aliasable = "0.1.3"
 futures-executor = { version = "0.3.31", features = ["thread-pool"] }
 zbus = "5.9.0"
+tokio-stream = { version = "0.1.17", features = ["sync"] }
 
 [dependencies.i18n-embed]
 version = "0.16"

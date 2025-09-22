@@ -116,6 +116,7 @@ enum Msg {
     TogglePinned(ExtWorkspaceHandleV1),
     EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
     DbusInterface(zbus::Result<dbus::Interface>),
+    DBus(dbus::Event),
     Ignore,
 }
 
@@ -728,6 +729,12 @@ impl Application for App {
                     self.dbus_interface = Some(interface);
                 }
             }
+            Msg::DBus(evt) => {
+                return match evt {
+                    dbus::Event::Show => self.show(),
+                    dbus::Event::Hide => self.hide(),
+                };
+            }
             Msg::Ignore => {}
         }
 
@@ -811,6 +818,9 @@ impl Application for App {
         ];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(backend::subscription(conn).map(Msg::Wayland));
+        }
+        if let Some(interface) = &self.dbus_interface {
+            subscriptions.push(interface.subscription().map(Msg::DBus));
         }
         iced::Subscription::batch(subscriptions)
     }

@@ -53,6 +53,9 @@ mod utils;
 mod widgets;
 use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
 
+// Number of scroll pixels before changing workspace
+const SCROLL_PIXELS: f32 = 24.0;
+
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
     show_workspace_number: bool,
@@ -688,10 +691,10 @@ impl Application for App {
                         y = -y;
 
                         let scroll = previous_scroll + y;
-                        if scroll <= -4. {
+                        if scroll <= -SCROLL_PIXELS {
                             self.scroll = None;
                             ScrollDirection::Prev
-                        } else if scroll >= 4. {
+                        } else if scroll >= SCROLL_PIXELS {
                             self.scroll = None;
                             ScrollDirection::Next
                         } else {

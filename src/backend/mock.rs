@@ -3,16 +3,20 @@
 
 use cosmic::{
     cctk::{
-        cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+        cosmic_protocols::{
+            toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
+            toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
+            workspace::v2::client::zcosmic_workspace_handle_v2,
+        },
         wayland_client::{
-            protocol::{wl_output, wl_shm},
             Connection, WEnum,
+            protocol::{wl_output, wl_shm},
         },
         wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
     iced::{
         self,
-        futures::{executor::block_on, FutureExt, SinkExt},
+        futures::{FutureExt, SinkExt, executor::block_on},
     },
     iced_winit::platform_specific::wayland::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
 };
@@ -23,8 +27,8 @@ use std::{
     fs,
     io::{self, Write},
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
     },
     thread,
 };
@@ -102,9 +106,11 @@ pub struct ToplevelInfo {
 pub struct Workspace {
     pub handle: ExtWorkspaceHandleV1,
     pub name: String,
-    // pub coordinates: Vec<u32>,
+    pub coordinates: Vec<u32>,
     pub state: ext_workspace_handle_v1::State,
-    // pub capabilities: Vec<WEnum<zcosmic_workspace_handle_v1::ZcosmicWorkspaceCapabilitiesV1>>,
+    pub capabilities: ext_workspace_handle_v1::WorkspaceCapabilities,
+    pub cosmic_capabilities: zcosmic_workspace_handle_v2::WorkspaceCapabilities,
+    pub cosmic_state: zcosmic_workspace_handle_v2::State,
     // pub tiling: Option<WEnum<zcosmic_workspace_handle_v1::TilingState>>,
 }
 
@@ -131,11 +137,15 @@ impl AppData {
             let workspace = Workspace {
                 handle: workspace_handle.clone(),
                 name: format!("Workspace {i}"),
+                coordinates: vec![i],
                 state: if i == 0 {
                     ext_workspace_handle_v1::State::Active
                 } else {
                     ext_workspace_handle_v1::State::empty()
                 },
+                capabilities: ext_workspace_handle_v1::WorkspaceCapabilities::Activate,
+                cosmic_capabilities: zcosmic_workspace_handle_v2::WorkspaceCapabilities::empty(),
+                cosmic_state: zcosmic_workspace_handle_v2::State::empty(),
             };
             // Add three toplevels for each workspace
             for j in 0..=3 {
@@ -190,6 +200,10 @@ impl AppData {
             Cmd::ActivateWorkspace(workspace_handle) => {
                 println!("Activate {:?}", workspace_handle);
             }
+            // TODO
+            Cmd::MoveWorkspaceBefore(_, _)
+            | Cmd::MoveWorkspaceAfter(_, _)
+            | Cmd::SetWorkspacePinned(_, _) => {}
         }
     }
 }
@@ -212,6 +226,11 @@ fn start(_conn: Connection) -> mpsc::Receiver<Event> {
             outputs: Vec::new(),
             workspaces: Vec::new(),
         };
+        app_data.send_event(Event::ToplevelCapabilities(vec![
+            zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1::Close,
+            zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1::Activate,
+            zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1::MoveToWorkspace,
+        ]));
         app_data.send_event(Event::CmdSender(cmd_sender));
         loop {
             event_loop.dispatch(None, &mut app_data).unwrap();

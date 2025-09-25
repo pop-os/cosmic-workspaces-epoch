@@ -3,7 +3,7 @@ use cosmic::{
         self,
         screencopy::{
             CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats,
-            Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
+            Frame, Rect, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
             ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
         },
         wayland_client::{Connection, QueueHandle, WEnum},
@@ -19,9 +19,13 @@ use std::{
 
 use super::{AppData, Buffer, Capture, CaptureImage, Event};
 
+// Number of buffers to swap between
+const BUFFER_COUNT: usize = 2;
+
 pub struct ScreencopySession {
+    formats: Option<Formats>,
     // swapchain buffers
-    buffers: Option<[Buffer; 2]>,
+    buffers: Option<[Buffer; BUFFER_COUNT]>,
     session: CaptureSession,
     // Future signaled when buffer is signaled.
     // if triple buffer is used, will need more than one.
@@ -45,6 +49,7 @@ impl ScreencopySession {
             .unwrap();
 
         Self {
+            formats: None,
             buffers: None,
             session,
             release: None,
@@ -66,11 +71,11 @@ impl ScreencopySession {
 
         self.session.capture(
             &back.buffer,
-            &[],
+            &back.buffer_damage,
             qh,
             FrameData {
                 frame_data: Default::default(),
-                capture: Arc::downgrade(&capture),
+                capture: Arc::downgrade(capture),
             },
         );
         conn.flush().unwrap();
@@ -121,13 +126,13 @@ impl ScreencopyHandler for AppData {
             return;
         };
 
-        // Create new buffer if none
-        // XXX What if formats have changed?
+        session.formats = Some(formats.clone());
+
+        // Create new buffer if none, then start capturing
         if session.buffers.is_none() {
             session.buffers = Some(array::from_fn(|_| self.create_buffer(formats)));
+            session.attach_buffer_and_commit(&capture, conn, &self.qh);
         }
-
-        session.attach_buffer_and_commit(&capture, conn, &self.qh);
     }
 
     fn ready(
@@ -159,21 +164,25 @@ impl ScreencopyHandler for AppData {
         let conn = conn.clone();
         let release = session.release.take();
         let qh = qh.clone();
-        self.scheduler
-            .schedule(async move {
-                if let Some(release) = release {
-                    // Wait for buffer to be released by server
-                    release.await;
-                }
-                let mut session = capture_clone.session.lock().unwrap();
-                let Some(session) = session.as_mut() else {
-                    return;
-                };
-                session.attach_buffer_and_commit(&capture_clone, &conn, &qh);
-            })
-            .unwrap();
+        self.thread_pool.spawn_ok(async move {
+            if let Some(release) = release {
+                // Wait for buffer to be released by server
+                release.await;
+            }
+            let mut session = capture_clone.session.lock().unwrap();
+            let Some(session) = session.as_mut() else {
+                return;
+            };
+            session.attach_buffer_and_commit(&capture_clone, &conn, &qh);
+        });
 
-        let front = session.buffers.as_mut().unwrap().first_mut().unwrap();
+        // Clear `buffer_damage` for front buffer; accumulate for other buffers.
+        session.buffers.as_mut().unwrap()[0].buffer_damage.clear();
+        for buffer in &mut session.buffers.as_mut().unwrap()[1..] {
+            buffer.buffer_damage.extend_from_slice(&frame.damage);
+        }
+
+        let front = &session.buffers.as_ref().unwrap()[0];
         let (buffer, release) = SubsurfaceBuffer::new(front.backing.clone());
         session.release = Some(release);
         let image = CaptureImage {
@@ -212,15 +221,29 @@ impl ScreencopyHandler for AppData {
 
     fn failed(
         &mut self,
-        _conn: &Connection,
+        conn: &Connection,
         _qh: &QueueHandle<Self>,
         capture_frame: &CaptureFrame,
         reason: WEnum<FailureReason>,
     ) {
-        // TODO
-        log::error!("Screencopy failed: {:?}", reason);
         let capture = &capture_frame.data::<FrameData>().unwrap().capture;
-        if let Some(capture) = capture.upgrade() {
+        let Some(capture) = capture.upgrade() else {
+            return;
+        };
+        if reason == WEnum::Value(FailureReason::BufferConstraints) {
+            // Re-allocate buffers, then trigger another capture
+            log::info!("buffer constraint failure; re-allocating");
+            let mut session = capture.session.lock().unwrap();
+            let Some(session) = session.as_mut() else {
+                return;
+            };
+            if let Some(formats) = &session.formats {
+                session.buffers = Some(array::from_fn(|_| self.create_buffer(&formats)));
+            }
+            session.attach_buffer_and_commit(&capture, conn, &self.qh);
+        } else {
+            // TODO
+            log::error!("Screencopy failed: {:?}", reason);
             capture.stop();
         }
     }
@@ -233,4 +256,4 @@ impl ScreencopyHandler for AppData {
     }
 }
 
-cctk::delegate_screencopy!(AppData, session: [SessionData], frame: [FrameData]);
+cctk::delegate_screencopy!(AppData);

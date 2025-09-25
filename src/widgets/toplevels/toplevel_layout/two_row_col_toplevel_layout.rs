@@ -1,9 +1,9 @@
-use cosmic::iced::{advanced::layout::flex::Axis, Length};
+use cosmic::iced::{Length, advanced::layout::flex::Axis};
 
 use super::{
-    axis_toplevel_layout::{AxisPoint, AxisRectangle, AxisSize, AxisToplevelLayout},
-    row_col_toplevel_layout::RowColToplevelLayout,
     LayoutToplevel,
+    axis_toplevel_layout::{AxisRectangle, AxisSize, AxisToplevelLayout},
+    row_col_toplevel_layout::RowColToplevelLayout,
 };
 
 pub(crate) struct TwoRowColToplevelLayout(RowColToplevelLayout);
@@ -31,12 +31,12 @@ impl AxisToplevelLayout for TwoRowColToplevelLayout {
         max_limit: AxisSize,
         toplevels: &[LayoutToplevel<'_, AxisSize>],
     ) -> impl Iterator<Item = AxisRectangle> {
-        let requested_main_total = self.0.requested_main_total(&toplevels);
+        let requested_main_total = self.0.requested_main_total(toplevels);
         let scale_factor = self.0.scale_factor(max_limit, toplevels);
 
         let half_max_limit = AxisSize {
             main: max_limit.main,
-            cross: max_limit.cross / 2. - self.0.spacing as f32,
+            cross: (max_limit.cross - self.0.spacing as f32) / 2.,
         };
 
         // See if two row layout is better
@@ -60,7 +60,7 @@ impl AxisToplevelLayout for TwoRowColToplevelLayout {
                     .0
                     .layout(half_max_limit, &toplevels[split_point..])
                     .map(move |mut rect| {
-                        rect.origin.cross += max_limit.cross / 2. + self.0.spacing as f32;
+                        rect.origin.cross += half_max_limit.cross + self.0.spacing as f32;
                         rect
                     });
                 return itertools::Either::Left(row1.chain(row2));

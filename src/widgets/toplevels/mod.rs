@@ -1,12 +1,12 @@
 use cosmic::iced::{
+    Length, Rectangle, Size, Vector,
     advanced::{
+        Clipboard, Layout, Shell, Widget,
         layout::{self, flex::Axis},
         mouse, renderer,
         widget::{Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
     },
     event::{self, Event},
-    Length, Rectangle, Size, Vector,
 };
 use std::marker::PhantomData;
 

@@ -1,24 +1,25 @@
 use cosmic::iced::{
+    Length, Rectangle, Size, Vector,
     advanced::{
-        layout, mouse, overlay, renderer,
-        widget::{tree, Id, Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
+        Clipboard, Layout, Shell, Widget, layout, mouse, overlay, renderer,
+        widget::{Id, Operation, Tree, tree},
     },
     event::{self, Event},
-    Length, Rectangle, Size, Vector,
 };
 use std::marker::PhantomData;
 
 mod image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
-mod toplevel_item;
-pub use toplevel_item::toplevel_item;
+mod size_cross_nth;
+pub use size_cross_nth::size_cross_nth;
 mod mouse_interaction_wrapper;
 mod toplevels;
 pub use toplevels::toplevels;
 mod visibility_wrapper;
 pub use visibility_wrapper::visibility_wrapper;
+mod match_size;
+pub use match_size::match_size;
 
 // Widget for debugging
 #[allow(dead_code)]

@@ -1,37 +1,47 @@
 [package]
 name = "cosmic-workspaces"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-anyhow = "1.0.75"
-calloop = { version = "0.14.2", features = ["executor"] }
+anyhow = "1.0.99"
+calloop = { version = "0.14.3", features = ["executor"] }
 clap = { version = "4", features = ["derive"] }
 cosmic-bg-config = { git = "https://github.com/pop-os/cosmic-bg" }
 cosmic-comp-config = { git = "https://github.com/pop-os/cosmic-comp" }
-env_logger = "0.11.0"
-futures-channel = "0.3.25"
+env_logger = "0.11.8"
+futures-channel = "0.3.31"
 gbm = "0.18.0"
-libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["tokio", "wayland", "single-instance", "multi-window", "winit"] }
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
+    "tokio",
+    "wayland",
+    "single-instance",
+    "desktop",
+    "multi-window",
+    "winit",
+] }
 cosmic-config = { git = "https://github.com/pop-os/libcosmic" }
-freedesktop-desktop-entry = "0.7.0"
-freedesktop-icons = "0.2.4"
+freedesktop-icons = { package = "cosmic-freedesktop-icons", git = "https://github.com/pop-os/freedesktop-icons" }
 
-memmap2 = "0.9.0"
-tokio = "1.23.0"
-wayland-protocols = "0.32.1"
-zbus = { version = "4.0.0", default-features = false, features = ["tokio"] }
-delegate = "0.13.0"
+memmap2 = "0.9.8"
+tokio = "1.47.1"
+wayland-protocols = "0.32.9"
+delegate = "0.13.4"
 itertools = "0.14.0"
-log = "0.4.20"
-i18n-embed-fl = "0.9.0"
-rust-embed = "8.1.0"
-rustix = { version = "0.38.30", features  = ["fs"] }
-calloop-wayland-source = "0.4.0"
+log = "0.4.28"
+i18n-embed-fl = "0.10"
+rust-embed = "8.7.2"
+rustix = { version = "1.1.2", features = ["fs", "shm"] }
+calloop-wayland-source = "0.4.1"
 aliasable = "0.1.3"
+futures-executor = { version = "0.3.31", features = ["thread-pool"] }
+zbus = "5.9.0"
+tokio-stream = { version = "0.1.17", features = ["sync"] }
+ash = { version = "0.38.0", features = ["loaded"] }
+bytemuck = "1.23.2"
 
 [dependencies.i18n-embed]
-version = "0.15.3"
+version = "0.16"
 features = ["fluent-system", "desktop-requester"]
 
 [features]

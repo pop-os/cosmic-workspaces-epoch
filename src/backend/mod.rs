@@ -8,7 +8,10 @@
 //! backend for testing without any special protocols.
 
 use cosmic::{
-    cctk::wayland_client::protocol::wl_output,
+    cctk::{
+        cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
+        wayland_client::protocol::wl_output,
+    },
     iced_winit::platform_specific::wayland::subsurface_widget::SubsurfaceBuffer,
 };
 use std::collections::HashSet;
@@ -32,13 +35,30 @@ pub use wayland::subscription;
 mod mock;
 #[cfg(feature = "mock-backend")]
 pub use mock::{
-    subscription, ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo, Workspace,
+    ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo, Workspace, subscription,
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct CaptureFilter {
     pub workspaces_on_outputs: Vec<wl_output::WlOutput>,
     pub toplevels_on_workspaces: Vec<ExtWorkspaceHandleV1>,
+}
+
+impl CaptureFilter {
+    pub fn workspace_outputs_matches<'a>(
+        &self,
+        outputs: impl IntoIterator<Item = &'a wl_output::WlOutput>,
+    ) -> bool {
+        outputs
+            .into_iter()
+            .any(|o| self.workspaces_on_outputs.contains(o))
+    }
+
+    pub fn toplevel_matches(&self, info: &ToplevelInfo) -> bool {
+        info.workspace
+            .iter()
+            .any(|workspace| self.toplevels_on_workspaces.contains(workspace))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +82,9 @@ pub enum Event {
     UpdateToplevel(ExtForeignToplevelHandleV1, ToplevelInfo),
     CloseToplevel(ExtForeignToplevelHandleV1),
     ToplevelCapture(ExtForeignToplevelHandleV1, CaptureImage),
+    ToplevelCapabilities(
+        Vec<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
+    ),
 }
 
 #[derive(Debug)]
@@ -74,5 +97,8 @@ pub enum Cmd {
         ExtWorkspaceHandleV1,
         wl_output::WlOutput,
     ),
+    MoveWorkspaceBefore(ExtWorkspaceHandleV1, ExtWorkspaceHandleV1),
+    MoveWorkspaceAfter(ExtWorkspaceHandleV1, ExtWorkspaceHandleV1),
     ActivateWorkspace(ExtWorkspaceHandleV1),
+    SetWorkspacePinned(ExtWorkspaceHandleV1, bool),
 }

@@ -7,6 +7,7 @@ Name[hu]=Munkaterületek
 Name[pl]=Obszary robocze
 Name[pt]=Áreas de Trabalho
 Name[sk]=Pracovné plochy
+Name[sv]=Arbetsytor
 Comment=
 Type=Application
 Exec=cosmic-workspaces

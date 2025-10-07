@@ -672,19 +672,20 @@ impl Application for App {
                 // Accumulate delta with a timer
                 // TODO: Should x scroll be handled too?
                 // Best time/pixel count?
+
+                let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll {
+                    if last_scroll_time.elapsed() > Duration::from_millis(100) {
+                        0.
+                    } else {
+                        scroll
+                    }
+                } else {
+                    0.
+                };
+
                 let direction = match delta {
                     ScrollDelta::Pixels { x: _, mut y } => {
                         y = -y;
-                        let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll
-                        {
-                            if last_scroll_time.elapsed() > Duration::from_millis(100) {
-                                0.
-                            } else {
-                                scroll
-                            }
-                        } else {
-                            0.
-                        };
 
                         let scroll = previous_scroll + y;
                         if scroll <= -4. {
@@ -705,12 +706,20 @@ impl Application for App {
                     }
                     ScrollDelta::Lines { x: _, mut y } => {
                         y = -y;
-                        self.scroll = None;
-                        if y < 0. {
+
+                        let scroll = previous_scroll + y;
+                        if scroll <= -1. {
+                            self.scroll = None;
                             ScrollDirection::Prev
-                        } else if y > 0. {
+                        } else if scroll >= 1. {
+                            self.scroll = None;
                             ScrollDirection::Next
                         } else {
+                            self.scroll = if y != 0. {
+                                Some((scroll, Instant::now()))
+                            } else {
+                                None
+                            };
                             return Task::none();
                         }
                     }

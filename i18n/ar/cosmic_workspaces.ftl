@@ -1,2 +1,2 @@
-workspace = مَسَاحَةُ العَمَلِ { $number }
-new-workspace = أنشِئ مَسَاحَةَ عَمَلٍ جَدِيدَة
+workspace = مساحة العمل { $number }
+new-workspace = مساحة عمل جديدة

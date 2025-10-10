@@ -719,17 +719,22 @@ impl Application for App {
                 // TODO assumes only one active workspace per output
                 let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
                 if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
-                    let workspace = match direction {
-                        // Next workspace on output
-                        ScrollDirection::Next => workspaces[workspace_idx + 1..].iter().next(),
-                        // Previous workspace on output
-                        ScrollDirection::Prev => workspaces[..workspace_idx].iter().last(),
+                    let new_workspace_idx = match direction {
+                        // Next workspace on output, wrapping to start
+                        ScrollDirection::Next => (workspace_idx + 1) % workspaces.len(),
+                        // Previous workspace on output, wrapping to end
+                        ScrollDirection::Prev => {
+                            if workspace_idx == 0 {
+                                workspaces.len() - 1
+                            } else {
+                                workspace_idx - 1
+                            }
+                        }
                     };
-                    if let Some(workspace) = workspace {
-                        self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
-                            workspace.handle().clone(),
-                        ));
-                    }
+                    let workspace = workspaces[new_workspace_idx];
+                    self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
+                        workspace.handle().clone(),
+                    ));
                 }
             }
             Msg::DndWorkspaceDrag => {}

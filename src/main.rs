@@ -52,6 +52,9 @@ mod utils;
 mod widgets;
 use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
 
+// Number of scroll pixels before changing workspace
+const SCROLL_PIXELS: f32 = 24.0;
+
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
     show_workspace_number: bool,
@@ -620,25 +623,26 @@ impl Application for App {
                 // Accumulate delta with a timer
                 // TODO: Should x scroll be handled too?
                 // Best time/pixel count?
+
+                let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll {
+                    if last_scroll_time.elapsed() > Duration::from_millis(100) {
+                        0.
+                    } else {
+                        scroll
+                    }
+                } else {
+                    0.
+                };
+
                 let direction = match delta {
                     ScrollDelta::Pixels { x: _, mut y } => {
                         y = -y;
-                        let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll
-                        {
-                            if last_scroll_time.elapsed() > Duration::from_millis(100) {
-                                0.
-                            } else {
-                                scroll
-                            }
-                        } else {
-                            0.
-                        };
 
                         let scroll = previous_scroll + y;
-                        if scroll <= -4. {
+                        if scroll <= -SCROLL_PIXELS {
                             self.scroll = None;
                             ScrollDirection::Prev
-                        } else if scroll >= 4. {
+                        } else if scroll >= SCROLL_PIXELS {
                             self.scroll = None;
                             ScrollDirection::Next
                         } else {
@@ -653,12 +657,20 @@ impl Application for App {
                     }
                     ScrollDelta::Lines { x: _, mut y } => {
                         y = -y;
-                        self.scroll = None;
-                        if y < 0. {
+
+                        let scroll = previous_scroll + y;
+                        if scroll <= -1. {
+                            self.scroll = None;
                             ScrollDirection::Prev
-                        } else if y > 0. {
+                        } else if scroll >= 1. {
+                            self.scroll = None;
                             ScrollDirection::Next
                         } else {
+                            self.scroll = if y != 0. {
+                                Some((scroll, Instant::now()))
+                            } else {
+                                None
+                            };
                             return Task::none();
                         }
                     }
@@ -667,17 +679,22 @@ impl Application for App {
                 // TODO assumes only one active workspace per output
                 let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
                 if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
-                    let workspace = match direction {
-                        // Next workspace on output
-                        ScrollDirection::Next => workspaces[workspace_idx + 1..].iter().next(),
-                        // Previous workspace on output
-                        ScrollDirection::Prev => workspaces[..workspace_idx].iter().last(),
+                    let new_workspace_idx = match direction {
+                        // Next workspace on output, wrapping to start
+                        ScrollDirection::Next => (workspace_idx + 1) % workspaces.len(),
+                        // Previous workspace on output, wrapping to end
+                        ScrollDirection::Prev => {
+                            if workspace_idx == 0 {
+                                workspaces.len() - 1
+                            } else {
+                                workspace_idx - 1
+                            }
+                        }
                     };
-                    if let Some(workspace) = workspace {
-                        self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
-                            workspace.handle().clone(),
-                        ));
-                    }
+                    let workspace = workspaces[new_workspace_idx];
+                    self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
+                        workspace.handle().clone(),
+                    ));
                 }
             }
             Msg::DndWorkspaceDrag => {}

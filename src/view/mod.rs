@@ -150,6 +150,10 @@ pub(crate) fn layer_surface<'a>(
                 .width(Length::Fill),
         ),
     };
+
+    let panel_regions = app.panel_regions(&surface.output);
+    let container = widget::container(container).padding(panel_regions);
+
     let output = surface.output.clone();
     widget::mouse_area(container)
         .on_scroll(move |delta| Msg::OnScroll(output.clone(), delta))

@@ -31,7 +31,7 @@ use cosmic::{
 };
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry};
-use cosmic_panel_config::{CosmicPanelConfig, CosmicPanelContainerConfigEntry};
+use cosmic_panel_config::{CosmicPanelConfig, CosmicPanelContainerConfigEntry, PanelAnchor};
 use i18n_embed::DesktopLanguageRequester;
 use std::{
     collections::{HashMap, HashSet},
@@ -351,6 +351,54 @@ impl App {
 
         self.capture_filter = capture_filter.clone();
         self.send_wayland_cmd(backend::Cmd::CaptureFilter(capture_filter));
+    }
+
+    fn panel_regions(&self, output_handle: &wl_output::WlOutput) -> iced::Padding {
+        let Some(output) = self.outputs.iter().find(|o| o.handle == *output_handle) else {
+            return iced::Padding::ZERO;
+        };
+
+        let mut regions = iced::Padding::ZERO;
+        // TODO: If compositor supports overlap notify, also use that?
+        // Or otherwise verify the panel is actually running.
+        for config in self.panel_configs.values().flatten() {
+            if config.autohide.is_some() && !config.exclusive_zone {
+                let dimention_constraints = config.get_dimensions(
+                    Some((output.width as u32, output.height as u32)),
+                    None,
+                    Some(config.get_effective_anchor_gap()),
+                );
+                let size =
+                    config.size.get_applet_icon_size_with_padding(true) + u32::from(config.margin);
+                match config.anchor {
+                    PanelAnchor::Left => {
+                        let size = dimention_constraints.0.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.left += size as f32;
+                    }
+                    PanelAnchor::Right => {
+                        let size = dimention_constraints.0.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.right += size as f32;
+                    }
+                    PanelAnchor::Top => {
+                        let size = dimention_constraints.1.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.top += size as f32;
+                    }
+                    PanelAnchor::Bottom => {
+                        let size = dimention_constraints.1.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.bottom += size as f32;
+                    }
+                }
+            }
+        }
+        regions
     }
 }
 

@@ -1099,7 +1099,7 @@ dependencies = [
 [[package]]
 name = "cosmic-client-toolkit"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols//?branch=main#af1997b1827ad64aab46fa31c0b77fb20d7a537a"
+source = "git+https://github.com/pop-os/cosmic-protocols//?branch=ext-workspace-capture#f6ee517680aa145de19298e72ffe20b9299298f8"
 dependencies = [
  "bitflags 2.9.4",
  "cosmic-protocols",
@@ -1165,7 +1165,7 @@ dependencies = [
 [[package]]
 name = "cosmic-protocols"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols//?branch=main#af1997b1827ad64aab46fa31c0b77fb20d7a537a"
+source = "git+https://github.com/pop-os/cosmic-protocols//?branch=ext-workspace-capture#f6ee517680aa145de19298e72ffe20b9299298f8"
 dependencies = [
  "bitflags 2.9.4",
  "wayland-backend",
@@ -4397,9 +4397,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.37.5"
+version = "0.38.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+checksum = "42a232e7487fc2ef313d96dde7948e7a3c05101870d8985e4fd8d26aedd27b89"
 dependencies = [
  "memchr",
 ]
@@ -5917,8 +5917,7 @@ dependencies = [
 [[package]]
 name = "wayland-backend"
 version = "0.3.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "673a33c33048a5ade91a6b139580fa174e19fb0d23f396dca9fa15f2e1e49b35"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "cc",
  "downcast-rs",
@@ -5931,8 +5930,7 @@ dependencies = [
 [[package]]
 name = "wayland-client"
 version = "0.31.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c66a47e840dc20793f2264eb4b3e4ecb4b75d91c0dd4af04b456128e0bdd449d"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "bitflags 2.9.4",
  "rustix 1.1.2",
@@ -5954,8 +5952,7 @@ dependencies = [
 [[package]]
 name = "wayland-cursor"
 version = "0.31.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "447ccc440a881271b19e9989f75726d60faa09b95b0200a9b7eb5cc47c3eeb29"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "rustix 1.1.2",
  "wayland-client",
@@ -5965,8 +5962,7 @@ dependencies = [
 [[package]]
 name = "wayland-protocols"
 version = "0.32.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efa790ed75fbfd71283bd2521a1cfdc022aabcc28bdcff00851f9e4ae88d9901"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "bitflags 2.9.4",
  "wayland-backend",
@@ -6017,8 +6013,7 @@ dependencies = [
 [[package]]
 name = "wayland-protocols-wlr"
 version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efd94963ed43cf9938a090ca4f7da58eb55325ec8200c3848963e98dc25b78ec"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "bitflags 2.9.4",
  "wayland-backend",
@@ -6031,8 +6026,7 @@ dependencies = [
 [[package]]
 name = "wayland-scanner"
 version = "0.31.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54cb1e9dc49da91950bdfd8b848c49330536d9d1fb03d4bfec8cae50caa50ae3"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "proc-macro2",
  "quick-xml",
@@ -6042,8 +6036,7 @@ dependencies = [
 [[package]]
 name = "wayland-server"
 version = "0.31.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcbd4f3aba6c9fba70445ad2a484c0ef0356c1a9459b1e8e435bedc1971a6222"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "bitflags 2.9.4",
  "downcast-rs",
@@ -6055,8 +6048,7 @@ dependencies = [
 [[package]]
 name = "wayland-sys"
 version = "0.31.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34949b42822155826b41db8e5d0c1be3a2bd296c747577a43a3e6daefc296142"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"
 dependencies = [
  "dlib",
  "libc",
@@ -7204,3 +7196,8 @@ dependencies = [
  "syn 2.0.106",
  "winnow 0.7.13",
 ]
+
+[[patch.unused]]
+name = "wayland-egl"
+version = "0.32.8"
+source = "git+https://github.com/smithay/wayland-rs?branch=workspace-capture#fe933aa6e4fe5b3adbd0e67d1c32abafc5a60266"

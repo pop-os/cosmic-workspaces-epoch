@@ -31,6 +31,7 @@ use cosmic::{
 };
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry};
+use cosmic_panel_config::{CosmicPanelConfig, CosmicPanelContainerConfigEntry};
 use i18n_embed::DesktopLanguageRequester;
 use std::{
     collections::{HashMap, HashSet},
@@ -117,6 +118,8 @@ enum Msg {
     EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
     DbusInterface(zbus::Result<dbus::Interface>),
     DBus(dbus::Event),
+    PanelContainerEntries(Vec<String>),
+    PanelConfig(CosmicPanelConfig),
     Ignore,
 }
 
@@ -196,6 +199,7 @@ struct App {
     drop_target: Option<DropTarget>,
     scroll: Option<(f32, Instant)>,
     dbus_interface: Option<dbus::Interface>,
+    panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
 }
 
 #[derive(Debug, Default)]
@@ -735,6 +739,17 @@ impl Application for App {
                     dbus::Event::Hide => self.hide(),
                 };
             }
+            Msg::PanelContainerEntries(entries) => {
+                self.panel_configs.retain(|k, _| entries.contains(&k));
+                for entry in entries {
+                    if !self.panel_configs.contains_key(&entry) {
+                        self.panel_configs.insert(entry, None);
+                    }
+                }
+            }
+            Msg::PanelConfig(config) => {
+                self.panel_configs.insert(config.name.clone(), Some(config));
+            }
             Msg::Ignore => {}
         }
 
@@ -822,6 +837,7 @@ impl Application for App {
         if let Some(interface) = &self.dbus_interface {
             subscriptions.push(interface.subscription().map(Msg::DBus));
         }
+        subscriptions.push(panel_subscriptions(self.panel_configs.keys()));
         iced::Subscription::batch(subscriptions)
     }
 
@@ -848,6 +864,30 @@ impl Application for App {
     fn core_mut(&mut self) -> &mut cosmic::app::Core {
         &mut self.core
     }
+}
+
+fn panel_subscriptions<'a>(
+    container_entries: impl Iterator<Item = &'a String>,
+) -> Subscription<Msg> {
+    let mut subscriptions = vec![
+        cosmic_config::config_subscription::<_, CosmicPanelContainerConfigEntry>(
+            "panel-config-subscription",
+            "com.system76.CosmicPanel".into(),
+            1,
+        )
+        .map(|update| Msg::PanelContainerEntries(update.config.entries)),
+    ];
+    for entry in container_entries {
+        subscriptions.push(
+            cosmic_config::config_subscription::<_, CosmicPanelConfig>(
+                ("panel-config-subscription", entry.to_owned()),
+                format!("com.system76.CosmicPanel.{}", entry).into(),
+                1,
+            )
+            .map(|update| Msg::PanelConfig(update.config)),
+        );
+    }
+    iced::Subscription::batch(subscriptions)
 }
 
 fn init_localizer() {

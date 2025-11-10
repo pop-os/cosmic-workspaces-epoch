@@ -39,6 +39,7 @@ zbus = "5.9.0"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 ash = { version = "0.38.0", features = ["loaded"] }
 bytemuck = "1.23.2"
+cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel" }
 
 [dependencies.i18n-embed]
 version = "0.16"

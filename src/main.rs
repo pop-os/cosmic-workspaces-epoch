@@ -28,6 +28,7 @@ use cosmic::{
     iced_winit::platform_specific::wayland::commands::layer_surface::{
         destroy_layer_surface, get_layer_surface,
     },
+    scroll::DiscreteScrollState,
 };
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry};
@@ -52,6 +53,9 @@ mod dnd;
 mod utils;
 mod widgets;
 use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
+
+// Number of scroll pixels before changing workspace
+const SCROLL_PIXELS: f32 = 24.0;
 
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
@@ -81,11 +85,6 @@ impl CosmicFlags for Args {
     fn action(&self) -> Option<&WorkspaceCommands> {
         None
     }
-}
-
-enum ScrollDirection {
-    Next,
-    Prev,
 }
 
 #[derive(Clone, Debug)]
@@ -197,7 +196,7 @@ struct App {
     conf: Conf,
     core: cosmic::app::Core,
     drop_target: Option<DropTarget>,
-    scroll: Option<(f32, Instant)>,
+    scroll: DiscreteScrollState,
     dbus_interface: Option<dbus::Interface>,
     panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
 }
@@ -669,63 +668,16 @@ impl Application for App {
                 }
             }
             Msg::OnScroll(output, delta) => {
-                // Accumulate delta with a timer
-                // TODO: Should x scroll be handled too?
-                // Best time/pixel count?
-                let direction = match delta {
-                    ScrollDelta::Pixels { x: _, mut y } => {
-                        y = -y;
-                        let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll
-                        {
-                            if last_scroll_time.elapsed() > Duration::from_millis(100) {
-                                0.
-                            } else {
-                                scroll
-                            }
-                        } else {
-                            0.
-                        };
-
-                        let scroll = previous_scroll + y;
-                        if scroll <= -4. {
-                            self.scroll = None;
-                            ScrollDirection::Prev
-                        } else if scroll >= 4. {
-                            self.scroll = None;
-                            ScrollDirection::Next
-                        } else {
-                            // If scroll has y element, accumulate scroll
-                            self.scroll = if y != 0. {
-                                Some((scroll, Instant::now()))
-                            } else {
-                                None
-                            };
-                            return Task::none();
-                        }
-                    }
-                    ScrollDelta::Lines { x: _, mut y } => {
-                        y = -y;
-                        self.scroll = None;
-                        if y < 0. {
-                            ScrollDirection::Prev
-                        } else if y > 0. {
-                            ScrollDirection::Next
-                        } else {
-                            return Task::none();
-                        }
-                    }
-                };
-
-                // TODO assumes only one active workspace per output
-                let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
-                if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
-                    let workspace = match direction {
-                        // Next workspace on output
-                        ScrollDirection::Next => workspaces[workspace_idx + 1..].iter().next(),
-                        // Previous workspace on output
-                        ScrollDirection::Prev => workspaces[..workspace_idx].iter().last(),
-                    };
-                    if let Some(workspace) = workspace {
+                let discrete_delta = self.scroll.update(delta);
+                if discrete_delta.y != 0 {
+                    // TODO assumes only one active workspace per output
+                    let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
+                    if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
+                        // Add delta_num, to index wrapping around
+                        let new_workspace_idx = (workspace_idx as isize - discrete_delta.y)
+                            .rem_euclid(workspaces.len() as isize)
+                            as usize;
+                        let workspace = workspaces[new_workspace_idx];
                         self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
                             workspace.handle().clone(),
                         ));

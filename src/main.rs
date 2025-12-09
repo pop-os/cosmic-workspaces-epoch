@@ -4,8 +4,10 @@
 #![allow(clippy::single_match)]
 
 use cctk::{
-    cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-    cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
+    cosmic_protocols::{
+        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
+        workspace::v2::client::zcosmic_workspace_handle_v2,
+    },
     sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
     wayland_client::{Connection, Proxy, protocol::wl_output},
     wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
@@ -456,10 +458,10 @@ impl Application for App {
             Msg::WaylandEvent(evt) => match evt {
                 WaylandEvent::Output(evt, output) => {
                     // TODO: Less hacky way to get connection from iced-sctk
-                    if self.conn.is_none() {
-                        if let Some(backend) = output.backend().upgrade() {
-                            self.conn = Some(Connection::from_backend(backend));
-                        }
+                    if self.conn.is_none()
+                        && let Some(backend) = output.backend().upgrade()
+                    {
+                        self.conn = Some(Connection::from_backend(backend));
                     }
 
                     match evt {
@@ -581,13 +583,12 @@ impl Application for App {
                     }
                     backend::Event::WorkspaceCapture(handle, image) => {
                         //println!("Workspace capture");
-                        if let Some(workspace) = self.workspaces.for_handle_mut(&handle) {
-                            if self
+                        if let Some(workspace) = self.workspaces.for_handle_mut(&handle)
+                            && self
                                 .capture_filter
                                 .workspace_outputs_matches(&workspace.outputs)
-                            {
-                                workspace.img = Some(image);
-                            }
+                        {
+                            workspace.img = Some(image);
                         }
                     }
                     backend::Event::ToplevelCapture(handle, image) => {
@@ -607,10 +608,10 @@ impl Application for App {
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
-                if let Some(workspace) = self.workspaces.for_handle(&workspace_handle) {
-                    if workspace.is_active() {
-                        return self.hide();
-                    }
+                if let Some(workspace) = self.workspaces.for_handle(&workspace_handle)
+                    && workspace.is_active()
+                {
+                    return self.hide();
                 }
                 self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
             }
@@ -770,11 +771,9 @@ impl Application for App {
                 };
             }
             Msg::PanelContainerEntries(entries) => {
-                self.panel_configs.retain(|k, _| entries.contains(&k));
+                self.panel_configs.retain(|k, _| entries.contains(k));
                 for entry in entries {
-                    if !self.panel_configs.contains_key(&entry) {
-                        self.panel_configs.insert(entry, None);
-                    }
+                    self.panel_configs.entry(entry).or_insert(None);
                 }
             }
             Msg::PanelConfig(config) => {

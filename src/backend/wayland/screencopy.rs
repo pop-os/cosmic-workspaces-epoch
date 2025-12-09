@@ -238,7 +238,7 @@ impl ScreencopyHandler for AppData {
                 return;
             };
             if let Some(formats) = &session.formats {
-                session.buffers = Some(array::from_fn(|_| self.create_buffer(&formats)));
+                session.buffers = Some(array::from_fn(|_| self.create_buffer(formats)));
             }
             session.attach_buffer_and_commit(&capture, conn, &self.qh);
         } else {

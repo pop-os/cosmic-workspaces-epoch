@@ -91,59 +91,52 @@ impl AppData {
             }
             Cmd::CloseToplevel(toplevel_handle) => {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
-                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
-                    if let Some(state) = &self.toplevel_manager_state {
-                        state.manager.close(cosmic_toplevel);
-                    }
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref())
+                    && let Some(state) = &self.toplevel_manager_state
+                {
+                    state.manager.close(cosmic_toplevel);
                 }
             }
             Cmd::MoveToplevelToWorkspace(toplevel_handle, workspace_handle, output) => {
                 let info = self.toplevel_info_state.info(&toplevel_handle);
-                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref()) {
-                    if let Some(state) = &self.toplevel_manager_state {
-                        if state.manager.version() >= 2 {
-                            state.manager.move_to_ext_workspace(
-                                cosmic_toplevel,
-                                &workspace_handle,
-                                &output,
-                            );
-                        }
-                    }
+                if let Some(cosmic_toplevel) = info.and_then(|x| x.cosmic_toplevel.as_ref())
+                    && let Some(state) = &self.toplevel_manager_state
+                    && state.manager.version() >= 2
+                {
+                    state.manager.move_to_ext_workspace(
+                        cosmic_toplevel,
+                        &workspace_handle,
+                        &output,
+                    );
                 }
             }
             // TODO version check
             Cmd::MoveWorkspaceBefore(workspace_handle, other_workspace_handle) => {
-                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
-                    if let Some(cosmic_workspace) = self
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get()
+                    && let Some(cosmic_workspace) = self
                         .workspace_state
                         .workspaces()
                         .find(|w| w.handle == workspace_handle)
                         .and_then(|w| w.cosmic_handle.as_ref())
-                    {
-                        if cosmic_workspace.version()
-                            >= zcosmic_workspace_handle_v2::REQ_MOVE_BEFORE_SINCE
-                        {
-                            cosmic_workspace.move_before(&other_workspace_handle, 0);
-                            workspace_manager.commit();
-                        }
-                    }
+                    && cosmic_workspace.version()
+                        >= zcosmic_workspace_handle_v2::REQ_MOVE_BEFORE_SINCE
+                {
+                    cosmic_workspace.move_before(&other_workspace_handle, 0);
+                    workspace_manager.commit();
                 }
             }
             Cmd::MoveWorkspaceAfter(workspace_handle, other_workspace_handle) => {
-                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
-                    if let Some(cosmic_workspace) = self
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get()
+                    && let Some(cosmic_workspace) = self
                         .workspace_state
                         .workspaces()
                         .find(|w| w.handle == workspace_handle)
                         .and_then(|w| w.cosmic_handle.as_ref())
-                    {
-                        if cosmic_workspace.version()
-                            >= zcosmic_workspace_handle_v2::REQ_MOVE_AFTER_SINCE
-                        {
-                            cosmic_workspace.move_after(&other_workspace_handle, 0);
-                            workspace_manager.commit();
-                        }
-                    }
+                    && cosmic_workspace.version()
+                        >= zcosmic_workspace_handle_v2::REQ_MOVE_AFTER_SINCE
+                {
+                    cosmic_workspace.move_after(&other_workspace_handle, 0);
+                    workspace_manager.commit();
                 }
             }
             Cmd::ActivateWorkspace(workspace_handle) => {
@@ -153,24 +146,21 @@ impl AppData {
                 }
             }
             Cmd::SetWorkspacePinned(workspace_handle, pinned) => {
-                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
-                    if let Some(cosmic_workspace) = self
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get()
+                    && let Some(cosmic_workspace) = self
                         .workspace_state
                         .workspaces()
                         .find(|w| w.handle == workspace_handle)
                         .and_then(|w| w.cosmic_handle.as_ref())
-                    {
-                        if cosmic_workspace.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
-                        {
-                            // TODO check capability
-                            if pinned {
-                                cosmic_workspace.pin();
-                            } else {
-                                cosmic_workspace.unpin();
-                            }
-                            workspace_manager.commit();
-                        }
+                    && cosmic_workspace.version() >= zcosmic_workspace_handle_v2::REQ_PIN_SINCE
+                {
+                    // TODO check capability
+                    if pinned {
+                        cosmic_workspace.pin();
+                    } else {
+                        cosmic_workspace.unpin();
                     }
+                    workspace_manager.commit();
                 }
             }
         }

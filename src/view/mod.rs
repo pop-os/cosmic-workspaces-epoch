@@ -12,7 +12,7 @@ use cosmic::{
         self, Alignment, Border, Length,
         advanced::layout::flex::Axis,
         clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
-        widget::{column, row},
+        widget::{column, row, stack},
     },
     iced_core::{Shadow, text::Wrapping},
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
@@ -192,11 +192,9 @@ fn pin_button(workspace: &Workspace) -> cosmic::Element<'static, Msg> {
         widget::button::custom(
             widget::icon::from_name("pin-symbolic")
                 .symbolic(true)
-                .size(16), //.style(|theme, status| todo!())
+                .size(16),
         )
         .padding([4, 8])
-        //.class(cosmic::theme::Button::Icon)
-        //.class(cosmic::theme::Button::Image)
         .class(cosmic::theme::Button::Custom {
             // TODO adjust state for hover, etc.
             active: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
@@ -204,7 +202,6 @@ fn pin_button(workspace: &Workspace) -> cosmic::Element<'static, Msg> {
             hovered: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
             pressed: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
         })
-        //.class(cosmic::theme::Button::Standard)
         // TODO style selected correctly
         .selected(workspace.is_pinned())
         .on_press(Msg::TogglePinned(workspace.handle().clone())),
@@ -266,21 +263,21 @@ fn workspace_item(
         if effective_width > effective_height {
             (
                 // Landscape: fix height
-                widget::container(capture_image(Some(img), 1.0)).max_height(126.0),
+                widget::container(capture_image(Some(img), 1.0, false)).max_height(126.0),
                 126.0,
                 126.0 * effective_width as f32 / effective_height as f32,
             )
         } else {
             (
                 // Portrait: fix width
-                widget::container(capture_image(Some(img), 1.0)).max_width(160),
+                widget::container(capture_image(Some(img), 1.0, false)).max_width(160),
                 160.0 * effective_height as f32 / effective_width as f32,
                 160.0,
             )
         }
     } else {
         (
-            widget::container(capture_image(None, 1.0))
+            widget::container(capture_image(None, 1.0, false))
                 .max_height(126.0)
                 .max_width(224.0),
             126.0,
@@ -512,6 +509,7 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     let cosmic::cosmic_theme::Spacing {
         space_xxs, space_s, ..
     } = cosmic::theme::active().cosmic().spacing;
+    let alpha = if is_being_dragged { 0.5 } else { 1.0 };
 
     let label = widget::text::body(toplevel.info.title.clone()).wrapping(Wrapping::None);
     let label = if let Some(icon) = &toplevel.icon {
@@ -524,53 +522,55 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
         row![label]
     }
     .align_y(Alignment::Center);
-    let alpha = if is_being_dragged { 0.5 } else { 1.0 };
+
+    let title = widget::button::custom(label)
+        .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+        .class(cosmic::theme::Button::Icon)
+        .padding([space_xxs, space_s])
+        .apply(widget::container)
+        .class(cosmic::theme::Container::custom(|theme| {
+            cosmic::iced::widget::container::Style {
+                background: Some(
+                    iced::Color::from(theme.cosmic().background.component.base).into(),
+                ),
+                border: Border {
+                    color: theme.cosmic().bg_divider().into(),
+                    width: 1.0,
+                    radius: theme.cosmic().radius_xl().into(),
+                },
+                ..Default::default()
+            }
+        }))
+        .apply(widget::container)
+        .padding([0, 0, 2, 0])
+        .width(Length::Fill);
+
+    let preview = {
+        let image = widget::button::custom(capture_image(toplevel.img.as_ref(), alpha, true))
+            .selected(
+                toplevel
+                    .info
+                    .state
+                    .contains(&zcosmic_toplevel_handle_v1::State::Activated),
+            )
+            .class(cosmic::theme::Button::Image)
+            .on_press(Msg::ActivateToplevel(toplevel.handle.clone()));
+
+        let close_overlay =
+            widget::container(close_button(Msg::CloseToplevel(toplevel.handle.clone())))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Alignment::End)
+                .align_y(Alignment::Start)
+                .padding(2);
+
+        stack![image, close_overlay]
+    };
     crate::widgets::size_cross_nth(
-        vec![
-            row![
-                widget::button::custom(label)
-                    .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
-                    .class(cosmic::theme::Button::Icon)
-                    .padding([space_xxs, space_s])
-                    .apply(widget::container)
-                    .class(cosmic::theme::Container::custom(|theme| {
-                        cosmic::iced::widget::container::Style {
-                            background: Some(
-                                iced::Color::from(theme.cosmic().background.component.base).into(),
-                            ),
-                            border: Border {
-                                color: theme.cosmic().bg_divider().into(),
-                                width: 1.0,
-                                radius: theme.cosmic().radius_xl().into(),
-                            },
-                            ..Default::default()
-                        }
-                    }))
-                    .apply(widget::container)
-                    .width(Length::FillPortion(5)),
-                widget::horizontal_space().width(Length::Fixed(8.0)),
-                close_button(Msg::CloseToplevel(toplevel.handle.clone()))
-            ]
-            .padding([0, 0, 4, 0])
-            .align_y(Alignment::Center)
-            .into(),
-            widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
-                .selected(
-                    toplevel
-                        .info
-                        .state
-                        .contains(&zcosmic_toplevel_handle_v1::State::Activated),
-                )
-                .class(cosmic::theme::Button::Image)
-                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
-                .into(),
-        ],
+        vec![title.into(), preview.into()],
         Axis::Vertical,
         1, // Allocate width to match capture image
     )
-    //.spacing(4)
-    //.align_items(Alignment::Center)
-    //.width(Length::Fill)
     .into()
 }
 
@@ -612,15 +612,17 @@ fn toplevel_previews<'a>(
             .align_x(Alignment::Center)
             .width(width)
             .height(height)
-            //.spacing(16)
             .padding(12),
     )
     .on_press(Msg::Close)
-    //.align_items(Alignment::Center)
     .into()
 }
 
-fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'static, Msg> {
+fn capture_image(
+    image: Option<&CaptureImage>,
+    alpha: f32,
+    place_below: bool,
+) -> cosmic::Element<'static, Msg> {
     if let Some(image) = image {
         #[cfg(feature = "no-subsurfaces")]
         {
@@ -632,6 +634,7 @@ fn capture_image(image: Option<&CaptureImage>, alpha: f32) -> cosmic::Element<'s
             Subsurface::new(image.wl_buffer.clone())
                 .alpha(alpha)
                 .transform(image.transform)
+                .z(if place_below { -1 } else { 0 })
                 .into()
         }
     } else {

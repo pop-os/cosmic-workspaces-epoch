@@ -3,7 +3,7 @@ use cosmic::{
         self,
         screencopy::{
             CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats,
-            Frame, Rect, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
+            Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
             ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
         },
         wayland_client::{Connection, QueueHandle, WEnum},

@@ -35,7 +35,7 @@ impl Vulkan {
             .unwrap()
             .as_ref()
             .map(|x| x.as_deref())
-            .map_err(|err| err.clone())
+            .map_err(|err| *err)
     }
 
     fn device_name_uncached(&mut self, dev: u64) -> VkResult<Option<String>> {

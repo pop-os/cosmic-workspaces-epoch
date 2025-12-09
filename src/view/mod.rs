@@ -19,7 +19,7 @@ use cosmic::{
     widget::{self, Widget},
 };
 use cosmic_comp_config::workspace::WorkspaceLayout;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::{
     App, LayerSurface, Msg, Toplevel, Workspace,
@@ -287,12 +287,9 @@ fn workspace_item(
 
     let workspace_footer = row![
         widget::horizontal_space().width(Length::Fixed(32.0)),
-        widget::text::body(fl!(
-            "workspace",
-            HashMap::from([("number", &workspace.info.name)])
-        ))
-        .apply(widget::container)
-        .center_x(Length::Fill),
+        widget::text::body(fl!("workspace", number = workspace.info.name.as_str()))
+            .apply(widget::container)
+            .center_x(Length::Fill),
         pin_button(workspace),
     ];
 

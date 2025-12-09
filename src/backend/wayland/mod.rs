@@ -23,10 +23,13 @@ use cosmic::{
     cctk,
     iced::{
         self,
-        futures::{FutureExt, SinkExt, executor::block_on},
+        futures::{
+            FutureExt, SinkExt,
+            channel::mpsc,
+            executor::{ThreadPool, block_on},
+        },
     },
 };
-use futures_channel::mpsc;
 use std::{cell::RefCell, collections::HashMap, sync::Arc, thread};
 
 mod buffer;
@@ -63,7 +66,7 @@ pub struct AppData {
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
     gbm_devices: GbmDevices,
-    thread_pool: futures_executor::ThreadPool,
+    thread_pool: ThreadPool,
     vulkan: Option<vulkan::Vulkan>,
 }
 
@@ -278,10 +281,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     thread::spawn(move || {
         // TODO: The `calloop` executor doesn't seem to be working properly, so
         // spawn an executor using one additional thread.
-        let thread_pool = futures_executor::ThreadPool::builder()
-            .pool_size(1)
-            .create()
-            .unwrap();
+        let thread_pool = ThreadPool::builder().pool_size(1).create().unwrap();
 
         let registry_state = RegistryState::new(&globals);
         let mut app_data = AppData {

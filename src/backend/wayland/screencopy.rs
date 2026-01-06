@@ -243,7 +243,11 @@ impl ScreencopyHandler for AppData {
             session.attach_buffer_and_commit(&capture, conn, &self.qh);
         } else {
             // TODO
-            log::error!("Screencopy failed: {:?}", reason);
+            if reason == WEnum::Value(FailureReason::Stopped) {
+                log::info!("Screencopy frame capture stopped");
+            } else {
+                log::error!("Screencopy failed: {:?}", reason);
+            }
             capture.stop();
         }
     }

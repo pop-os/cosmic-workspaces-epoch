@@ -28,16 +28,18 @@ use cosmic::{
     iced_winit::platform_specific::wayland::commands::layer_surface::{
         destroy_layer_surface, get_layer_surface,
     },
+    scroll::DiscreteScrollState,
 };
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::{CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry};
+use cosmic_panel_config::{CosmicPanelConfig, CosmicPanelContainerConfigEntry, PanelAnchor};
 use i18n_embed::DesktopLanguageRequester;
 use std::{
     collections::{HashMap, HashSet},
     mem,
     path::PathBuf,
     str,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 mod dbus;
@@ -51,6 +53,8 @@ mod dnd;
 mod utils;
 mod widgets;
 use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
+
+const SCROLL_RATE_LIMIT: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
@@ -80,11 +84,6 @@ impl CosmicFlags for Args {
     fn action(&self) -> Option<&WorkspaceCommands> {
         None
     }
-}
-
-enum ScrollDirection {
-    Next,
-    Prev,
 }
 
 #[derive(Clone, Debug)]
@@ -117,6 +116,8 @@ enum Msg {
     EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
     DbusInterface(zbus::Result<dbus::Interface>),
     DBus(dbus::Event),
+    PanelContainerEntries(Vec<String>),
+    PanelConfig(CosmicPanelConfig),
     Ignore,
 }
 
@@ -194,8 +195,9 @@ struct App {
     conf: Conf,
     core: cosmic::app::Core,
     drop_target: Option<DropTarget>,
-    scroll: Option<(f32, Instant)>,
+    scroll: DiscreteScrollState,
     dbus_interface: Option<dbus::Interface>,
+    panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
 }
 
 #[derive(Debug, Default)]
@@ -348,6 +350,54 @@ impl App {
         self.capture_filter = capture_filter.clone();
         self.send_wayland_cmd(backend::Cmd::CaptureFilter(capture_filter));
     }
+
+    fn panel_regions(&self, output_handle: &wl_output::WlOutput) -> iced::Padding {
+        let Some(output) = self.outputs.iter().find(|o| o.handle == *output_handle) else {
+            return iced::Padding::ZERO;
+        };
+
+        let mut regions = iced::Padding::ZERO;
+        // TODO: If compositor supports overlap notify, also use that?
+        // Or otherwise verify the panel is actually running.
+        for config in self.panel_configs.values().flatten() {
+            if config.autohide.is_some() && !config.exclusive_zone {
+                let dimention_constraints = config.get_dimensions(
+                    Some((output.width as u32, output.height as u32)),
+                    None,
+                    Some(config.get_effective_anchor_gap()),
+                );
+                let size =
+                    config.size.get_applet_icon_size_with_padding(true) + u32::from(config.margin);
+                match config.anchor {
+                    PanelAnchor::Left => {
+                        let size = dimention_constraints.0.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.left += size as f32;
+                    }
+                    PanelAnchor::Right => {
+                        let size = dimention_constraints.0.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.right += size as f32;
+                    }
+                    PanelAnchor::Top => {
+                        let size = dimention_constraints.1.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.top += size as f32;
+                    }
+                    PanelAnchor::Bottom => {
+                        let size = dimention_constraints.1.map_or(size, |constraints| {
+                            size.clamp(constraints.start, constraints.end)
+                        });
+                        regions.bottom += size as f32;
+                    }
+                }
+            }
+        }
+        regions
+    }
 }
 
 impl Application for App {
@@ -360,6 +410,7 @@ impl Application for App {
         (
             Self {
                 core,
+                scroll: DiscreteScrollState::default().rate_limit(Some(SCROLL_RATE_LIMIT)),
                 ..Default::default()
             },
             Task::none(),
@@ -617,63 +668,16 @@ impl Application for App {
                 }
             }
             Msg::OnScroll(output, delta) => {
-                // Accumulate delta with a timer
-                // TODO: Should x scroll be handled too?
-                // Best time/pixel count?
-                let direction = match delta {
-                    ScrollDelta::Pixels { x: _, mut y } => {
-                        y = -y;
-                        let previous_scroll = if let Some((scroll, last_scroll_time)) = self.scroll
-                        {
-                            if last_scroll_time.elapsed() > Duration::from_millis(100) {
-                                0.
-                            } else {
-                                scroll
-                            }
-                        } else {
-                            0.
-                        };
-
-                        let scroll = previous_scroll + y;
-                        if scroll <= -4. {
-                            self.scroll = None;
-                            ScrollDirection::Prev
-                        } else if scroll >= 4. {
-                            self.scroll = None;
-                            ScrollDirection::Next
-                        } else {
-                            // If scroll has y element, accumulate scroll
-                            self.scroll = if y != 0. {
-                                Some((scroll, Instant::now()))
-                            } else {
-                                None
-                            };
-                            return Task::none();
-                        }
-                    }
-                    ScrollDelta::Lines { x: _, mut y } => {
-                        y = -y;
-                        self.scroll = None;
-                        if y < 0. {
-                            ScrollDirection::Prev
-                        } else if y > 0. {
-                            ScrollDirection::Next
-                        } else {
-                            return Task::none();
-                        }
-                    }
-                };
-
-                // TODO assumes only one active workspace per output
-                let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
-                if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
-                    let workspace = match direction {
-                        // Next workspace on output
-                        ScrollDirection::Next => workspaces[workspace_idx + 1..].iter().next(),
-                        // Previous workspace on output
-                        ScrollDirection::Prev => workspaces[..workspace_idx].iter().last(),
-                    };
-                    if let Some(workspace) = workspace {
+                let discrete_delta = self.scroll.update(delta);
+                if discrete_delta.y != 0 {
+                    // TODO assumes only one active workspace per output
+                    let workspaces = self.workspaces.for_output(&output).collect::<Vec<_>>();
+                    if let Some(workspace_idx) = workspaces.iter().position(|i| i.is_active()) {
+                        // Add delta_num, to index wrapping around
+                        let new_workspace_idx = (workspace_idx as isize - discrete_delta.y)
+                            .rem_euclid(workspaces.len() as isize)
+                            as usize;
+                        let workspace = workspaces[new_workspace_idx];
                         self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(
                             workspace.handle().clone(),
                         ));
@@ -734,6 +738,17 @@ impl Application for App {
                     dbus::Event::Show => self.show(),
                     dbus::Event::Hide => self.hide(),
                 };
+            }
+            Msg::PanelContainerEntries(entries) => {
+                self.panel_configs.retain(|k, _| entries.contains(&k));
+                for entry in entries {
+                    if !self.panel_configs.contains_key(&entry) {
+                        self.panel_configs.insert(entry, None);
+                    }
+                }
+            }
+            Msg::PanelConfig(config) => {
+                self.panel_configs.insert(config.name.clone(), Some(config));
             }
             Msg::Ignore => {}
         }
@@ -822,6 +837,7 @@ impl Application for App {
         if let Some(interface) = &self.dbus_interface {
             subscriptions.push(interface.subscription().map(Msg::DBus));
         }
+        subscriptions.push(panel_subscriptions(self.panel_configs.keys()));
         iced::Subscription::batch(subscriptions)
     }
 
@@ -848,6 +864,30 @@ impl Application for App {
     fn core_mut(&mut self) -> &mut cosmic::app::Core {
         &mut self.core
     }
+}
+
+fn panel_subscriptions<'a>(
+    container_entries: impl Iterator<Item = &'a String>,
+) -> Subscription<Msg> {
+    let mut subscriptions = vec![
+        cosmic_config::config_subscription::<_, CosmicPanelContainerConfigEntry>(
+            "panel-config-subscription",
+            "com.system76.CosmicPanel".into(),
+            1,
+        )
+        .map(|update| Msg::PanelContainerEntries(update.config.entries)),
+    ];
+    for entry in container_entries {
+        subscriptions.push(
+            cosmic_config::config_subscription::<_, CosmicPanelConfig>(
+                ("panel-config-subscription", entry.to_owned()),
+                format!("com.system76.CosmicPanel.{}", entry).into(),
+                1,
+            )
+            .map(|update| Msg::PanelConfig(update.config)),
+        );
+    }
+    iced::Subscription::batch(subscriptions)
 }
 
 fn init_localizer() {

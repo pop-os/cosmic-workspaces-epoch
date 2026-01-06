@@ -1,1 +1,2 @@
-new-workspace = Новое рабочее место
+new-workspace = Новый рабочий стол
+workspace = Рабочий стол { $number }

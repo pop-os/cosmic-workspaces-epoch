@@ -9,6 +9,7 @@ Name[pt]=Áreas de Trabalho
 Name[ru]=Обзор
 Name[sk]=Pracovné plochy
 Name[sv]=Arbetsytor
+Name[it]=Spazi di lavoro
 Comment=
 Type=Application
 Exec=cosmic-workspaces

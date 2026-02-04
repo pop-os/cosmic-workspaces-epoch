@@ -1,6 +1,7 @@
 [Desktop Entry]
 Name=Workspaces
 Name[ar]=مَسَاحَاتُ العَمَل
+Name[bg]=Пространства
 Name[cs]=Pracovní plochy
 Name[zh_CN]=工作区
 Name[hu]=Munkaterületek
@@ -9,6 +10,7 @@ Name[pt]=Áreas de Trabalho
 Name[ru]=Обзор
 Name[sk]=Pracovné plochy
 Name[sv]=Arbetsytor
+Name[it]=Spazi di lavoro
 Comment=
 Type=Application
 Exec=cosmic-workspaces

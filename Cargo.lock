@@ -1107,8 +1107,8 @@ dependencies = [
 
 [[package]]
 name = "cosmic-comp-config"
-version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-comp#84f1d6b7a97516bacb4d10b680e9154caa4272b5"
+version = "1.0.0"
+source = "git+https://github.com/pop-os/cosmic-comp?branch=action-on-typing#df7819b2b24bb6b66ca97a2456572410f3e05521"
 dependencies = [
  "cosmic-config",
  "input",

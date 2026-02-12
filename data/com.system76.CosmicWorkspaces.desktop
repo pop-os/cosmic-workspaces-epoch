@@ -11,6 +11,7 @@ Name[ru]=Обзор
 Name[sk]=Pracovné plochy
 Name[sv]=Arbetsytor
 Name[it]=Spazi di lavoro
+Name[uk]=Простори
 Comment=
 Type=Application
 Exec=cosmic-workspaces

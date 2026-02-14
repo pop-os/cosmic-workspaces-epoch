@@ -573,11 +573,12 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
         .class(cosmic::theme::Button::Image)
         .on_press(Msg::ActivateToplevel(toplevel.handle.clone()));
 
-    crate::widgets::size_cross_nth(
+    widget::mouse_area(crate::widgets::size_cross_nth(
         vec![title.into(), preview.into()],
         Axis::Vertical,
         1, // Allocate width to match capture image
-    )
+    ))
+    .on_middle_press(Msg::CloseToplevel(toplevel.handle.clone()))
     .into()
 }
 

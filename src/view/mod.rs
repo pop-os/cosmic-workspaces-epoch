@@ -557,16 +557,19 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
             .padding([0, 0, 4, 0])
             .align_y(Alignment::Center)
             .into(),
-            widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
-                .selected(
-                    toplevel
-                        .info
-                        .state
-                        .contains(&zcosmic_toplevel_handle_v1::State::Activated),
-                )
-                .class(cosmic::theme::Button::Image)
-                .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
-                .into(),
+            widget::mouse_area(
+                widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
+                    .selected(
+                        toplevel
+                            .info
+                            .state
+                            .contains(&zcosmic_toplevel_handle_v1::State::Activated),
+                    )
+                    .on_press(Msg::ActivateToplevel(toplevel.handle.clone()))
+                    .class(cosmic::theme::Button::Image),
+            )
+            .on_middle_press(Msg::CloseToplevel(toplevel.handle.clone()))
+            .into(),
         ],
         Axis::Vertical,
         1, // Allocate width to match capture image

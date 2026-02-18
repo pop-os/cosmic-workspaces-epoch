@@ -38,6 +38,7 @@ use std::{
     collections::{HashMap, HashSet},
     mem,
     path::PathBuf,
+    process::Command,
     str,
     time::Duration,
 };
@@ -118,6 +119,7 @@ enum Msg {
     DBus(dbus::Event),
     PanelContainerEntries(Vec<String>),
     PanelConfig(CosmicPanelConfig),
+    ActionOnTyping(String),
     Ignore,
 }
 
@@ -198,6 +200,7 @@ struct App {
     scroll: DiscreteScrollState,
     dbus_interface: Option<dbus::Interface>,
     panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
+    action_on_typing_activated: bool,
 }
 
 #[derive(Debug, Default)]
@@ -302,6 +305,33 @@ impl App {
                 let _ = interface.hidden().await;
             });
         }
+
+        if self.action_on_typing_activated {
+            let cmd = match self.conf.workspace_config.action_on_typing {
+                cosmic_comp_config::workspace::Action::None => return Task::none(),
+                cosmic_comp_config::workspace::Action::OpenLauncher => {
+                    // self.common.config.system_actions.get(&Launcher)
+                    Some("cosmic-launcher \"$@\"".to_string())
+                }
+                cosmic_comp_config::workspace::Action::OpenApplications => {
+                    // self.common.config.system_actions.get(&Applications)
+                    Some("cosmic-app-library \"$@\"".to_string())
+                }
+            };
+            if let Some(cmd) = cmd {
+                tokio::spawn(async {
+                    let mut child = Command::new("/bin/sh")
+                        .arg("-c")
+                        .arg(cmd)
+                        .arg("_")
+                        .arg("close")
+                        .spawn()
+                        .unwrap();
+                    let _ = child.wait().unwrap();
+                });
+            }
+        }
+        self.action_on_typing_activated = false;
 
         self.visible = false;
         self.update_capture_filter();
@@ -750,6 +780,31 @@ impl Application for App {
             Msg::PanelConfig(config) => {
                 self.panel_configs.insert(config.name.clone(), Some(config));
             }
+            Msg::ActionOnTyping(input) => {
+                let cmd = match self.conf.workspace_config.action_on_typing {
+                    cosmic_comp_config::workspace::Action::None => return Task::none(),
+                    cosmic_comp_config::workspace::Action::OpenLauncher => {
+                        Some("cosmic-launcher \"$@\"".to_string())
+                    }
+                    cosmic_comp_config::workspace::Action::OpenApplications => {
+                        Some("cosmic-app-library \"$@\"".to_string())
+                    }
+                };
+                if let Some(cmd) = cmd {
+                    tokio::spawn(async {
+                        let mut child = Command::new("/bin/sh")
+                            .arg("-c")
+                            .arg(cmd)
+                            .arg("_")
+                            .arg("input")
+                            .arg(input)
+                            .spawn()
+                            .unwrap();
+                        let _ = child.wait().unwrap();
+                    });
+                }
+                self.action_on_typing_activated = true;
+            }
             Msg::Ignore => {}
         }
 
@@ -776,13 +831,17 @@ impl Application for App {
                     None
                 }
             }
-            iced::Event::Keyboard(iced::keyboard::Event::KeyReleased {
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
                 key: Key::Named(Named::Escape),
-                modifiers: _,
-                location: _,
-                modified_key: _,
-                physical_key: _,
+                ..
             }) => Some(Msg::Close),
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Character(key),
+                modifiers,
+                ..
+            }) if !modifiers.control() && !modifiers.alt() && !modifiers.logo() => {
+                Some(Msg::ActionOnTyping(key.to_string()))
+            }
             // XXX Workaround for `on_finish`/`on_cancel` not being called, seemingly
             // due to state diffing behavior.
             iced::Event::Dnd(DndEvent::Source(SourceEvent::Finished | SourceEvent::Cancelled)) => {

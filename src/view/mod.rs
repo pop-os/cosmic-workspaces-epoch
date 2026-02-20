@@ -14,7 +14,10 @@ use cosmic::{
         clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
         widget::{column, row},
     },
-    iced_core::{Shadow, text::Wrapping},
+    iced_core::{
+        Shadow,
+        text::{Ellipsize, EllipsizeHeightLimit},
+    },
     iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
     widget::{self, Widget},
 };
@@ -288,6 +291,7 @@ fn workspace_item(
     let workspace_footer = row![
         widget::horizontal_space().width(Length::Fixed(32.0)),
         widget::text::body(fl!("workspace", number = workspace.info.name.as_str()))
+            .ellipsize(Ellipsize::Middle(EllipsizeHeightLimit::Lines(1)))
             .apply(widget::container)
             .center_x(Length::Fill),
         pin_button(workspace),
@@ -510,7 +514,8 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
         space_xxs, space_s, ..
     } = cosmic::theme::active().cosmic().spacing;
 
-    let label = widget::text::body(toplevel.info.title.clone()).wrapping(Wrapping::None);
+    let label = widget::text::body(toplevel.info.title.clone())
+        .ellipsize(Ellipsize::End(EllipsizeHeightLimit::Lines(1)));
     let label = if let Some(icon) = &toplevel.icon {
         row![
             widget::icon(widget::icon::from_path(icon.clone())).size(24),

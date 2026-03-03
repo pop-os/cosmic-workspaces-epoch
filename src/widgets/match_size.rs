@@ -41,32 +41,32 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for MatchSize<'_, Msg> {
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
         operation: &mut dyn Operation<()>,
     ) {
         self.matched
-            .as_widget()
+            .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);
         self.shown
-            .as_widget()
+            .as_widget_mut()
             .operate(&mut tree.children[1], layout, renderer, operation);
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &cosmic::Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Msg>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.shown.as_widget_mut().on_event(
+    ) {
+        self.shown.as_widget_mut().update(
             &mut tree.children[1],
             event,
             layout,
@@ -96,14 +96,14 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for MatchSize<'_, Msg> {
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
         // TODO?
         self.matched
-            .as_widget()
+            .as_widget_mut()
             .layout(&mut tree.children[0], renderer, limits)
     }
 

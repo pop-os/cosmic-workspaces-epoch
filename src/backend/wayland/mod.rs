@@ -30,7 +30,7 @@ use cosmic::{
         },
     },
 };
-use std::{cell::RefCell, collections::HashMap, sync::Arc, thread};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, sync::Arc, thread};
 
 mod buffer;
 use buffer::Buffer;
@@ -48,7 +48,20 @@ mod workspace;
 use super::{CaptureFilter, CaptureImage, Cmd, Event};
 
 pub fn subscription(conn: Connection) -> iced::Subscription<Event> {
-    iced::Subscription::run_with_id("wayland-sub", async { start(conn) }.flatten_stream())
+    #[derive(Clone)]
+    struct WaylandSubscription(Connection);
+    impl Hash for WaylandSubscription {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.0.backend().display_id().hash(state);
+        }
+    }
+    iced::Subscription::run_with(
+        WaylandSubscription(conn.clone()),
+        |WaylandSubscription(conn)| {
+            let conn = conn.clone();
+            async { start(conn) }.flatten_stream()
+        },
+    )
 }
 
 pub struct AppData {

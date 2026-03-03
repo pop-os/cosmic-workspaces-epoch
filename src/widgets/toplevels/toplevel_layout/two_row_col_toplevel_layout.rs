@@ -55,12 +55,17 @@ impl AxisToplevelLayout for TwoRowColToplevelLayout {
             // Better layout
             if two_row_scale_factor > scale_factor {
                 // TODO padding
-                let row1 = self.0.layout(half_max_limit, &toplevels[..split_point]);
+                let spacing = self.0.spacing as f32;
+                let row1 = self
+                    .0
+                    .layout(half_max_limit, &toplevels[..split_point])
+                    .collect::<Vec<_>>()
+                    .into_iter();
                 let row2 = self
                     .0
                     .layout(half_max_limit, &toplevels[split_point..])
                     .map(move |mut rect| {
-                        rect.origin.cross += half_max_limit.cross + self.0.spacing as f32;
+                        rect.origin.cross += half_max_limit.cross + spacing;
                         rect
                     });
                 return itertools::Either::Left(row1.chain(row2));

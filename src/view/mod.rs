@@ -289,7 +289,7 @@ fn workspace_item(
     };
 
     let workspace_footer = row![
-        widget::horizontal_space().width(Length::Fixed(32.0)),
+        widget::space::horizontal().width(Length::Fixed(32.0)),
         widget::text::body(fl!("workspace", number = workspace.info.name.as_str()))
             .ellipsize(Ellipsize::Middle(EllipsizeHeightLimit::Lines(1)))
             .apply(widget::container)
@@ -346,14 +346,18 @@ fn workspace_drag_placeholder(
         other_workspace.handle().clone(),
         other_output.clone(),
     );
-    let placeholder = widget::button::custom(widget::Space::new(Length::Fill, Length::Fill))
-        .class(cosmic::theme::Button::Custom {
-            active: Box::new(|_, _| unreachable!()),
-            disabled: Box::new(|theme| workspace_item_appearance(theme, true, true)),
-            hovered: Box::new(|_, _| unreachable!()),
-            pressed: Box::new(|_, _| unreachable!()),
-        })
-        .padding(8);
+    let placeholder = widget::button::custom(
+        widget::Space::new()
+            .width(Length::Fill)
+            .height(Length::Fill),
+    )
+    .class(cosmic::theme::Button::Custom {
+        active: Box::new(|_, _| unreachable!()),
+        disabled: Box::new(|theme| workspace_item_appearance(theme, true, true)),
+        hovered: Box::new(|_, _| unreachable!()),
+        pressed: Box::new(|_, _| unreachable!()),
+    })
+    .padding(8);
     let placeholder = crate::widgets::match_size(
         workspace_item(other_workspace, other_output, layout, true, true),
         placeholder,
@@ -439,7 +443,10 @@ fn workspaces_sidebar<'a>(
                 DragWorkspace {},
                 DragSurface::Workspace(workspace.handle().clone()),
                 Some(workspace.dnd_source_id.clone()),
-                widget::Space::new(Length::Shrink, Length::Shrink).into(),
+                widget::Space::new()
+                    .width(Length::Shrink)
+                    .height(Length::Shrink)
+                    .into(),
                 move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
             );
             sidebar_entries.push(source);
@@ -502,6 +509,7 @@ fn workspaces_sidebar<'a>(
                         ..Default::default()
                     },
                     shadow: Shadow::default(),
+                    snap: true,
                 }
             })),
     )

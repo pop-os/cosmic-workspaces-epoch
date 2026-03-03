@@ -67,7 +67,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg>
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
@@ -84,16 +84,17 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg>
         let max_cross = self.axis.cross(limits.max());
         let mut total_main = 0.0;
         let mut max_child_cross = 0.0;
+        let children_len = self.children.len();
         let nodes = self
             .children
-            .iter()
+            .iter_mut()
             .zip(tree.children.iter_mut())
             .enumerate()
             .map(|(i, (child, tree))| {
                 let (max_width, max_height) = self.axis.pack(max_main, max_cross);
                 let child_limits =
                     layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
-                let mut layout = child.as_widget().layout(tree, renderer, &child_limits);
+                let mut layout = child.as_widget_mut().layout(tree, renderer, &child_limits);
                 let child_size = layout.size();
                 let (x, y) = self.axis.pack(total_main, 0.0);
                 layout = layout.move_to(Point::new(x, y));
@@ -102,7 +103,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg>
                 // XXX Don't add spacing for 0 length `dnd_source` placeholder widget
                 if main != 0.0 {
                     total_main += main;
-                    if i < self.children.len() - 1 {
+                    if i < children_len - 1 {
                         total_main += spacing;
                     }
                 }
@@ -116,53 +117,47 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for WorkspaceBar<'_, Msg>
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
         operation: &mut dyn Operation<()>,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
             self.children
-                .iter()
+                .iter_mut()
                 .zip(&mut tree.children)
                 .zip(layout.children())
                 .for_each(|((child, state), layout)| {
                     child
-                        .as_widget()
+                        .as_widget_mut()
                         .operate(state, layout, renderer, operation);
                 });
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &cosmic::Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Msg>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.children
+    ) {
+        for ((child, state), layout) in self
+            .children
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    viewport,
-                )
-            })
-            .fold(event::Status::Ignored, event::Status::merge)
+        {
+            child.as_widget_mut().update(
+                state, event, layout, cursor, renderer, clipboard, shell, viewport,
+            );
+        }
     }
 
     fn mouse_interaction(

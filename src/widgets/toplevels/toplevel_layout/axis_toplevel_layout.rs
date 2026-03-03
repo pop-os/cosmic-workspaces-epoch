@@ -100,6 +100,7 @@ impl<T: AxisToplevelLayout> ToplevelLayout for T {
                 &*toplevels,
             )
         };
+
         let inner = self
             .layout(max_limit, toplevels_slice)
             .map(|rect| rect.pack(self.axis()));

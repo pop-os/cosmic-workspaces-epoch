@@ -34,7 +34,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
@@ -42,10 +42,10 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
         // Call `.layout()` on each child with full limits to determine "preferred" sizes
         let layout_toplevels = self
             .children
-            .iter()
+            .iter_mut()
             .zip(tree.children.iter_mut())
             .map(|(child, tree)| {
-                let preferred_size = child.as_widget().layout(tree, renderer, limits).size();
+                let preferred_size = child.as_widget_mut().layout(tree, renderer, limits).size();
                 LayoutToplevel {
                     preferred_size,
                     _phantom_data: PhantomData,
@@ -58,12 +58,12 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
 
         let nodes = self
             .children
-            .iter()
+            .iter_mut()
             .zip(tree.children.iter_mut())
             .zip(assigned_rects)
             .map(|((child, tree), assigned_rect)| {
                 let child_limits = layout::Limits::new(Size::ZERO, assigned_rect.size());
-                let layout = child.as_widget().layout(tree, renderer, &child_limits);
+                let layout = child.as_widget_mut().layout(tree, renderer, &child_limits);
 
                 // Center on both axes, if child didn't consume full size allocation
                 let centering_offset = Vector::new(
@@ -78,53 +78,47 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &cosmic::Renderer,
         operation: &mut dyn Operation<()>,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
             self.children
-                .iter()
+                .iter_mut()
                 .zip(&mut tree.children)
                 .zip(layout.children())
                 .for_each(|((child, state), layout)| {
                     child
-                        .as_widget()
+                        .as_widget_mut()
                         .operate(state, layout, renderer, operation);
                 });
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &cosmic::Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Msg>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.children
+    ) {
+        for ((child, state), layout) in self
+            .children
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    viewport,
-                )
-            })
-            .fold(event::Status::Ignored, event::Status::merge)
+        {
+            child.as_widget_mut().update(
+                state, event, layout, cursor, renderer, clipboard, shell, viewport,
+            );
+        }
     }
 
     fn mouse_interaction(

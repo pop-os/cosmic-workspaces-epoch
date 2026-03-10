@@ -18,8 +18,8 @@ libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = fa
     "desktop",
     "multi-window",
     "winit",
-], branch = "iced-rebase" }
-cosmic-config = { git = "https://github.com/pop-os/libcosmic", branch = "iced-rebase" }
+] }
+cosmic-config = { git = "https://github.com/pop-os/libcosmic" }
 freedesktop-icons = { package = "cosmic-freedesktop-icons", git = "https://github.com/pop-os/freedesktop-icons" }
 
 memmap2 = "0.9.10"

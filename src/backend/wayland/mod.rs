@@ -23,11 +23,7 @@ use cosmic::{
     cctk,
     iced::{
         self,
-        futures::{
-            FutureExt, SinkExt,
-            channel::mpsc,
-            executor::{ThreadPool, block_on},
-        },
+        futures::{FutureExt, SinkExt, channel::mpsc, executor::block_on},
     },
 };
 use std::{cell::RefCell, collections::HashMap, sync::Arc, thread};
@@ -66,7 +62,7 @@ pub struct AppData {
     captures: RefCell<HashMap<CaptureSource, Arc<Capture>>>,
     dmabuf_feedback: Option<DmabufFeedback>,
     gbm_devices: GbmDevices,
-    thread_pool: ThreadPool,
+    scheduler: calloop::futures::Scheduler<()>,
     vulkan: Option<vulkan::Vulkan>,
 }
 
@@ -279,9 +275,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
     }
 
     thread::spawn(move || {
-        // TODO: The `calloop` executor doesn't seem to be working properly, so
-        // spawn an executor using one additional thread.
-        let thread_pool = ThreadPool::builder().pool_size(1).create().unwrap();
+        let (executor, scheduler) = calloop::futures::executor().unwrap();
 
         let registry_state = RegistryState::new(&globals);
         let mut app_data = AppData {
@@ -299,7 +293,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             captures: RefCell::new(HashMap::new()),
             dmabuf_feedback: None,
             gbm_devices: GbmDevices::default(),
-            thread_pool,
+            scheduler,
             vulkan: vulkan::Vulkan::new(),
         };
 
@@ -317,6 +311,10 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
                     app_data.handle_cmd(msg)
                 }
             })
+            .unwrap();
+        event_loop
+            .handle()
+            .insert_source(executor, |(), (), _| {})
             .unwrap();
 
         loop {

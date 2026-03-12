@@ -283,6 +283,14 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
         // spawn an executor using one additional thread.
         let thread_pool = ThreadPool::builder().pool_size(1).create().unwrap();
 
+        let vulkan = vulkan::Vulkan::new();
+        if let Err(err) = &vulkan {
+            log::info!(
+                "Unable to initialize Vulkan: {}. Assuming now GPU workarounds needed.",
+                err
+            );
+        }
+
         let registry_state = RegistryState::new(&globals);
         let mut app_data = AppData {
             qh: qh.clone(),
@@ -300,7 +308,7 @@ fn start(conn: Connection) -> mpsc::Receiver<Event> {
             dmabuf_feedback: None,
             gbm_devices: GbmDevices::default(),
             thread_pool,
-            vulkan: vulkan::Vulkan::new(),
+            vulkan: vulkan.ok(),
         };
 
         let (cmd_sender, cmd_channel) = calloop::channel::channel();

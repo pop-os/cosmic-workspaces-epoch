@@ -3,6 +3,7 @@ use std::{collections::HashMap, ffi::CStr};
 
 pub struct Vulkan {
     instance: ash::Instance,
+    _entry: ash::Entry,
     // TODO purge cache at some point
     device_name_cache: HashMap<u64, VkResult<Option<String>>>,
 }
@@ -14,14 +15,13 @@ impl Vulkan {
             api_version: vk::make_api_version(0, 1, 1, 0),
             ..Default::default()
         };
-        let extensions = &[c"VK_EXT_physical_device_drm".as_ptr()];
         let create_info = vk::InstanceCreateInfo {
             p_application_info: &app_info,
             ..Default::default()
-        }
-        .enabled_extension_names(extensions);
+        };
         let instance = unsafe { entry.create_instance(&create_info, None).ok()? };
         Some(Self {
+            _entry: entry,
             instance,
             device_name_cache: HashMap::new(),
         })

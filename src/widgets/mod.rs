@@ -39,13 +39,12 @@ pub struct LayoutWrapper<'a, Msg> {
 
 impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'_, Msg> {
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &cosmic::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        dbg!(limits);
-        dbg!(self.content.as_widget().layout(tree, renderer, limits))
+        self.content.as_widget_mut().layout(tree, renderer, limits)
     }
 
     delegate::delegate! {
@@ -55,13 +54,6 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'_, Msg
             fn children(&self) -> Vec<Tree>;
             fn size(&self) -> Size<Length>;
             fn size_hint(&self) -> Size<Length>;
-            fn operate(
-                    &self,
-                    tree: &mut Tree,
-                    layout: Layout<'_>,
-                    renderer: &cosmic::Renderer,
-                    operation: &mut dyn Operation<()>,
-                );
             fn draw(
                 &self,
                 state: &Tree,
@@ -85,25 +77,33 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for LayoutWrapper<'_, Msg
 
         to self.content.as_widget_mut() {
             fn diff(&mut self, tree: &mut Tree);
-            fn on_event(
+            fn update(
                 &mut self,
                 tree: &mut Tree,
-                event: Event,
+                event: &Event,
                 layout: Layout<'_>,
                 cursor: mouse::Cursor,
                 renderer: &cosmic::Renderer,
                 clipboard: &mut dyn Clipboard,
                 shell: &mut Shell<'_, Msg>,
                 viewport: &Rectangle,
-            ) -> event::Status;
+            );
             fn overlay<'b>(
                 &'b mut self,
                 tree: &'b mut Tree,
-                layout: Layout<'_>,
+                layout: Layout<'b>,
                 renderer: &cosmic::Renderer,
+                viewport: &Rectangle,
                 transation: Vector,
             ) -> Option<overlay::Element<'b, Msg, cosmic::Theme, cosmic::Renderer>>;
             fn set_id(&mut self, id: Id);
+            fn operate(
+                    &mut self,
+                    tree: &mut Tree,
+                    layout: Layout<'_>,
+                    renderer: &cosmic::Renderer,
+                    operation: &mut dyn Operation<()>,
+                );
         }
     }
 }

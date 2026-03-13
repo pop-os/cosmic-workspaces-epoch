@@ -1,4 +1,5 @@
 use cosmic::iced::{self, futures::StreamExt};
+use std::{any::TypeId, hash::Hash};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -65,9 +66,23 @@ impl Interface {
     }
 
     pub fn subscription(&self) -> iced::Subscription<Event> {
-        iced::Subscription::run_with_id(
-            "workspaces-dbus-sun",
-            BroadcastStream::new(self.event_sender.subscribe()).filter_map(|x| async { x.ok() }),
+        #[derive(Clone)]
+        struct Wrapper {
+            event_sender: broadcast::Sender<Event>,
+        }
+
+        impl Hash for Wrapper {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                TypeId::of::<Wrapper>().hash(state);
+            }
+        }
+        iced::Subscription::run_with(
+            Wrapper {
+                event_sender: self.event_sender.clone(),
+            },
+            |Wrapper { event_sender }| {
+                BroadcastStream::new(event_sender.subscribe()).filter_map(|x| async { x.ok() })
+            },
         )
     }
 }

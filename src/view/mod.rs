@@ -8,17 +8,17 @@ use cosmic::{
         wayland_client::protocol::wl_output,
         wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
     },
+    iced::core::{
+        Shadow,
+        text::{Ellipsize, EllipsizeHeightLimit},
+    },
     iced::{
         self, Alignment, Border, Length,
         advanced::layout::flex::Axis,
         clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
+        platform_specific::shell::subsurface_widget::Subsurface,
         widget::{column, row},
     },
-    iced_core::{
-        Shadow,
-        text::{Ellipsize, EllipsizeHeightLimit},
-    },
-    iced_winit::platform_specific::wayland::subsurface_widget::Subsurface,
     widget::{self, Widget},
 };
 use cosmic_comp_config::workspace::WorkspaceLayout;
@@ -43,7 +43,7 @@ fn dnd_source_with_drag_surface<D: AsMimeTypes + Send + Clone + 'static>(
         .drag_icon(move |offset| {
             (
                 drag_icon().map(|_| ()),
-                cosmic::iced_core::widget::tree::State::None,
+                cosmic::iced::core::widget::tree::State::None,
                 -offset,
             )
         })

@@ -12,7 +12,7 @@ use cosmic::{
         cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         wayland_client::protocol::wl_output,
     },
-    iced_winit::platform_specific::wayland::subsurface_widget::SubsurfaceBuffer,
+    iced::platform_specific::shell::subsurface_widget::SubsurfaceBuffer,
 };
 use std::collections::HashSet;
 

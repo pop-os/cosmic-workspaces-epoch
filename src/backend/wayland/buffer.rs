@@ -7,9 +7,7 @@ use cctk::{
 };
 use cosmic::{
     cctk,
-    iced_winit::platform_specific::wayland::subsurface_widget::{
-        BufferSource, Dmabuf, Plane, Shmbuf,
-    },
+    iced::platform_specific::shell::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf},
 };
 use std::{os::fd::AsFd, sync::Arc};
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;

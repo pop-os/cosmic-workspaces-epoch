@@ -16,19 +16,19 @@ use clap::Parser;
 use cosmic::{
     app::{Application, CosmicFlags},
     cctk, dbus_activation,
+    iced::platform_specific::shell::commands::layer_surface::{
+        destroy_layer_surface, get_layer_surface,
+    },
+    iced::runtime::platform_specific::wayland::layer_surface::{
+        IcedOutput, SctkLayerSurfaceSettings,
+    },
+    iced::window::Id as SurfaceId,
     iced::{
         self, Size, Subscription, Task,
         clipboard::dnd::{DndEvent, SourceEvent},
         event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
         keyboard::key::{Key, Named},
         mouse::ScrollDelta,
-    },
-    iced_core::window::Id as SurfaceId,
-    iced_runtime::platform_specific::wayland::layer_surface::{
-        IcedOutput, SctkLayerSurfaceSettings,
-    },
-    iced_winit::platform_specific::wayland::commands::layer_surface::{
-        destroy_layer_surface, get_layer_surface,
     },
     scroll::DiscreteScrollState,
 };

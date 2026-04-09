@@ -8,7 +8,7 @@ use cosmic::{
         },
         wayland_client::{Connection, QueueHandle, WEnum},
     },
-    iced_winit::platform_specific::wayland::subsurface_widget::{
+    iced::platform_specific::shell::subsurface_widget::{
         SubsurfaceBuffer, SubsurfaceBufferRelease,
     },
 };

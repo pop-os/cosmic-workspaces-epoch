@@ -1,2 +1,2 @@
-workspace = Área de trabalho { $number }
-new-workspace = Nova área de trabalho
+workspace = Espaço de trabalho { $number }
+new-workspace = Novo espaço de trabalho

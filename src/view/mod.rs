@@ -664,11 +664,9 @@ fn toplevel_previews<'a>(
     // Sort toplevels so the activated (focused) window is drawn last (on top)
     let mut toplevels_vec: Vec<_> = toplevels.collect();
     toplevels_vec.sort_by_key(|t| {
-        if t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated) {
-            1 // activated window last = on top
-        } else {
-            0
-        }
+        let is_activated = t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated)
+            || closing_activated.is_some_and(|h| h == &t.handle);
+        if is_activated { 1 } else { 0 }
     });
     let source_rects: Vec<iced::Rectangle> = toplevels_vec
         .iter()

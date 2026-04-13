@@ -350,10 +350,13 @@ impl App {
         }
         self.action_on_typing_activated = false;
 
-        // Remember which toplevel was activated so we can keep its accent during close animation
-        self.closing_activated_toplevel = self.toplevels.0.iter()
-            .find(|t| t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated))
-            .map(|t| t.handle.clone());
+        // Remember which toplevel was activated so we can keep its accent during close animation.
+        // Don't overwrite if already set (e.g. by ActivateToplevel click).
+        if self.closing_activated_toplevel.is_none() {
+            self.closing_activated_toplevel = self.toplevels.0.iter()
+                .find(|t| t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated))
+                .map(|t| t.handle.clone());
+        }
 
         // Start closing animation — surfaces will be destroyed when animation completes
         self.animation.start_closing();
@@ -643,7 +646,10 @@ impl Application for App {
                 self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
             }
             Msg::ActivateToplevel(toplevel_handle) => {
-                self.send_wayland_cmd(backend::Cmd::ActivateToplevel(toplevel_handle));
+                self.send_wayland_cmd(backend::Cmd::ActivateToplevel(toplevel_handle.clone()));
+                // Override the cached activated toplevel so the clicked window
+                // gets z-priority during the close animation
+                self.closing_activated_toplevel = Some(toplevel_handle);
                 return self.hide();
             }
             Msg::CloseWorkspace(_workspace_handle) => {

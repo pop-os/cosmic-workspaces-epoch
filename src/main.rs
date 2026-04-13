@@ -5,6 +5,7 @@
 
 use cctk::{
     cosmic_protocols::{
+        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v2::client::zcosmic_workspace_handle_v2,
     },
@@ -49,6 +50,7 @@ mod dbus;
 mod desktop_info;
 #[macro_use]
 mod localize;
+mod animation;
 mod backend;
 mod view;
 use backend::{ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo};
@@ -59,10 +61,21 @@ use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
 
 const SCROLL_RATE_LIMIT: Duration = Duration::from_millis(200);
 
-#[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
+#[derive(Clone, Debug, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
     show_workspace_number: bool,
     show_workspace_name: bool,
+    animation_duration_ms: u32,
+}
+
+impl Default for CosmicWorkspacesConfig {
+    fn default() -> Self {
+        Self {
+            show_workspace_number: false,
+            show_workspace_name: false,
+            animation_duration_ms: 250,
+        }
+    }
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -123,6 +136,7 @@ enum Msg {
     PanelConfig(CosmicPanelConfig),
     ActionOnTyping(String),
     Ignore,
+    AnimationTick,
 }
 
 #[derive(Clone, Debug)]
@@ -203,6 +217,8 @@ struct App {
     dbus_interface: Option<dbus::Interface>,
     panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
     action_on_typing_activated: bool,
+    animation: animation::AnimationState,
+    closing_activated_toplevel: Option<ExtForeignToplevelHandleV1>,
 }
 
 #[derive(Debug, Default)]
@@ -279,6 +295,7 @@ impl App {
     fn show(&mut self) -> Task<cosmic::Action<Msg>> {
         if !self.visible {
             self.visible = true;
+            self.animation.start_opening();
             let outputs = self.outputs.clone();
             let cmd = Task::batch(
                 outputs
@@ -300,7 +317,7 @@ impl App {
         }
     }
 
-    // Close all shell surfaces
+    // Close all shell surfaces (with closing animation)
     fn hide(&mut self) -> Task<cosmic::Action<Msg>> {
         if let Some(interface) = self.dbus_interface.clone() {
             tokio::spawn(async move {
@@ -312,11 +329,9 @@ impl App {
             let cmd = match self.conf.workspace_config.action_on_typing {
                 cosmic_comp_config::workspace::Action::None => return Task::none(),
                 cosmic_comp_config::workspace::Action::OpenLauncher => {
-                    // self.common.config.system_actions.get(&Launcher)
                     Some("cosmic-launcher \"$@\"".to_string())
                 }
                 cosmic_comp_config::workspace::Action::OpenApplications => {
-                    // self.common.config.system_actions.get(&Applications)
                     Some("cosmic-app-library \"$@\"".to_string())
                 }
             };
@@ -335,6 +350,18 @@ impl App {
         }
         self.action_on_typing_activated = false;
 
+        // Remember which toplevel was activated so we can keep its accent during close animation
+        self.closing_activated_toplevel = self.toplevels.0.iter()
+            .find(|t| t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated))
+            .map(|t| t.handle.clone());
+
+        // Start closing animation — surfaces will be destroyed when animation completes
+        self.animation.start_closing();
+        Task::none()
+    }
+
+    /// Actually destroy surfaces after closing animation completes.
+    fn finish_hide(&mut self) -> Task<cosmic::Action<Msg>> {
         self.visible = false;
         self.update_capture_filter();
         self.drag_surface = None;
@@ -683,6 +710,7 @@ impl Application for App {
                 */
             }
             Msg::Config(c) => {
+                self.animation.set_duration_ms(c.animation_duration_ms);
                 self.conf.config = c;
             }
             Msg::CompConfig(c) => {
@@ -805,6 +833,18 @@ impl Application for App {
                 self.action_on_typing_activated = true;
             }
             Msg::Ignore => {}
+            Msg::AnimationTick => {
+                let still_animating = self.animation.tick();
+                if !still_animating {
+                    if self.animation.is_closing() {
+                        self.animation = animation::AnimationState::default();
+                        self.closing_activated_toplevel = None;
+                        return self.finish_hide();
+                    }
+                    self.animation = animation::AnimationState::default();
+                    self.closing_activated_toplevel = None;
+                }
+            }
         }
 
         Task::none()
@@ -896,6 +936,20 @@ impl Application for App {
             subscriptions.push(interface.subscription().map(Msg::DBus));
         }
         subscriptions.push(panel_subscriptions(self.panel_configs.keys()));
+
+        // Animation tick subscription — only active during animation
+        if !self.animation.is_idle() {
+            subscriptions.push(iced::Subscription::run_with(
+                "animation-tick",
+                |_| {
+                    iced::futures::stream::unfold((), |()| async {
+                        tokio::time::sleep(Duration::from_micros(8333)).await; // ~120fps
+                        Some((Msg::AnimationTick, ()))
+                    })
+                },
+            ));
+        }
+
         iced::Subscription::batch(subscriptions)
     }
 

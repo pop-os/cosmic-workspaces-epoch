@@ -15,7 +15,7 @@ mod size_cross_nth;
 pub use size_cross_nth::size_cross_nth;
 mod mouse_interaction_wrapper;
 mod toplevels;
-pub use toplevels::toplevels;
+pub use toplevels::{toplevels, toplevels_animated};
 mod visibility_wrapper;
 pub use visibility_wrapper::visibility_wrapper;
 mod match_size;

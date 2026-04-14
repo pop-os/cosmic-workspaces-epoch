@@ -137,6 +137,9 @@ enum Msg {
     ActionOnTyping(String),
     Ignore,
     AnimationTick,
+    TabNext,
+    TabPrev,
+    ActivateSelected,
 }
 
 #[derive(Clone, Debug)]
@@ -219,6 +222,8 @@ struct App {
     action_on_typing_activated: bool,
     animation: animation::AnimationState,
     closing_activated_toplevel: Option<ExtForeignToplevelHandleV1>,
+    selected_toplevel_index: Option<usize>,
+    selection_changed_at: Option<std::time::Instant>,
 }
 
 #[derive(Debug, Default)]
@@ -295,6 +300,7 @@ impl App {
     fn show(&mut self) -> Task<cosmic::Action<Msg>> {
         if !self.visible {
             self.visible = true;
+            self.selected_toplevel_index = None;
             self.animation.start_opening();
             let outputs = self.outputs.clone();
             let cmd = Task::batch(
@@ -374,6 +380,56 @@ impl App {
                 .copied()
                 .map(destroy_layer_surface),
         )
+    }
+
+    /// Returns the scale factor for the currently tab-selected window.
+    /// Bounces from 1.0 -> 1.15 -> 1.10 over 200ms using an overshoot ease.
+    fn selection_scale(&self) -> f32 {
+        let Some(start) = self.selection_changed_at else {
+            return 1.0;
+        };
+        if self.selected_toplevel_index.is_none() {
+            return 1.0;
+        }
+        let elapsed = start.elapsed().as_secs_f32();
+        let duration = 0.2; // 200ms
+        let target = 1.10;
+        let overshoot = 1.15;
+
+        if elapsed >= duration {
+            target
+        } else {
+            let t = elapsed / duration;
+            // Ease with overshoot: goes to 1.15 at t=0.5, settles to 1.10 at t=1.0
+            let peak_t = 0.4;
+            if t < peak_t {
+                let p = t / peak_t;
+                1.0 + (overshoot - 1.0) * p
+            } else {
+                let p = (t - peak_t) / (1.0 - peak_t);
+                overshoot + (target - overshoot) * p
+            }
+        }
+    }
+
+    /// Returns visible toplevels on active workspaces, sorted the same way as the view
+    /// (activated window last = on top).
+    fn visible_toplevels_sorted(&self) -> Vec<&Toplevel> {
+        let mut toplevels: Vec<_> = self.toplevels.0.iter()
+            .filter(|t| {
+                t.info.workspace.iter().any(|w| {
+                    self.workspaces.for_handle(w).is_some_and(|ws| ws.is_active())
+                })
+            })
+            .collect();
+        toplevels.sort_by_key(|t| {
+            if t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated) {
+                1
+            } else {
+                0
+            }
+        });
+        toplevels
     }
 
     fn send_wayland_cmd(&self, cmd: backend::Cmd) {
@@ -838,6 +894,38 @@ impl Application for App {
                 }
                 self.action_on_typing_activated = true;
             }
+            Msg::TabNext => {
+                let count = self.visible_toplevels_sorted().len();
+                if count > 0 {
+                    let idx = self.selected_toplevel_index
+                        .map(|i| (i + 1) % count)
+                        .unwrap_or(0);
+                    self.selected_toplevel_index = Some(idx);
+                    self.selection_changed_at = Some(std::time::Instant::now());
+                }
+            }
+            Msg::TabPrev => {
+                let count = self.visible_toplevels_sorted().len();
+                if count > 0 {
+                    let idx = self.selected_toplevel_index
+                        .map(|i| if i == 0 { count - 1 } else { i - 1 })
+                        .unwrap_or(count - 1);
+                    self.selected_toplevel_index = Some(idx);
+                    self.selection_changed_at = Some(std::time::Instant::now());
+                }
+            }
+            Msg::ActivateSelected => {
+                if let Some(idx) = self.selected_toplevel_index {
+                    let visible = self.visible_toplevels_sorted();
+                    if let Some(toplevel) = visible.get(idx) {
+                        let handle = toplevel.handle.clone();
+                        self.send_wayland_cmd(backend::Cmd::ActivateToplevel(handle.clone()));
+                        self.closing_activated_toplevel = Some(handle);
+                        self.selected_toplevel_index = None;
+                        return self.hide();
+                    }
+                }
+            }
             Msg::Ignore => {}
             Msg::AnimationTick => {
                 let still_animating = self.animation.tick();
@@ -880,6 +968,21 @@ impl Application for App {
                 key: Key::Named(Named::Escape),
                 ..
             }) => Some(Msg::Close),
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Named(Named::Tab),
+                modifiers,
+                ..
+            }) => {
+                if modifiers.shift() {
+                    Some(Msg::TabPrev)
+                } else {
+                    Some(Msg::TabNext)
+                }
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Named(Named::Enter),
+                ..
+            }) => Some(Msg::ActivateSelected),
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
                 key: Key::Character(key),
                 modifiers,
@@ -944,7 +1047,9 @@ impl Application for App {
         subscriptions.push(panel_subscriptions(self.panel_configs.keys()));
 
         // Animation tick subscription — only active during animation
-        if !self.animation.is_idle() {
+        let selection_animating = self.selection_changed_at
+            .is_some_and(|t| t.elapsed() < Duration::from_millis(250));
+        if !self.animation.is_idle() || selection_animating {
             subscriptions.push(iced::Subscription::run_with(
                 "animation-tick",
                 |_| {

@@ -146,6 +146,8 @@ pub(crate) fn layer_surface<'a>(
         output_size,
         widget_offset,
         app.closing_activated_toplevel.as_ref(),
+        app.selected_toplevel_index,
+        app.selection_scale(),
     );
     // TODO multiple active workspaces? Not currently supported by cosmic.
     let first_active_workspace = app
@@ -656,6 +658,8 @@ fn toplevel_previews<'a>(
     output_size: iced::Size,
     widget_offset: iced::Point,
     closing_activated: Option<&backend::ExtForeignToplevelHandleV1>,
+    selected_index: Option<usize>,
+    selection_scale: f32,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (Length::FillPortion(4), Length::Fill),
@@ -694,16 +698,18 @@ fn toplevel_previews<'a>(
         .collect();
     let entries = toplevels_vec
         .iter()
-        .map(|t| {
-            let force_activated = closing_activated.is_some_and(|h| h == &t.handle);
+        .enumerate()
+        .map(|(i, t)| {
+            let force_activated = closing_activated.is_some_and(|h| h == &t.handle)
+                || selected_index == Some(i);
             toplevel_previews_entry(t, drag_toplevel == Some(&t.handle), animation_alpha, force_activated)
         })
         .collect();
     //row(entries)
     let toplevel_widget = if animation_progress < 1.0 {
-        crate::widgets::toplevels_animated(entries, source_rects, animation_progress, output_size, widget_offset)
+        crate::widgets::toplevels_animated(entries, source_rects, animation_progress, output_size, widget_offset, selected_index, selection_scale)
     } else {
-        crate::widgets::toplevels(entries)
+        crate::widgets::toplevels(entries, selected_index, selection_scale)
     };
     widget::mouse_area(
         widget::container(toplevel_widget)

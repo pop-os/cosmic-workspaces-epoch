@@ -13,15 +13,20 @@ use std::marker::PhantomData;
 mod toplevel_layout;
 use toplevel_layout::{LayoutToplevel, ToplevelLayout, TwoRowColToplevelLayout};
 
-pub fn toplevels<Msg>(children: Vec<cosmic::Element<Msg>>) -> Toplevels<Msg> {
+pub fn toplevels<Msg>(
+    children: Vec<cosmic::Element<Msg>>,
+    selected_index: Option<usize>,
+    selection_scale: f32,
+) -> Toplevels<Msg> {
     Toplevels {
-        // TODO configurable
         layout: TwoRowColToplevelLayout::new(Axis::Horizontal, 16),
         children,
         source_rects: Vec::new(),
         animation_progress: 1.0,
         output_size: Size::new(1920.0, 1080.0),
         widget_offset: cosmic::iced::Point::ORIGIN,
+        selected_index,
+        selection_scale,
         _msg: PhantomData,
     }
 }
@@ -32,6 +37,8 @@ pub fn toplevels_animated<Msg>(
     animation_progress: f32,
     output_size: Size,
     widget_offset: cosmic::iced::Point,
+    selected_index: Option<usize>,
+    selection_scale: f32,
 ) -> Toplevels<Msg> {
     Toplevels {
         layout: TwoRowColToplevelLayout::new(Axis::Horizontal, 16),
@@ -40,6 +47,8 @@ pub fn toplevels_animated<Msg>(
         animation_progress,
         output_size,
         widget_offset,
+        selected_index,
+        selection_scale,
         _msg: PhantomData,
     }
 }
@@ -48,9 +57,11 @@ pub struct Toplevels<'a, Msg> {
     layout: TwoRowColToplevelLayout,
     children: Vec<cosmic::Element<'a, Msg>>,
     source_rects: Vec<Rectangle>,
-    animation_progress: f32, // 0.0 = at source positions, 1.0 = at grid positions
-    output_size: Size,       // output dimensions for coordinate mapping
-    widget_offset: cosmic::iced::Point, // widget's position in output space
+    animation_progress: f32,
+    output_size: Size,
+    widget_offset: cosmic::iced::Point,
+    selected_index: Option<usize>,
+    selection_scale: f32,
     _msg: PhantomData<Msg>,
 }
 
@@ -185,8 +196,26 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
             .zip(assigned_rects)
             .enumerate()
             .map(|(i, ((child, tree), assigned_rect))| {
-                let target_size = assigned_rect.size();
+                let mut target_size = assigned_rect.size();
                 let target_pos = assigned_rect.position();
+
+                // Apply selection scale for tab-selected window
+                let is_selected = self.selected_index == Some(i);
+                let scale = if is_selected { self.selection_scale } else { 1.0 };
+                let scaled_size = Size::new(
+                    target_size.width * scale,
+                    target_size.height * scale,
+                );
+                // Offset to keep scaled window centered on its original position
+                let scale_offset = Vector::new(
+                    (target_size.width - scaled_size.width) / 2.0,
+                    (target_size.height - scaled_size.height) / 2.0,
+                );
+
+                // Use scaled size for selected window
+                if is_selected {
+                    target_size = scaled_size;
+                }
 
                 // First compute the final resting position (with centering)
                 let final_child_limits = layout::Limits::new(Size::ZERO, target_size);
@@ -195,7 +224,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for Toplevels<'_, Msg> {
                     ((target_size.width - final_layout.size().width) / 2.).max(0.),
                     ((target_size.height - final_layout.size().height) / 2.).max(0.),
                 );
-                let final_target = target_pos + centering_offset;
+                let final_target = target_pos + centering_offset + scale_offset;
 
                 if t < 1.0 {
                     if let Some(src) = self.source_rects.get(i) {

@@ -140,6 +140,7 @@ enum Msg {
     TabNext,
     TabPrev,
     ActivateSelected,
+    PendingShowTimeout,
 }
 
 #[derive(Clone, Debug)]
@@ -224,6 +225,9 @@ struct App {
     closing_activated_toplevel: Option<ExtForeignToplevelHandleV1>,
     selected_toplevel_index: Option<usize>,
     selection_changed_at: Option<std::time::Instant>,
+    /// True between show() and the arrival of all screencopy captures.
+    /// While set: animation clock is held at t=0 and view renders transparently.
+    awaiting_captures: bool,
 }
 
 #[derive(Debug, Default)]
@@ -301,7 +305,10 @@ impl App {
         if !self.visible {
             self.visible = true;
             self.selected_toplevel_index = None;
+            // Start opening animation but hold it at t=0 during a short warmup.
             self.animation.start_opening();
+            self.awaiting_captures = true;
+
             let outputs = self.outputs.clone();
             let cmd = Task::batch(
                 outputs
@@ -317,14 +324,40 @@ impl App {
                 });
             }
 
-            cmd
+            // Release warmup hold after 80ms. Gives the compositor/iced time to
+            // initialize the layer surface and send first captures, avoiding a
+            // visible blank-windows flash.
+            let timeout = Task::future(async {
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                cosmic::Action::App(Msg::PendingShowTimeout)
+            });
+            Task::batch([cmd, timeout])
         } else {
             Task::none()
         }
     }
 
+    /// Returns true if every visible (active-workspace) toplevel has a screencopy image.
+    fn all_visible_toplevels_have_captures(&self) -> bool {
+        let has_any = self.toplevels.0.iter().any(|t| {
+            t.info.workspace.iter().any(|w| {
+                self.workspaces.for_handle(w).is_some_and(|ws| ws.is_active())
+            })
+        });
+        if !has_any {
+            return true; // nothing to wait for (empty workspace)
+        }
+        self.toplevels.0.iter()
+            .filter(|t| t.info.workspace.iter().any(|w| {
+                self.workspaces.for_handle(w).is_some_and(|ws| ws.is_active())
+            }))
+            .all(|t| t.img.is_some())
+    }
+
     // Close all shell surfaces (with closing animation)
     fn hide(&mut self) -> Task<cosmic::Action<Msg>> {
+        // Cancel any pending show
+        self.awaiting_captures = false;
         if let Some(interface) = self.dbus_interface.clone() {
             tokio::spawn(async move {
                 let _ = interface.hidden().await;
@@ -679,7 +712,6 @@ impl Application for App {
                     }
                     backend::Event::ToplevelCapture(handle, image) => {
                         if let Some(toplevel) = self.toplevels.for_handle_mut(&handle) {
-                            // println!("Got toplevel image!");
                             if self.capture_filter.toplevel_matches(&toplevel.info) {
                                 toplevel.img = Some(image);
                             }
@@ -926,8 +958,21 @@ impl Application for App {
                     }
                 }
             }
+            Msg::PendingShowTimeout => {
+                // Safety fallback: if captures never arrive, release the hold after timeout.
+                if self.awaiting_captures {
+                    self.awaiting_captures = false;
+                    self.animation.start_opening();
+                }
+            }
             Msg::Ignore => {}
             Msg::AnimationTick => {
+                // While awaiting captures, keep the animation frozen at t=0 so
+                // the opening animation only starts once content is ready.
+                if self.awaiting_captures {
+                    self.animation.start_opening();
+                    return Task::none();
+                }
                 let still_animating = self.animation.tick();
                 if !still_animating {
                     if self.animation.is_closing() {
@@ -1069,6 +1114,12 @@ impl Application for App {
     }
 
     fn view_window(&self, id: iced::window::Id) -> cosmic::Element<'_, Self::Message> {
+        // While awaiting captures, render an empty element — the layer surface
+        // stays transparent so the real desktop shows through until we have
+        // content to display. Prevents the "blank windows" flash at start.
+        if self.awaiting_captures {
+            return cosmic::widget::Space::new().width(iced::Length::Fill).height(iced::Length::Fill).into();
+        }
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
         }

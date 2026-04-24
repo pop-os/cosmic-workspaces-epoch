@@ -101,6 +101,7 @@ pub(crate) fn layer_surface<'a>(
         .flat_map(|t| &t.info.workspace)
         .collect::<HashSet<_>>();
     let layout = app.conf.workspace_config.workspace_layout;
+    let animation_alpha = app.animation.alpha();
     let sidebar = workspaces_sidebar(
         app.workspaces.for_output(&surface.output),
         &workspaces_with_toplevels,
@@ -108,7 +109,23 @@ pub(crate) fn layer_surface<'a>(
         layout,
         app.drop_target.as_ref(),
         drag_workspace,
+        animation_alpha,
     );
+    let output_dims = app
+        .outputs
+        .iter()
+        .find(|o| o.handle == surface.output);
+    let output_size = output_dims
+        .map(|o| iced::Size::new(o.width as f32, o.height as f32))
+        .unwrap_or(iced::Size::new(1920.0, 1080.0));
+
+    let panel_regions = app.panel_regions(&surface.output);
+
+    // Widget offset and scale will be computed dynamically in the Toplevels widget
+    // by comparing container_size to output_size. Pass ORIGIN as offset — the widget
+    // will derive the true offset from the size difference.
+    let widget_offset = iced::Point::ORIGIN;
+
     let toplevels = toplevel_previews(
         app.toplevels.0.iter().filter(|i| {
             if !i.info.output.contains(&surface.output) {
@@ -123,6 +140,14 @@ pub(crate) fn layer_surface<'a>(
         }),
         layout,
         drag_toplevel,
+        animation_alpha,
+        &surface.output,
+        app.animation.position_progress(),
+        output_size,
+        widget_offset,
+        app.closing_activated_toplevel.as_ref(),
+        app.selected_toplevel_index,
+        app.selection_scale(),
     );
     // TODO multiple active workspaces? Not currently supported by cosmic.
     let first_active_workspace = app
@@ -140,21 +165,36 @@ pub(crate) fn layer_surface<'a>(
         cosmic::Element::from(toplevels)
     };
     let container = match layout {
-        WorkspaceLayout::Vertical => widget::layer_container(
+        WorkspaceLayout::Vertical => widget::container(
             row![sidebar, toplevels]
                 .spacing(12)
                 .height(Length::Fill)
                 .width(Length::Fill),
-        ),
-        WorkspaceLayout::Horizontal => widget::layer_container(
+        )
+        .class(cosmic::theme::Container::custom(|_| {
+            iced::widget::container::Style {
+                background: None,
+                ..Default::default()
+            }
+        }))
+        .width(Length::Fill)
+        .height(Length::Fill),
+        WorkspaceLayout::Horizontal => widget::container(
             column![sidebar, toplevels]
                 .spacing(12)
                 .height(Length::Fill)
                 .width(Length::Fill),
-        ),
+        )
+        .class(cosmic::theme::Container::custom(|_| {
+            iced::widget::container::Style {
+                background: None,
+                ..Default::default()
+            }
+        }))
+        .width(Length::Fill)
+        .height(Length::Fill),
     };
 
-    let panel_regions = app.panel_regions(&surface.output);
     let container = widget::container(container).padding(panel_regions);
 
     let output = surface.output.clone();
@@ -247,6 +287,7 @@ fn workspace_item(
     layout: WorkspaceLayout,
     is_drop_target: bool,
     has_workspace_drag: bool,
+    animation_alpha: f32,
 ) -> cosmic::Element<'static, Msg> {
     let (mut image, image_height, image_width) = if let Some(img) = workspace.img.as_ref() {
         let is_rotated = matches!(
@@ -266,21 +307,21 @@ fn workspace_item(
         if effective_width > effective_height {
             (
                 // Landscape: fix height
-                widget::container(capture_image(Some(img), 1.0)).max_height(126.0),
+                widget::container(capture_image(Some(img), animation_alpha)).max_height(126.0),
                 126.0,
                 126.0 * effective_width as f32 / effective_height as f32,
             )
         } else {
             (
                 // Portrait: fix width
-                widget::container(capture_image(Some(img), 1.0)).max_width(160),
+                widget::container(capture_image(Some(img), animation_alpha)).max_width(160),
                 160.0 * effective_height as f32 / effective_width as f32,
                 160.0,
             )
         }
     } else {
         (
-            widget::container(capture_image(None, 1.0))
+            widget::container(capture_image(None, animation_alpha))
                 .max_height(126.0)
                 .max_width(224.0),
             126.0,
@@ -359,7 +400,7 @@ fn workspace_drag_placeholder(
     })
     .padding(8);
     let placeholder = crate::widgets::match_size(
-        workspace_item(other_workspace, other_output, layout, true, true),
+        workspace_item(other_workspace, other_output, layout, true, true, 1.0),
         placeholder,
     );
     dnd_destination_for_target(drop_target, placeholder.into(), Msg::DndWorkspaceDrop)
@@ -372,6 +413,7 @@ fn workspace_sidebar_entry<'a>(
     is_drop_target: bool,
     has_toplevels: bool,
     has_workspace_drag: bool,
+    animation_alpha: f32,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -386,6 +428,7 @@ fn workspace_sidebar_entry<'a>(
         layout,
         is_drop_target,
         has_workspace_drag,
+        animation_alpha,
     );
     let item = iced::widget::mouse_area(item)
         .on_enter(Msg::EnteredWorkspaceSidebarEntry(
@@ -417,7 +460,7 @@ fn workspace_sidebar_entry<'a>(
             DragSurface::Workspace(workspace.handle().clone()),
             Some(workspace.dnd_source_id.clone()),
             destination,
-            move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+            move || workspace_item(&workspace_clone, &output_clone, layout, false, true, 1.0),
         )
     } else {
         destination
@@ -432,6 +475,7 @@ fn workspaces_sidebar<'a>(
     layout: WorkspaceLayout,
     drop_target: Option<&DropTarget>,
     drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
+    animation_alpha: f32,
 ) -> cosmic::Element<'a, Msg> {
     let mut sidebar_entries = Vec::new();
     for workspace in workspaces {
@@ -447,7 +491,7 @@ fn workspaces_sidebar<'a>(
                     .width(Length::Shrink)
                     .height(Length::Shrink)
                     .into(),
-                move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+                move || workspace_item(&workspace_clone, &output_clone, layout, false, true, 1.0),
             );
             sidebar_entries.push(source);
             continue;
@@ -482,6 +526,7 @@ fn workspaces_sidebar<'a>(
             drop_target_is_workspace && drag_workspace.is_none(),
             workspaces_with_toplevels.contains(workspace.handle()),
             drag_workspace.is_some(),
+            animation_alpha,
         ));
     }
     let (axis, width, height) = match layout {
@@ -495,19 +540,12 @@ fn workspaces_sidebar<'a>(
         widget::container(sidebar_entries_container)
             .width(width)
             .height(height)
-            .class(cosmic::theme::Container::custom(|theme| {
+            .class(cosmic::theme::Container::custom(move |theme| {
                 cosmic::iced::widget::container::Style {
                     text_color: Some(theme.cosmic().on_bg_color().into()),
                     icon_color: Some(theme.cosmic().on_bg_color().into()),
-                    background: Some(iced::Color::from(theme.cosmic().background.base).into()),
-                    border: Border {
-                        radius: theme
-                            .cosmic()
-                            .radius_s()
-                            .map(|x| if x < 4.0 { x } else { x + 8.0 })
-                            .into(),
-                        ..Default::default()
-                    },
+                    background: None,
+                    border: Border::default(),
                     shadow: Shadow::default(),
                     snap: true,
                 }
@@ -517,7 +555,12 @@ fn workspaces_sidebar<'a>(
     .into()
 }
 
-fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Element<'static, Msg> {
+fn toplevel_preview(
+    toplevel: &Toplevel,
+    is_being_dragged: bool,
+    animation_alpha: f32,
+    force_activated: bool,
+) -> cosmic::Element<'static, Msg> {
     let cosmic::cosmic_theme::Spacing {
         space_xxs, space_s, ..
     } = cosmic::theme::active().cosmic().spacing;
@@ -541,13 +584,15 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
             .class(cosmic::theme::Button::Icon)
             .padding([space_xxs, space_s])
             .apply(widget::container)
-            .class(cosmic::theme::Container::custom(|theme| {
+            .class(cosmic::theme::Container::custom(move |theme| {
+                let mut bg: iced::Color = theme.cosmic().background.component.base.into();
+                bg.a *= animation_alpha;
+                let mut border_color: iced::Color = theme.cosmic().bg_divider().into();
+                border_color.a *= animation_alpha;
                 cosmic::iced::widget::container::Style {
-                    background: Some(
-                        iced::Color::from(theme.cosmic().background.component.base).into(),
-                    ),
+                    background: Some(bg.into()),
                     border: Border {
-                        color: theme.cosmic().bg_divider().into(),
+                        color: border_color,
                         width: 1.0,
                         radius: theme.cosmic().radius_xl().into(),
                     },
@@ -562,14 +607,13 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     .padding([0, 0, 2, 0])
     .align_y(Alignment::Center);
 
-    let alpha = if is_being_dragged { 0.5 } else { 1.0 };
+    let alpha = if is_being_dragged { 0.5 } else { 1.0 } * animation_alpha;
+    let is_activated = force_activated || toplevel
+        .info
+        .state
+        .contains(&zcosmic_toplevel_handle_v1::State::Activated);
     let preview = widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
-        .selected(
-            toplevel
-                .info
-                .state
-                .contains(&zcosmic_toplevel_handle_v1::State::Activated),
-        )
+        .selected(is_activated)
         .class(cosmic::theme::Button::Image)
         .on_press(Msg::ActivateToplevel(toplevel.handle.clone()));
 
@@ -585,11 +629,13 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
 fn toplevel_previews_entry(
     toplevel: &Toplevel,
     is_being_dragged: bool,
+    animation_alpha: f32,
+    force_activated: bool,
 ) -> cosmic::Element<'_, Msg> {
     // Dragged window still takes up space until moved, but isn't rendered while drag surface is
     // shown.
     let preview = crate::widgets::visibility_wrapper(
-        toplevel_preview(toplevel, is_being_dragged),
+        toplevel_preview(toplevel, is_being_dragged, animation_alpha, force_activated),
         !is_being_dragged,
     );
     let toplevel2 = toplevel.clone();
@@ -598,7 +644,7 @@ fn toplevel_previews_entry(
         DragSurface::Toplevel(toplevel.handle.clone()),
         None,
         preview.into(),
-        move || toplevel_preview(&toplevel2, true),
+        move || toplevel_preview(&toplevel2, true, 1.0, false),
     )
 }
 
@@ -606,17 +652,67 @@ fn toplevel_previews<'a>(
     toplevels: impl Iterator<Item = &'a Toplevel>,
     layout: WorkspaceLayout,
     drag_toplevel: Option<&'a backend::ExtForeignToplevelHandleV1>,
+    animation_alpha: f32,
+    output: &wl_output::WlOutput,
+    animation_progress: f32,
+    output_size: iced::Size,
+    widget_offset: iced::Point,
+    closing_activated: Option<&backend::ExtForeignToplevelHandleV1>,
+    selected_index: Option<usize>,
+    selection_scale: f32,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
         WorkspaceLayout::Vertical => (Length::FillPortion(4), Length::Fill),
         WorkspaceLayout::Horizontal => (Length::Fill, Length::FillPortion(4)),
     };
-    let entries = toplevels
-        .map(|t| toplevel_previews_entry(t, drag_toplevel == Some(&t.handle)))
+    // Sort toplevels so the activated (focused) window is drawn last (on top)
+    let mut toplevels_vec: Vec<_> = toplevels.collect();
+    toplevels_vec.sort_by_key(|t| {
+        let is_activated = t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated)
+            || closing_activated.is_some_and(|h| h == &t.handle);
+        if is_activated { 1 } else { 0 }
+    });
+    let source_rects: Vec<iced::Rectangle> = toplevels_vec
+        .iter()
+        .map(|t| {
+            t.info
+                .geometry
+                .get(output)
+                .map(|g| {
+                    // If geometry height > capture image height, the difference is the
+                    // SSD decoration height. The decoration is at the top, so content
+                    // starts lower by that amount.
+                    let decoration_height = t.img.as_ref()
+                        .map(|img| (g.height - img.height as i32).max(0) as f32)
+                        .unwrap_or(0.0);
+                    iced::Rectangle::new(
+                        iced::Point::new(g.x as f32, g.y as f32 + decoration_height),
+                        iced::Size::new(g.width as f32, g.height as f32 - decoration_height),
+                    )
+                })
+                .unwrap_or(iced::Rectangle::new(
+                    iced::Point::ORIGIN,
+                    iced::Size::new(0.0, 0.0),
+                ))
+        })
+        .collect();
+    let entries = toplevels_vec
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let force_activated = closing_activated.is_some_and(|h| h == &t.handle)
+                || selected_index == Some(i);
+            toplevel_previews_entry(t, drag_toplevel == Some(&t.handle), animation_alpha, force_activated)
+        })
         .collect();
     //row(entries)
+    let toplevel_widget = if animation_progress < 1.0 {
+        crate::widgets::toplevels_animated(entries, source_rects, animation_progress, output_size, widget_offset, selected_index, selection_scale)
+    } else {
+        crate::widgets::toplevels(entries, selected_index, selection_scale)
+    };
     widget::mouse_area(
-        widget::container(crate::widgets::toplevels(entries))
+        widget::container(toplevel_widget)
             .align_x(Alignment::Center)
             .width(width)
             .height(height)

@@ -5,6 +5,7 @@
 
 use cctk::{
     cosmic_protocols::{
+        toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
         toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
         workspace::v2::client::zcosmic_workspace_handle_v2,
     },
@@ -49,6 +50,7 @@ mod dbus;
 mod desktop_info;
 #[macro_use]
 mod localize;
+mod animation;
 mod backend;
 mod view;
 use backend::{ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1, ToplevelInfo};
@@ -59,10 +61,21 @@ use dnd::{DragSurface, DragToplevel, DragWorkspace, DropTarget};
 
 const SCROLL_RATE_LIMIT: Duration = Duration::from_millis(200);
 
-#[derive(Clone, Debug, Default, PartialEq, CosmicConfigEntry)]
+#[derive(Clone, Debug, PartialEq, CosmicConfigEntry)]
 struct CosmicWorkspacesConfig {
     show_workspace_number: bool,
     show_workspace_name: bool,
+    animation_duration_ms: u32,
+}
+
+impl Default for CosmicWorkspacesConfig {
+    fn default() -> Self {
+        Self {
+            show_workspace_number: false,
+            show_workspace_name: false,
+            animation_duration_ms: 250,
+        }
+    }
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -123,6 +136,11 @@ enum Msg {
     PanelConfig(CosmicPanelConfig),
     ActionOnTyping(String),
     Ignore,
+    AnimationTick,
+    TabNext,
+    TabPrev,
+    ActivateSelected,
+    PendingShowTimeout,
 }
 
 #[derive(Clone, Debug)]
@@ -203,6 +221,13 @@ struct App {
     dbus_interface: Option<dbus::Interface>,
     panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
     action_on_typing_activated: bool,
+    animation: animation::AnimationState,
+    closing_activated_toplevel: Option<ExtForeignToplevelHandleV1>,
+    selected_toplevel_index: Option<usize>,
+    selection_changed_at: Option<std::time::Instant>,
+    /// True between show() and the arrival of all screencopy captures.
+    /// While set: animation clock is held at t=0 and view renders transparently.
+    awaiting_captures: bool,
 }
 
 #[derive(Debug, Default)]
@@ -279,6 +304,11 @@ impl App {
     fn show(&mut self) -> Task<cosmic::Action<Msg>> {
         if !self.visible {
             self.visible = true;
+            self.selected_toplevel_index = None;
+            // Start opening animation but hold it at t=0 during a short warmup.
+            self.animation.start_opening();
+            self.awaiting_captures = true;
+
             let outputs = self.outputs.clone();
             let cmd = Task::batch(
                 outputs
@@ -294,14 +324,40 @@ impl App {
                 });
             }
 
-            cmd
+            // Release warmup hold after 80ms. Gives the compositor/iced time to
+            // initialize the layer surface and send first captures, avoiding a
+            // visible blank-windows flash.
+            let timeout = Task::future(async {
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                cosmic::Action::App(Msg::PendingShowTimeout)
+            });
+            Task::batch([cmd, timeout])
         } else {
             Task::none()
         }
     }
 
-    // Close all shell surfaces
+    /// Returns true if every visible (active-workspace) toplevel has a screencopy image.
+    fn all_visible_toplevels_have_captures(&self) -> bool {
+        let has_any = self.toplevels.0.iter().any(|t| {
+            t.info.workspace.iter().any(|w| {
+                self.workspaces.for_handle(w).is_some_and(|ws| ws.is_active())
+            })
+        });
+        if !has_any {
+            return true; // nothing to wait for (empty workspace)
+        }
+        self.toplevels.0.iter()
+            .filter(|t| t.info.workspace.iter().any(|w| {
+                self.workspaces.for_handle(w).is_some_and(|ws| ws.is_active())
+            }))
+            .all(|t| t.img.is_some())
+    }
+
+    // Close all shell surfaces (with closing animation)
     fn hide(&mut self) -> Task<cosmic::Action<Msg>> {
+        // Cancel any pending show
+        self.awaiting_captures = false;
         if let Some(interface) = self.dbus_interface.clone() {
             tokio::spawn(async move {
                 let _ = interface.hidden().await;
@@ -312,11 +368,9 @@ impl App {
             let cmd = match self.conf.workspace_config.action_on_typing {
                 cosmic_comp_config::workspace::Action::None => return Task::none(),
                 cosmic_comp_config::workspace::Action::OpenLauncher => {
-                    // self.common.config.system_actions.get(&Launcher)
                     Some("cosmic-launcher \"$@\"".to_string())
                 }
                 cosmic_comp_config::workspace::Action::OpenApplications => {
-                    // self.common.config.system_actions.get(&Applications)
                     Some("cosmic-app-library \"$@\"".to_string())
                 }
             };
@@ -335,6 +389,21 @@ impl App {
         }
         self.action_on_typing_activated = false;
 
+        // Remember which toplevel was activated so we can keep its accent during close animation.
+        // Don't overwrite if already set (e.g. by ActivateToplevel click).
+        if self.closing_activated_toplevel.is_none() {
+            self.closing_activated_toplevel = self.toplevels.0.iter()
+                .find(|t| t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated))
+                .map(|t| t.handle.clone());
+        }
+
+        // Start closing animation — surfaces will be destroyed when animation completes
+        self.animation.start_closing();
+        Task::none()
+    }
+
+    /// Actually destroy surfaces after closing animation completes.
+    fn finish_hide(&mut self) -> Task<cosmic::Action<Msg>> {
         self.visible = false;
         self.update_capture_filter();
         self.drag_surface = None;
@@ -344,6 +413,56 @@ impl App {
                 .copied()
                 .map(destroy_layer_surface),
         )
+    }
+
+    /// Returns the scale factor for the currently tab-selected window.
+    /// Bounces from 1.0 -> 1.15 -> 1.10 over 200ms using an overshoot ease.
+    fn selection_scale(&self) -> f32 {
+        let Some(start) = self.selection_changed_at else {
+            return 1.0;
+        };
+        if self.selected_toplevel_index.is_none() {
+            return 1.0;
+        }
+        let elapsed = start.elapsed().as_secs_f32();
+        let duration = 0.2; // 200ms
+        let target = 1.10;
+        let overshoot = 1.15;
+
+        if elapsed >= duration {
+            target
+        } else {
+            let t = elapsed / duration;
+            // Ease with overshoot: goes to 1.15 at t=0.5, settles to 1.10 at t=1.0
+            let peak_t = 0.4;
+            if t < peak_t {
+                let p = t / peak_t;
+                1.0 + (overshoot - 1.0) * p
+            } else {
+                let p = (t - peak_t) / (1.0 - peak_t);
+                overshoot + (target - overshoot) * p
+            }
+        }
+    }
+
+    /// Returns visible toplevels on active workspaces, sorted the same way as the view
+    /// (activated window last = on top).
+    fn visible_toplevels_sorted(&self) -> Vec<&Toplevel> {
+        let mut toplevels: Vec<_> = self.toplevels.0.iter()
+            .filter(|t| {
+                t.info.workspace.iter().any(|w| {
+                    self.workspaces.for_handle(w).is_some_and(|ws| ws.is_active())
+                })
+            })
+            .collect();
+        toplevels.sort_by_key(|t| {
+            if t.info.state.contains(&zcosmic_toplevel_handle_v1::State::Activated) {
+                1
+            } else {
+                0
+            }
+        });
+        toplevels
     }
 
     fn send_wayland_cmd(&self, cmd: backend::Cmd) {
@@ -593,7 +712,6 @@ impl Application for App {
                     }
                     backend::Event::ToplevelCapture(handle, image) => {
                         if let Some(toplevel) = self.toplevels.for_handle_mut(&handle) {
-                            // println!("Got toplevel image!");
                             if self.capture_filter.toplevel_matches(&toplevel.info) {
                                 toplevel.img = Some(image);
                             }
@@ -616,7 +734,10 @@ impl Application for App {
                 self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
             }
             Msg::ActivateToplevel(toplevel_handle) => {
-                self.send_wayland_cmd(backend::Cmd::ActivateToplevel(toplevel_handle));
+                self.send_wayland_cmd(backend::Cmd::ActivateToplevel(toplevel_handle.clone()));
+                // Override the cached activated toplevel so the clicked window
+                // gets z-priority during the close animation
+                self.closing_activated_toplevel = Some(toplevel_handle);
                 return self.hide();
             }
             Msg::CloseWorkspace(_workspace_handle) => {
@@ -683,6 +804,7 @@ impl Application for App {
                 */
             }
             Msg::Config(c) => {
+                self.animation.set_duration_ms(c.animation_duration_ms);
                 self.conf.config = c;
             }
             Msg::CompConfig(c) => {
@@ -804,7 +926,64 @@ impl Application for App {
                 }
                 self.action_on_typing_activated = true;
             }
+            Msg::TabNext => {
+                let count = self.visible_toplevels_sorted().len();
+                if count > 0 {
+                    let idx = self.selected_toplevel_index
+                        .map(|i| (i + 1) % count)
+                        .unwrap_or(0);
+                    self.selected_toplevel_index = Some(idx);
+                    self.selection_changed_at = Some(std::time::Instant::now());
+                }
+            }
+            Msg::TabPrev => {
+                let count = self.visible_toplevels_sorted().len();
+                if count > 0 {
+                    let idx = self.selected_toplevel_index
+                        .map(|i| if i == 0 { count - 1 } else { i - 1 })
+                        .unwrap_or(count - 1);
+                    self.selected_toplevel_index = Some(idx);
+                    self.selection_changed_at = Some(std::time::Instant::now());
+                }
+            }
+            Msg::ActivateSelected => {
+                if let Some(idx) = self.selected_toplevel_index {
+                    let visible = self.visible_toplevels_sorted();
+                    if let Some(toplevel) = visible.get(idx) {
+                        let handle = toplevel.handle.clone();
+                        self.send_wayland_cmd(backend::Cmd::ActivateToplevel(handle.clone()));
+                        self.closing_activated_toplevel = Some(handle);
+                        self.selected_toplevel_index = None;
+                        return self.hide();
+                    }
+                }
+            }
+            Msg::PendingShowTimeout => {
+                // Safety fallback: if captures never arrive, release the hold after timeout.
+                if self.awaiting_captures {
+                    self.awaiting_captures = false;
+                    self.animation.start_opening();
+                }
+            }
             Msg::Ignore => {}
+            Msg::AnimationTick => {
+                // While awaiting captures, keep the animation frozen at t=0 so
+                // the opening animation only starts once content is ready.
+                if self.awaiting_captures {
+                    self.animation.start_opening();
+                    return Task::none();
+                }
+                let still_animating = self.animation.tick();
+                if !still_animating {
+                    if self.animation.is_closing() {
+                        self.animation = animation::AnimationState::default();
+                        self.closing_activated_toplevel = None;
+                        return self.finish_hide();
+                    }
+                    self.animation = animation::AnimationState::default();
+                    self.closing_activated_toplevel = None;
+                }
+            }
         }
 
         Task::none()
@@ -834,6 +1013,21 @@ impl Application for App {
                 key: Key::Named(Named::Escape),
                 ..
             }) => Some(Msg::Close),
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Named(Named::Tab),
+                modifiers,
+                ..
+            }) => {
+                if modifiers.shift() {
+                    Some(Msg::TabPrev)
+                } else {
+                    Some(Msg::TabNext)
+                }
+            }
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                key: Key::Named(Named::Enter),
+                ..
+            }) => Some(Msg::ActivateSelected),
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
                 key: Key::Character(key),
                 modifiers,
@@ -896,6 +1090,22 @@ impl Application for App {
             subscriptions.push(interface.subscription().map(Msg::DBus));
         }
         subscriptions.push(panel_subscriptions(self.panel_configs.keys()));
+
+        // Animation tick subscription — only active during animation
+        let selection_animating = self.selection_changed_at
+            .is_some_and(|t| t.elapsed() < Duration::from_millis(250));
+        if !self.animation.is_idle() || selection_animating {
+            subscriptions.push(iced::Subscription::run_with(
+                "animation-tick",
+                |_| {
+                    iced::futures::stream::unfold((), |()| async {
+                        tokio::time::sleep(Duration::from_micros(8333)).await; // ~120fps
+                        Some((Msg::AnimationTick, ()))
+                    })
+                },
+            ));
+        }
+
         iced::Subscription::batch(subscriptions)
     }
 
@@ -904,6 +1114,12 @@ impl Application for App {
     }
 
     fn view_window(&self, id: iced::window::Id) -> cosmic::Element<'_, Self::Message> {
+        // While awaiting captures, render an empty element — the layer surface
+        // stays transparent so the real desktop shows through until we have
+        // content to display. Prevents the "blank windows" flash at start.
+        if self.awaiting_captures {
+            return cosmic::widget::Space::new().width(iced::Length::Fill).height(iced::Length::Fill).into();
+        }
         if let Some(surface) = self.layer_surfaces.get(&id) {
             return view::layer_surface(self, surface);
         }

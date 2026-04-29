@@ -1,15 +1,12 @@
-use cctk::{
-    screencopy::{Formats, Rect},
-    wayland_client::{
-        Connection, Dispatch, QueueHandle,
-        protocol::{wl_buffer, wl_shm, wl_shm_pool},
-    },
+use cctk::screencopy::{Formats, Rect};
+use cctk::wayland_client::protocol::{wl_buffer, wl_shm, wl_shm_pool};
+use cctk::wayland_client::{Connection, Dispatch, QueueHandle};
+use cosmic::cctk;
+use cosmic::iced::platform_specific::shell::subsurface_widget::{
+    BufferSource, Dmabuf, Plane, Shmbuf,
 };
-use cosmic::{
-    cctk,
-    iced::platform_specific::shell::subsurface_widget::{BufferSource, Dmabuf, Plane, Shmbuf},
-};
-use std::{os::fd::AsFd, sync::Arc};
+use std::os::fd::AsFd;
+use std::sync::Arc;
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
 
 use super::AppData;

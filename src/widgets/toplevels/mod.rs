@@ -1,13 +1,9 @@
-use cosmic::iced::{
-    Length, Rectangle, Size, Vector,
-    advanced::{
-        Clipboard, Layout, Shell, Widget,
-        layout::{self, flex::Axis},
-        mouse, renderer,
-        widget::{Operation, Tree},
-    },
-    event::{self, Event},
-};
+use cosmic::iced::advanced::layout::flex::Axis;
+use cosmic::iced::advanced::layout::{self};
+use cosmic::iced::advanced::widget::{Operation, Tree};
+use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, mouse, renderer};
+use cosmic::iced::event::{self, Event};
+use cosmic::iced::{Length, Rectangle, Size, Vector};
 use std::marker::PhantomData;
 
 mod toplevel_layout;

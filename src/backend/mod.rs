@@ -7,13 +7,9 @@
 //! There are two backends: one that uses cosmic-comp protocols, and a mock
 //! backend for testing without any special protocols.
 
-use cosmic::{
-    cctk::{
-        cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-        wayland_client::protocol::wl_output,
-    },
-    iced::platform_specific::shell::subsurface_widget::SubsurfaceBuffer,
-};
+use cosmic::cctk::cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1;
+use cosmic::cctk::wayland_client::protocol::wl_output;
+use cosmic::iced::platform_specific::shell::subsurface_widget::SubsurfaceBuffer;
 use std::collections::HashSet;
 
 // Wayland backend using cosmic-comp specific protocols

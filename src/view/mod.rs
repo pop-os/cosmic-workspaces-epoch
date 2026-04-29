@@ -1,34 +1,22 @@
-use cosmic::{
-    Apply,
-    cctk::{
-        cosmic_protocols::{
-            toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-            workspace::v2::client::zcosmic_workspace_handle_v2,
-        },
-        wayland_client::protocol::wl_output,
-        wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
-    },
-    iced::core::{
-        Shadow,
-        text::{Ellipsize, EllipsizeHeightLimit},
-    },
-    iced::{
-        self, Alignment, Border, Length,
-        advanced::layout::flex::Axis,
-        clipboard::mime::{AllowedMimeTypes, AsMimeTypes},
-        platform_specific::shell::subsurface_widget::Subsurface,
-        widget::{column, row},
-    },
-    widget::{self, Widget},
-};
+use cosmic::Apply;
+use cosmic::cctk::cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1;
+use cosmic::cctk::cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2;
+use cosmic::cctk::wayland_client::protocol::wl_output;
+use cosmic::cctk::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1;
+use cosmic::iced::advanced::layout::flex::Axis;
+use cosmic::iced::clipboard::mime::{AllowedMimeTypes, AsMimeTypes};
+use cosmic::iced::core::Shadow;
+use cosmic::iced::core::text::{Ellipsize, EllipsizeHeightLimit};
+use cosmic::iced::platform_specific::shell::subsurface_widget::Subsurface;
+use cosmic::iced::widget::{column, row};
+use cosmic::iced::{self, Alignment, Border, Length};
+use cosmic::widget::{self, Widget};
 use cosmic_comp_config::workspace::WorkspaceLayout;
 use std::collections::HashSet;
 
-use crate::{
-    App, LayerSurface, Msg, Toplevel, Workspace,
-    backend::{self, CaptureImage},
-    dnd::{Drag, DragSurface, DragToplevel, DragWorkspace, DropTarget},
-};
+use crate::backend::{self, CaptureImage};
+use crate::dnd::{Drag, DragSurface, DragToplevel, DragWorkspace, DropTarget};
+use crate::{App, LayerSurface, Msg, Toplevel, Workspace};
 
 fn dnd_source_with_drag_surface<D: AsMimeTypes + Send + Clone + 'static>(
     drag_content: D,

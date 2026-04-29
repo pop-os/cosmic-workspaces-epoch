@@ -1,9 +1,7 @@
-use cctk::{
-    cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-    toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
-    toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
-    wayland_client::{Connection, QueueHandle, WEnum},
-};
+use cctk::cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1;
+use cctk::toplevel_info::{ToplevelInfoHandler, ToplevelInfoState};
+use cctk::toplevel_management::{ToplevelManagerHandler, ToplevelManagerState};
+use cctk::wayland_client::{Connection, QueueHandle, WEnum};
 use cosmic::cctk;
 use wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1;
 

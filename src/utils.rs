@@ -1,8 +1,7 @@
-use rustix::{io::Errno, shm};
-use std::{
-    os::fd::OwnedFd,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use rustix::io::Errno;
+use rustix::shm;
+use std::os::fd::OwnedFd;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(target_os = "linux")]
 fn create_memfd() -> rustix::io::Result<OwnedFd> {

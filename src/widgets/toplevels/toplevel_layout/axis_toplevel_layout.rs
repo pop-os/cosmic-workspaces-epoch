@@ -1,5 +1,6 @@
 use aliasable::vec::AliasableVec;
-use cosmic::iced::{Length, Point, Rectangle, Size, advanced::layout::flex::Axis};
+use cosmic::iced::advanced::layout::flex::Axis;
+use cosmic::iced::{Length, Point, Rectangle, Size};
 use std::marker::PhantomData;
 
 use super::{LayoutToplevel, ToplevelLayout};

@@ -1,14 +1,10 @@
 //! If `visible` is set to `true`, behaves exactly as wrapped widget. If `false`,
 //! takes the same space but does not draw.
 
-use cosmic::iced::{
-    Length, Rectangle, Size,
-    advanced::{
-        Clipboard, Layout, Shell, Widget, layout, mouse, renderer,
-        widget::{Operation, Tree},
-    },
-    event::{self, Event},
-};
+use cosmic::iced::advanced::widget::{Operation, Tree};
+use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, layout, mouse, renderer};
+use cosmic::iced::event::{self, Event};
+use cosmic::iced::{Length, Rectangle, Size};
 use std::marker::PhantomData;
 
 pub fn visibility_wrapper<'a, Msg, T: Into<cosmic::Element<'a, Msg>>>(

@@ -1,15 +1,11 @@
 // This widget defines it's cross axis size as the `index`th child's size
 
-use cosmic::iced::{
-    Length, Point, Rectangle, Size,
-    advanced::{
-        Clipboard, Layout, Shell, Widget,
-        layout::{self, flex::Axis},
-        mouse, renderer,
-        widget::{Operation, Tree},
-    },
-    event::{self, Event},
-};
+use cosmic::iced::advanced::layout::flex::Axis;
+use cosmic::iced::advanced::layout::{self};
+use cosmic::iced::advanced::widget::{Operation, Tree};
+use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, mouse, renderer};
+use cosmic::iced::event::{self, Event};
+use cosmic::iced::{Length, Point, Rectangle, Size};
 use std::marker::PhantomData;
 
 // Duplicate of private methods

@@ -1,7 +1,8 @@
 [package]
 name = "cosmic-workspaces"
-version = "1.0.0"
+version = "1.0.12"
 edition = "2024"
+rust-version = "1.93"
 
 [dependencies]
 anyhow = "1.0.102"

@@ -2,35 +2,29 @@
 // subscription.
 
 use calloop_wayland_source::WaylandSource;
-use cctk::{
-    cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2,
-    screencopy::{CaptureSource, ScreencopyState},
-    sctk::{
-        self,
-        dmabuf::{DmabufFeedback, DmabufState},
-        registry::{ProvidesRegistryState, RegistryState},
-        seat::{SeatHandler, SeatState},
-        shm::{Shm, ShmHandler},
-    },
-    toplevel_info::ToplevelInfoState,
-    toplevel_management::ToplevelManagerState,
-    wayland_client::{
-        Connection, Proxy, QueueHandle, globals::registry_queue_init, protocol::wl_seat,
-    },
-    workspace::WorkspaceState,
-};
-use cosmic::{
-    cctk,
-    iced::{
-        self,
-        futures::{
-            FutureExt, SinkExt,
-            channel::mpsc,
-            executor::{ThreadPool, block_on},
-        },
-    },
-};
-use std::{cell::RefCell, collections::HashMap, hash::Hash, sync::Arc, thread};
+use cctk::cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2;
+use cctk::screencopy::{CaptureSource, ScreencopyState};
+use cctk::sctk::dmabuf::{DmabufFeedback, DmabufState};
+use cctk::sctk::registry::{ProvidesRegistryState, RegistryState};
+use cctk::sctk::seat::{SeatHandler, SeatState};
+use cctk::sctk::shm::{Shm, ShmHandler};
+use cctk::sctk::{self};
+use cctk::toplevel_info::ToplevelInfoState;
+use cctk::toplevel_management::ToplevelManagerState;
+use cctk::wayland_client::globals::registry_queue_init;
+use cctk::wayland_client::protocol::wl_seat;
+use cctk::wayland_client::{Connection, Proxy, QueueHandle};
+use cctk::workspace::WorkspaceState;
+use cosmic::cctk;
+use cosmic::iced::futures::channel::mpsc;
+use cosmic::iced::futures::executor::{ThreadPool, block_on};
+use cosmic::iced::futures::{FutureExt, SinkExt};
+use cosmic::iced::{self};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::sync::Arc;
+use std::thread;
 
 mod buffer;
 use buffer::Buffer;

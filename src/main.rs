@@ -3,47 +3,38 @@
 
 #![allow(clippy::single_match)]
 
-use cctk::{
-    cosmic_protocols::{
-        toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-        workspace::v2::client::zcosmic_workspace_handle_v2,
-    },
-    sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
-    wayland_client::{Connection, Proxy, protocol::wl_output},
-    wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
-};
+use cctk::cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1;
+use cctk::cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2;
+use cctk::sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
+use cctk::wayland_client::protocol::wl_output;
+use cctk::wayland_client::{Connection, Proxy};
+use cctk::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1;
 use clap::Parser;
-use cosmic::{
-    app::{Application, CosmicFlags},
-    cctk, dbus_activation,
-    iced::platform_specific::shell::commands::layer_surface::{
-        destroy_layer_surface, get_layer_surface,
-    },
-    iced::runtime::platform_specific::wayland::layer_surface::{
-        IcedOutput, SctkLayerSurfaceSettings,
-    },
-    iced::window::Id as SurfaceId,
-    iced::{
-        self, Size, Subscription, Task,
-        clipboard::dnd::{DndEvent, SourceEvent},
-        event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent},
-        keyboard::key::{Key, Named},
-        mouse::ScrollDelta,
-    },
-    scroll::DiscreteScrollState,
+use cosmic::app::{Application, CosmicFlags};
+use cosmic::iced::clipboard::dnd::{DndEvent, SourceEvent};
+use cosmic::iced::event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent};
+use cosmic::iced::keyboard::key::{Key, Named};
+use cosmic::iced::mouse::ScrollDelta;
+use cosmic::iced::platform_specific::shell::commands::layer_surface::{
+    destroy_layer_surface, get_layer_surface,
 };
+use cosmic::iced::runtime::platform_specific::wayland::layer_surface::{
+    IcedOutput, SctkLayerSurfaceSettings,
+};
+use cosmic::iced::window::Id as SurfaceId;
+use cosmic::iced::{self, Size, Subscription, Task};
+use cosmic::scroll::DiscreteScrollState;
+use cosmic::{cctk, dbus_activation};
 use cosmic_comp_config::CosmicCompConfig;
-use cosmic_config::{CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry};
+use cosmic_config::CosmicConfigEntry;
+use cosmic_config::cosmic_config_derive::CosmicConfigEntry;
 use cosmic_panel_config::{CosmicPanelConfig, CosmicPanelContainerConfigEntry, PanelAnchor};
 use i18n_embed::DesktopLanguageRequester;
-use std::{
-    collections::{HashMap, HashSet},
-    mem,
-    path::PathBuf,
-    process::Command,
-    str,
-    time::Duration,
-};
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::Duration;
+use std::{mem, str};
 
 mod dbus;
 mod desktop_info;

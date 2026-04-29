@@ -1,37 +1,23 @@
 // Copyright 2024 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use cosmic::{
-    cctk::{
-        cosmic_protocols::{
-            toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
-            toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
-            workspace::v2::client::zcosmic_workspace_handle_v2,
-        },
-        wayland_client::{
-            Connection, WEnum,
-            protocol::{wl_output, wl_shm},
-        },
-        wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1,
-    },
-    iced::{
-        self,
-        futures::{FutureExt, SinkExt, executor::block_on},
-    },
-    iced_winit::platform_specific::wayland::subsurface_widget::{Shmbuf, SubsurfaceBuffer},
-};
+use cosmic::cctk::cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1;
+use cosmic::cctk::cosmic_protocols::toplevel_management::v1::client::zcosmic_toplevel_manager_v1;
+use cosmic::cctk::cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2;
+use cosmic::cctk::wayland_client::protocol::{wl_output, wl_shm};
+use cosmic::cctk::wayland_client::{Connection, WEnum};
+use cosmic::cctk::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1;
+use cosmic::iced::futures::executor::block_on;
+use cosmic::iced::futures::{FutureExt, SinkExt};
+use cosmic::iced::{self};
+use cosmic::iced_winit::platform_specific::wayland::subsurface_widget::{Shmbuf, SubsurfaceBuffer};
 
 use futures_channel::mpsc;
-use std::{
-    collections::HashSet,
-    fs,
-    io::{self, Write},
-    sync::{
-        Arc,
-        atomic::{AtomicU32, Ordering},
-    },
-    thread,
-};
+use std::collections::HashSet;
+use std::io::{self, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::{fs, thread};
 
 use super::{CaptureImage, Cmd, Event};
 use crate::utils;

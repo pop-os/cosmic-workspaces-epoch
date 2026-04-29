@@ -1,10 +1,10 @@
 //! Types related to drag-and-drop
 
-use cosmic::{
-    cctk::wayland_client::{Proxy, protocol::wl_output},
-    iced::clipboard::mime::AsMimeTypes,
-};
-use std::{borrow::Cow, sync::LazyLock};
+use cosmic::cctk::wayland_client::Proxy;
+use cosmic::cctk::wayland_client::protocol::wl_output;
+use cosmic::iced::clipboard::mime::AsMimeTypes;
+use std::borrow::Cow;
+use std::sync::LazyLock;
 
 use crate::backend::{ExtForeignToplevelHandleV1, ExtWorkspaceHandleV1};
 

@@ -1,17 +1,13 @@
 // Custom varian of row/column
 // Gives each child widget a maximum size on main axis of total/n
 
-use cosmic::iced::{
-    Length, Point, Rectangle, Size,
-    advanced::{
-        Clipboard, Layout, Shell, Widget,
-        layout::{self, flex::Axis},
-        mouse, renderer,
-        widget::{Operation, Tree},
-    },
-    core::clipboard::DndDestinationRectangles,
-    event::{self, Event},
-};
+use cosmic::iced::advanced::layout::flex::Axis;
+use cosmic::iced::advanced::layout::{self};
+use cosmic::iced::advanced::widget::{Operation, Tree};
+use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, mouse, renderer};
+use cosmic::iced::core::clipboard::DndDestinationRectangles;
+use cosmic::iced::event::{self, Event};
+use cosmic::iced::{Length, Point, Rectangle, Size};
 use std::marker::PhantomData;
 
 // Duplicate of private methods

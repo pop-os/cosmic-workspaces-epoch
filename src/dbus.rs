@@ -1,5 +1,7 @@
-use cosmic::iced::{self, futures::StreamExt};
-use std::{any::TypeId, hash::Hash};
+use cosmic::iced::futures::StreamExt;
+use cosmic::iced::{self};
+use std::any::TypeId;
+use std::hash::Hash;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 

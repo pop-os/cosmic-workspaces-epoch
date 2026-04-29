@@ -1,21 +1,15 @@
-use cosmic::{
-    cctk::{
-        self,
-        screencopy::{
-            CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats,
-            Frame, ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler,
-            ScreencopySessionData, ScreencopySessionDataExt, ScreencopyState,
-        },
-        wayland_client::{Connection, QueueHandle, WEnum},
-    },
-    iced::platform_specific::shell::subsurface_widget::{
-        SubsurfaceBuffer, SubsurfaceBufferRelease,
-    },
+use cosmic::cctk::screencopy::{
+    CaptureFrame, CaptureOptions, CaptureSession, CaptureSource, FailureReason, Formats, Frame,
+    ScreencopyFrameData, ScreencopyFrameDataExt, ScreencopyHandler, ScreencopySessionData,
+    ScreencopySessionDataExt, ScreencopyState,
 };
-use std::{
-    array,
-    sync::{Arc, Weak},
+use cosmic::cctk::wayland_client::{Connection, QueueHandle, WEnum};
+use cosmic::cctk::{self};
+use cosmic::iced::platform_specific::shell::subsurface_widget::{
+    SubsurfaceBuffer, SubsurfaceBufferRelease,
 };
+use std::array;
+use std::sync::{Arc, Weak};
 
 use super::{AppData, Buffer, Capture, CaptureImage, Event};
 

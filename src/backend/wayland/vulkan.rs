@@ -1,5 +1,7 @@
-use ash::{prelude::VkResult, vk};
-use std::{collections::HashMap, ffi::CStr};
+use ash::prelude::VkResult;
+use ash::vk;
+use std::collections::HashMap;
+use std::ffi::CStr;
 
 pub struct Vulkan {
     instance: ash::Instance,

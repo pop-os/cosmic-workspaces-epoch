@@ -2,7 +2,7 @@ use cosmic::iced::advanced::layout::flex::Axis;
 use cosmic::iced::advanced::layout::{self};
 use cosmic::iced::advanced::widget::{Operation, Tree};
 use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, mouse, renderer};
-use cosmic::iced::event::{self, Event};
+use cosmic::iced::event::Event;
 use cosmic::iced::{Length, Rectangle, Size, Vector};
 use std::marker::PhantomData;
 

@@ -3,7 +3,7 @@
 
 use cosmic::iced::advanced::widget::{Operation, Tree};
 use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, layout, mouse, renderer};
-use cosmic::iced::event::{self, Event};
+use cosmic::iced::event::Event;
 use cosmic::iced::{Length, Rectangle, Size};
 use std::marker::PhantomData;
 

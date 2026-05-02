@@ -72,7 +72,10 @@ impl ScreencopySession {
                 capture: Arc::downgrade(capture),
             },
         );
-        conn.flush().unwrap();
+        if let Err(err) = conn.flush() {
+            log::error!("Failed to flush screencopy request: {}", err);
+            capture.stop();
+        }
     }
 }
 
@@ -225,8 +228,9 @@ impl ScreencopyHandler for AppData {
             return;
         };
         if reason == WEnum::Value(FailureReason::BufferConstraints) {
-            // Re-allocate buffers, then trigger another capture
-            log::info!("buffer constraint failure; re-allocating");
+            // Re-allocate buffers using shm, then trigger another capture.
+            log::info!("buffer constraint failure; re-allocating with shm");
+            self.force_shm_screencopy = true;
             let mut session = capture.session.lock().unwrap();
             let Some(session) = session.as_mut() else {
                 return;

@@ -36,6 +36,8 @@ impl DmabufHandler for AppData {
         _qh: &QueueHandle<Self>,
         _params: &ZwpLinuxBufferParamsV1,
     ) {
+        log::warn!("dmabuf buffer creation failed; using shm for future screencopy buffers");
+        self.force_shm_screencopy = true;
     }
     fn released(
         &mut self,

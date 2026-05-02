@@ -5,6 +5,7 @@ use cosmic::cctk;
 use cosmic::iced::platform_specific::shell::subsurface_widget::{
     BufferSource, Dmabuf, Plane, Shmbuf,
 };
+use std::env;
 use std::os::fd::AsFd;
 use std::sync::Arc;
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_buffer_params_v1;
@@ -91,8 +92,16 @@ impl AppData {
         if let Some(vulkan) = &mut self.vulkan
             && let Ok(Some(name)) = vulkan.device_name(drm_dev)
         {
-            // TODO Workaround: force shm on Meteor/Arrow/Lunar Lake
-            if name.contains("MTL") || name.contains("ARL") || name.contains("LNL") {
+            // Work around devices where dmabuf import for screencopy is known to be unreliable.
+            if name.contains("MTL")
+                || name.contains("ARL")
+                || name.contains("LNL")
+                || name.to_ascii_lowercase().contains("virtio")
+            {
+                log::info!(
+                    "Forcing shm screencopy for device '{}' to avoid dmabuf import failures",
+                    name
+                );
                 return Ok(None);
             }
         }
@@ -187,6 +196,12 @@ impl AppData {
     pub fn create_buffer(&mut self, formats: &Formats) -> Buffer {
         // XXX Handle other formats?
         let format = wl_shm::Format::Abgr8888;
+        if self.force_shm_screencopy
+            || env::var_os("COSMIC_WORKSPACES_FORCE_SHM_SCREENCOPY").is_some_and(|val| val != "0")
+        {
+            assert!(formats.shm_formats.contains(&format));
+            return self.create_shm_buffer(format, formats.buffer_size);
+        }
 
         #[cfg(not(feature = "force-shm-screencopy"))]
         if let Some((_, modifiers)) = formats

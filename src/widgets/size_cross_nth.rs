@@ -1,10 +1,10 @@
 // This widget defines it's cross axis size as the `index`th child's size
 
 use cosmic::iced::advanced::layout::flex::Axis;
-use cosmic::iced::advanced::layout::{self};
+use cosmic::iced::advanced::layout::{self, Limits};
 use cosmic::iced::advanced::widget::{Operation, Tree};
 use cosmic::iced::advanced::{Clipboard, Layout, Shell, Widget, mouse, renderer};
-use cosmic::iced::event::{self, Event};
+use cosmic::iced::event::Event;
 use cosmic::iced::{Length, Point, Rectangle, Size};
 use std::marker::PhantomData;
 
@@ -74,25 +74,38 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for SizeCrossNth<'_, Msg>
         &mut self,
         tree: &mut Tree,
         renderer: &cosmic::Renderer,
-        limits: &layout::Limits,
+        limits: &Limits,
     ) -> layout::Node {
         let max_main = self.axis.main(limits.max());
         let max_cross = self.axis.cross(limits.max());
 
-        // XXX cleaner solution
-        // Get layout of main widget, to set overall cross axis size
-        let (max_width, max_height) = self.axis.pack(max_main, max_cross);
-        let child_limits = layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
+        // Lay out all non-reference children to get their total main size
+        let mut total_main = 0.0;
+        for (i, (child, tree)) in self
+            .children
+            .iter_mut()
+            .zip(tree.children.iter_mut())
+            .enumerate()
+        {
+            if i != self.index {
+                let (max_width, max_height) = self.axis.pack(max_main - total_main, max_cross);
+                let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
+                let layout = child.as_widget_mut().layout(tree, renderer, &child_limits);
+                total_main += self.axis.main(layout.size());
+            }
+        }
+
+        // Lay out reference child with remaining main to get max cross size
+        let (max_width, max_height) = self.axis.pack(max_main - total_main, max_cross);
+        let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
         let layout = self.children[self.index].as_widget_mut().layout(
             &mut tree.children[self.index],
             renderer,
             &child_limits,
         );
-
         let max_cross = self.axis.cross(layout.size());
 
-        // XXX sill allocating maximum main axis?
-        // - what was it doing before?
+        // Lay out all children constrained to reference cross
         let mut total_main = 0.0;
         let nodes = self
             .children
@@ -100,8 +113,7 @@ impl<Msg> Widget<Msg, cosmic::Theme, cosmic::Renderer> for SizeCrossNth<'_, Msg>
             .zip(tree.children.iter_mut())
             .map(|(child, tree)| {
                 let (max_width, max_height) = self.axis.pack(max_main - total_main, max_cross);
-                let child_limits =
-                    layout::Limits::new(Size::ZERO, Size::new(max_width, max_height));
+                let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
                 let mut layout = child.as_widget_mut().layout(tree, renderer, &child_limits);
                 // Center on cross axis
                 let cross = ((max_cross - self.axis.cross(layout.size())) / 2.).max(0.);

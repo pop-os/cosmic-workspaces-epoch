@@ -162,12 +162,12 @@ fn pin_button_style(theme: &cosmic::Theme, is_pinned: bool) -> cosmic::widget::b
     let bg_color = if is_pinned {
         theme.cosmic().accent.base.into()
     } else {
-        theme.cosmic().primary.base.into()
+        theme.cosmic().primary(theme.transparent).base.into()
     };
     let icon_color = if is_pinned {
         theme.cosmic().accent.on.into()
     } else {
-        theme.cosmic().primary.on.into()
+        theme.cosmic().primary(theme.transparent).on.into()
     };
     cosmic::widget::button::Style {
         icon_color: Some(icon_color),
@@ -487,7 +487,9 @@ fn workspaces_sidebar<'a>(
                 cosmic::iced::widget::container::Style {
                     text_color: Some(theme.cosmic().on_bg_color().into()),
                     icon_color: Some(theme.cosmic().on_bg_color().into()),
-                    background: Some(iced::Color::from(theme.cosmic().background.base).into()),
+                    background: Some(
+                        iced::Color::from(theme.cosmic().background(theme.transparent).base).into(),
+                    ),
                     border: Border {
                         radius: theme
                             .cosmic()
@@ -532,7 +534,10 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
             .class(cosmic::theme::Container::custom(|theme| {
                 cosmic::iced::widget::container::Style {
                     background: Some(
-                        iced::Color::from(theme.cosmic().background.component.base).into(),
+                        iced::Color::from(
+                            theme.cosmic().background(theme.transparent).component.base,
+                        )
+                        .into(),
                     ),
                     border: Border {
                         color: theme.cosmic().bg_divider().into(),

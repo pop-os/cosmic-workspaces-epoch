@@ -11,6 +11,7 @@ use cctk::wayland_client::{Connection, Proxy};
 use cctk::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1;
 use clap::Parser;
 use cosmic::app::{Application, CosmicFlags};
+use cosmic::core::Auto;
 use cosmic::iced::clipboard::dnd::{DndEvent, SourceEvent};
 use cosmic::iced::event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent};
 use cosmic::iced::keyboard::key::{Key, Named};
@@ -234,16 +235,19 @@ impl App {
                 output: output.clone(),
             },
         );
-        get_layer_surface(SctkLayerSurfaceSettings {
-            id,
-            keyboard_interactivity: KeyboardInteractivity::Exclusive,
-            namespace: "cosmic-workspace-overview".into(),
-            layer: Layer::Top,
-            size: Some((None, None)),
-            output: IcedOutput::Output(output),
-            anchor: Anchor::all(),
-            ..Default::default()
-        })
+        cosmic::surface::surface_task::<Msg>(cosmic::surface::action::simple_layer_shell::<Msg>(
+            move || SctkLayerSurfaceSettings {
+                id,
+                keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                namespace: "cosmic-workspace-overview".into(),
+                layer: Layer::Top,
+                size: Some((None, None)),
+                output: IcedOutput::Output(output.clone()),
+                anchor: Anchor::all(),
+                ..Default::default()
+            },
+            None::<fn() -> cosmic::Element<'static, cosmic::Action<Msg>>>,
+        ))
     }
 
     fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Task<cosmic::Action<Msg>> {
@@ -429,7 +433,9 @@ impl Application for App {
     type Flags = Args;
     const APP_ID: &'static str = "com.system76.CosmicWorkspaces";
 
-    fn init(core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<cosmic::Action<Msg>>) {
+    fn init(mut core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<cosmic::Action<Msg>>) {
+        core.set_app_type(cosmic::core::AppType::System);
+        core.set_auto_blur(Auto::Popup | Auto::Window);
         (
             Self {
                 core,

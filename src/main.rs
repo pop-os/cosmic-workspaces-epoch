@@ -11,20 +11,25 @@ use cctk::wayland_client::{Connection, Proxy};
 use cctk::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1;
 use clap::Parser;
 use cosmic::app::{Application, CosmicFlags};
+use cosmic::cctk::wayland_client::backend::ObjectId;
+use cosmic::core::Auto;
 use cosmic::iced::clipboard::dnd::{DndEvent, SourceEvent};
 use cosmic::iced::event::wayland::{Event as WaylandEvent, LayerEvent, OutputEvent};
 use cosmic::iced::keyboard::key::{Key, Named};
 use cosmic::iced::mouse::ScrollDelta;
-use cosmic::iced::platform_specific::shell::commands::layer_surface::{
-    destroy_layer_surface, get_layer_surface,
-};
+use cosmic::iced::platform_specific::shell::commands::layer_surface::destroy_layer_surface;
+use cosmic::iced::runtime::platform_specific::wayland::CornerRadius;
 use cosmic::iced::runtime::platform_specific::wayland::layer_surface::{
-    IcedOutput, SctkLayerSurfaceSettings,
+    IcedMargin, IcedOutput, SctkLayerSurfaceSettings,
 };
-use cosmic::iced::window::Id as SurfaceId;
-use cosmic::iced::{self, Size, Subscription, Task};
+use cosmic::iced::window::{self, Id as SurfaceId};
+use cosmic::iced::{self, Rectangle, Size, Subscription, Task};
 use cosmic::scroll::DiscreteScrollState;
-use cosmic::{cctk, dbus_activation};
+use cosmic::surface::action::LiveSettings;
+use cosmic::widget::rectangle_tracker::{
+    RectangleTracker, RectangleUpdate, rectangle_tracker_subscription,
+};
+use cosmic::{cctk, dbus_activation, widget};
 use cosmic_comp_config::CosmicCompConfig;
 use cosmic_config::CosmicConfigEntry;
 use cosmic_config::cosmic_config_derive::CosmicConfigEntry;
@@ -114,6 +119,7 @@ enum Msg {
     PanelConfig(CosmicPanelConfig),
     ActionOnTyping(String),
     Ignore,
+    Rectangle(RectangleUpdate<RectId>),
 }
 
 #[derive(Clone, Debug)]
@@ -174,6 +180,13 @@ struct Conf {
     bg: cosmic_bg_config::state::State,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RectId {
+    id: window::Id,
+    toplevel_id: Option<ObjectId>,
+    widget_id: Option<widget::Id>,
+}
+
 #[derive(Default)]
 struct App {
     capture_filter: backend::CaptureFilter,
@@ -194,6 +207,8 @@ struct App {
     dbus_interface: Option<dbus::Interface>,
     panel_configs: HashMap<String, Option<CosmicPanelConfig>>,
     action_on_typing_activated: bool,
+    rectangle_tracker: Option<RectangleTracker<RectId>>,
+    rects: HashMap<RectId, Rectangle>,
 }
 
 #[derive(Debug, Default)]
@@ -234,16 +249,24 @@ impl App {
                 output: output.clone(),
             },
         );
-        get_layer_surface(SctkLayerSurfaceSettings {
-            id,
-            keyboard_interactivity: KeyboardInteractivity::Exclusive,
-            namespace: "cosmic-workspace-overview".into(),
-            layer: Layer::Top,
-            size: Some((None, None)),
-            output: IcedOutput::Output(output),
-            anchor: Anchor::all(),
-            ..Default::default()
-        })
+        cosmic::surface::surface_task::<Msg>(cosmic::surface::action::simple_layer_shell::<Msg>(
+            || LiveSettings {
+                padding: Some(IcedMargin::default()),
+                corners: Some(CornerRadius::default()),
+                blur: Some(false),
+            },
+            move || SctkLayerSurfaceSettings {
+                id,
+                keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                namespace: "cosmic-workspace-overview".into(),
+                layer: Layer::Top,
+                size: Some((None, None)),
+                output: IcedOutput::Output(output.clone()),
+                anchor: Anchor::all(),
+                ..Default::default()
+            },
+            None::<fn() -> cosmic::Element<'static, cosmic::Action<Msg>>>,
+        ))
     }
 
     fn destroy_surface(&mut self, output: &wl_output::WlOutput) -> Task<cosmic::Action<Msg>> {
@@ -429,7 +452,9 @@ impl Application for App {
     type Flags = Args;
     const APP_ID: &'static str = "com.system76.CosmicWorkspaces";
 
-    fn init(core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<cosmic::Action<Msg>>) {
+    fn init(mut core: cosmic::app::Core, _flags: Self::Flags) -> (Self, Task<cosmic::Action<Msg>>) {
+        core.set_app_type(cosmic::core::AppType::System);
+        core.set_auto_blur(Auto::Popup | Auto::Window);
         (
             Self {
                 core,
@@ -443,6 +468,45 @@ impl Application for App {
 
     fn update(&mut self, message: Msg) -> Task<cosmic::Action<Msg>> {
         match message {
+            Msg::Rectangle(u) => match u {
+                RectangleUpdate::Rectangle(r) => {
+                    // TODO should we reuse previously tracked rectangles on surface creation
+                    self.rects.insert(r.0.clone(), r.1);
+                    let active = cosmic::theme::active();
+                    let rad = active
+                        .cosmic()
+                        .radius_s()
+                        .map(|x| if x < 4.0 { x } else { x + 8.0 });
+                    let strips = self
+                        .rects
+                        .iter()
+                        .filter(|(id, _)| r.0.id == id.id)
+                        .map(|(id, r)| {
+                            let rad = if id.toplevel_id.is_none() {
+                                CornerRadius {
+                                    top_left: rad[0] as u32,
+                                    top_right: rad[1] as u32,
+                                    bottom_left: rad[3] as u32,
+                                    bottom_right: rad[2] as u32,
+                                }
+                            } else {
+                                CornerRadius::default()
+                            };
+
+                            cosmic::surface::corner_radius::rounded_rect_strips(*r, rad)
+                        })
+                        .flatten();
+
+                    return cosmic::iced::platform_specific::shell::commands::blur::blur(
+                        r.0.id,
+                        Some(strips.collect()),
+                    )
+                    .discard();
+                }
+                RectangleUpdate::Init(tracker) => {
+                    self.rectangle_tracker = Some(tracker);
+                }
+            },
             Msg::SourceFinished => {
                 self.drag_surface = None;
             }
@@ -879,6 +943,7 @@ impl Application for App {
             config_subscription,
             comp_config_subscription,
             bg_subscription,
+            rectangle_tracker_subscription(0).map(|update| Msg::Rectangle(update.1)),
         ];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(backend::subscription(conn).map(Msg::Wayland));
@@ -895,8 +960,12 @@ impl Application for App {
     }
 
     fn view_window(&self, id: iced::window::Id) -> cosmic::Element<'_, Self::Message> {
-        if let Some(surface) = self.layer_surfaces.get(&id) {
-            return view::layer_surface(self, surface);
+        if let Some((surface, rectangle_track)) = self
+            .layer_surfaces
+            .get(&id)
+            .zip(self.rectangle_tracker.as_ref())
+        {
+            return view::layer_surface(self, surface, id, rectangle_track);
         }
         log::error!("non-existant layer shell id {}?", id);
         cosmic::widget::text("workspaces").into()

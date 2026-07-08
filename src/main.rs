@@ -184,6 +184,7 @@ struct Conf {
 pub struct RectId {
     id: window::Id,
     toplevel_id: Option<ObjectId>,
+    workspaces_id: Option<Vec<ObjectId>>,
     widget_id: Option<widget::Id>,
 }
 
@@ -444,6 +445,55 @@ impl App {
         }
         regions
     }
+
+    fn update_active_workspace(
+        &mut self,
+        workspace_handle: ExtWorkspaceHandleV1,
+    ) -> Option<Task<cosmic::Action<Msg>>> {
+        if let Some((cur_window, _)) = self.layer_surfaces.iter().find(|(_, layer_surface)| {
+            self.workspaces
+                .for_output(&layer_surface.output)
+                .any(|w| *w.handle() == workspace_handle)
+        }) {
+            self.rects.retain(|id, r| {
+                id.toplevel_id == None
+                    || (id.id == *cur_window
+                        && id
+                            .workspaces_id
+                            .as_ref()
+                            .is_some_and(|l| l.iter().any(|o| *o == workspace_handle.id())))
+            });
+            let active = cosmic::theme::active();
+            let rad = active
+                .cosmic()
+                .radius_s()
+                .map(|x| if x < 4.0 { x } else { x + 8.0 });
+            let strips: Vec<Rectangle> = self
+                .rects
+                .iter()
+                .map(|(id, rect)| {
+                    let rad = CornerRadius {
+                        top_left: rad[0] as u32,
+                        top_right: rad[1] as u32,
+                        bottom_left: rad[3] as u32,
+                        bottom_right: rad[2] as u32,
+                    };
+
+                    cosmic::surface::corner_radius::rounded_rect_strips(*rect, rad)
+                })
+                .flatten()
+                .collect();
+
+            return Some(
+                cosmic::iced::platform_specific::shell::commands::blur::blur(
+                    *cur_window,
+                    Some(strips),
+                )
+                .discard(),
+            );
+        }
+        None
+    }
 }
 
 impl Application for App {
@@ -470,18 +520,20 @@ impl Application for App {
         match message {
             Msg::Rectangle(u) => match u {
                 RectangleUpdate::Rectangle(r) => {
-                    // TODO should we reuse previously tracked rectangles on surface creation
                     self.rects.insert(r.0.clone(), r.1);
                     let active = cosmic::theme::active();
                     let rad = active
                         .cosmic()
                         .radius_s()
                         .map(|x| if x < 4.0 { x } else { x + 8.0 });
-                    let strips = self
+                    let mut rects = Vec::new();
+                    let mut strips: Vec<Rectangle> = self
                         .rects
                         .iter()
-                        .filter(|(id, _)| r.0.id == id.id)
-                        .map(|(id, r)| {
+                        .filter_map(|(id, rect)| {
+                            if r.0.id != id.id {
+                                return None;
+                            }
                             let rad = if id.toplevel_id.is_none() {
                                 CornerRadius {
                                     top_left: rad[0] as u32,
@@ -490,16 +542,21 @@ impl Application for App {
                                     bottom_right: rad[2] as u32,
                                 }
                             } else {
-                                CornerRadius::default()
+                                rects.push(*rect);
+                                return None;
                             };
 
-                            cosmic::surface::corner_radius::rounded_rect_strips(*r, rad)
+                            Some(cosmic::surface::corner_radius::rounded_rect_strips(
+                                *rect, rad,
+                            ))
                         })
-                        .flatten();
+                        .flatten()
+                        .collect();
+                    strips.append(&mut rects);
 
                     return cosmic::iced::platform_specific::shell::commands::blur::blur(
                         r.0.id,
-                        Some(strips.collect()),
+                        Some(strips),
                     )
                     .discard();
                 }
@@ -576,6 +633,12 @@ impl Application for App {
                     backend::Event::Workspaces(mut workspaces) => {
                         workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
                         let old_workspaces = mem::take(&mut self.workspaces);
+                        let old_active: HashSet<_> = old_workspaces
+                            .0
+                            .iter()
+                            .filter_map(|w| w.is_active().then(|| w.handle().clone()))
+                            .collect();
+                        let mut new_active = Vec::new();
                         for (outputs, workspace) in workspaces {
                             // XXX efficiency
                             let old_workspace = old_workspaces.for_handle(&workspace.handle);
@@ -584,15 +647,26 @@ impl Application for App {
                             let dnd_source_id = old_workspace
                                 .map_or_else(iced::id::Id::unique, |w| w.dnd_source_id.clone());
 
-                            self.workspaces.0.push(Workspace {
+                            let w = Workspace {
                                 info: workspace,
                                 outputs,
                                 img,
                                 has_cursor,
                                 dnd_source_id,
-                            });
+                            };
+                            if w.is_active() {
+                                new_active.push(w.handle().clone());
+                            }
+                            self.workspaces.0.push(w);
                         }
                         self.update_capture_filter();
+                        return Task::batch(new_active.into_iter().map(|new| {
+                            if old_active.contains(&new) {
+                                Task::none()
+                            } else {
+                                self.update_active_workspace(new).unwrap_or(Task::none())
+                            }
+                        }));
                     }
                     backend::Event::NewToplevel(handle, info) => {
                         log::debug!("New toplevel: {info:?}");
@@ -668,7 +742,11 @@ impl Application for App {
                 {
                     return self.hide();
                 }
-                self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle));
+
+                self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle.clone()));
+                if let Some(value) = self.update_active_workspace(workspace_handle) {
+                    return value;
+                }
             }
             Msg::ActivateToplevel(toplevel_handle) => {
                 self.send_wayland_cmd(backend::Cmd::ActivateToplevel(toplevel_handle));

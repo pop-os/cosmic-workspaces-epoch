@@ -497,6 +497,7 @@ fn workspaces_sidebar<'a>(
                 id: window_id,
                 toplevel_id: None,
                 widget_id: None,
+                workspaces_id: None,
             },
             widget::container(sidebar_entries_container)
                 .width(width)
@@ -527,7 +528,12 @@ fn workspaces_sidebar<'a>(
     .into()
 }
 
-fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Element<'static, Msg> {
+fn toplevel_preview(
+    toplevel: &Toplevel,
+    is_being_dragged: bool,
+    window_id: window::Id,
+    rectangle_track: &rectangle_tracker::RectangleTracker<RectId>,
+) -> cosmic::Element<'static, Msg> {
     let cosmic::cosmic_theme::Spacing {
         space_xxs, space_s, ..
     } = cosmic::theme::active().cosmic().spacing;
@@ -575,15 +581,23 @@ fn toplevel_preview(toplevel: &Toplevel, is_being_dragged: bool) -> cosmic::Elem
     .align_y(Alignment::Center);
 
     let alpha = if is_being_dragged { 0.5 } else { 1.0 };
-    let preview = widget::button::custom(capture_image(toplevel.img.as_ref(), alpha))
-        .selected(
-            toplevel
-                .info
-                .state
-                .contains(&zcosmic_toplevel_handle_v1::State::Activated),
-        )
-        .class(cosmic::theme::Button::Image)
-        .on_press(Msg::ActivateToplevel(toplevel.handle.clone()));
+    let preview = widget::button::custom(rectangle_track.container(
+        RectId {
+            id: window_id,
+            toplevel_id: Some(toplevel.handle.id()),
+            widget_id: None,
+            workspaces_id: Some(toplevel.info.workspace.iter().map(|h| h.id()).collect()),
+        },
+        capture_image(toplevel.img.as_ref(), alpha),
+    ))
+    .selected(
+        toplevel
+            .info
+            .state
+            .contains(&zcosmic_toplevel_handle_v1::State::Activated),
+    )
+    .class(cosmic::theme::Button::Image)
+    .on_press(Msg::ActivateToplevel(toplevel.handle.clone()));
 
     widget::mouse_area(crate::widgets::size_cross_nth(
         vec![title.into(), preview.into()],
@@ -602,24 +616,18 @@ fn toplevel_previews_entry<'a>(
 ) -> cosmic::Element<'a, Msg> {
     // Dragged window still takes up space until moved, but isn't rendered while drag surface is
     // shown.
-    let preview = rectangle_track.container(
-        RectId {
-            id: window_id,
-            toplevel_id: Some(toplevel.handle.id()),
-            widget_id: None,
-        },
-        crate::widgets::visibility_wrapper(
-            toplevel_preview(toplevel, is_being_dragged),
-            !is_being_dragged,
-        ),
+    let preview = crate::widgets::visibility_wrapper(
+        toplevel_preview(toplevel, is_being_dragged, window_id, rectangle_track),
+        !is_being_dragged,
     );
     let toplevel2 = toplevel.clone();
+    let track = rectangle_track.clone();
     dnd_source_with_drag_surface(
         DragToplevel {},
         DragSurface::Toplevel(toplevel.handle.clone()),
         None,
         preview.into(),
-        move || toplevel_preview(&toplevel2, true),
+        move || toplevel_preview(&toplevel2, true, window_id, &track),
     )
 }
 

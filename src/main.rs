@@ -499,6 +499,7 @@ impl App {
                 })
                 .flatten()
                 .collect();
+
             strips.append(&mut rects);
 
             return Some(
@@ -575,13 +576,13 @@ impl Application for App {
                                 rects.push(*rect);
                                 return None;
                             };
-
                             Some(cosmic::surface::corner_radius::rounded_rect_strips(
                                 *rect, rad,
                             ))
                         })
                         .flatten()
                         .collect();
+
                     strips.append(&mut rects);
 
                     return cosmic::iced::platform_specific::shell::commands::blur::blur(
@@ -652,6 +653,7 @@ impl Application for App {
                     if self.layer_surfaces.remove(&id).is_none() {
                         log::error!("removing non-existant layer shell id {}?", id);
                     }
+                    self.rects.retain(|k, _| k.id != id);
                 }
                 _ => {}
             },
@@ -721,6 +723,8 @@ impl Application for App {
                         return icon_task;
                     }
                     backend::Event::UpdateToplevel(handle, info) => {
+                        let mut t_w = None;
+                        let mut tasks = Vec::new();
                         if let Some(toplevel) = self.toplevels.for_handle_mut(&handle) {
                             let mut task = Task::none();
                             if toplevel.info.app_id != info.app_id {
@@ -731,9 +735,27 @@ impl Application for App {
                                 )
                                 .map(cosmic::Action::App);
                             }
+                            // XX must clean up rectangles after the window has moved
+                            t_w = Some((handle.id(), info.workspace.clone()));
+
                             toplevel.info = info;
-                            return task;
+
+                            tasks.push(task);
                         }
+                        if let Some((t, w)) = t_w {
+                            tasks.push(Task::batch(w.iter().map(|w| {
+                                self.rects.retain(|id, _| {
+                                    !(id.toplevel_id.as_ref().is_some_and(|old| *old == t)
+                                        && id
+                                            .workspaces_id
+                                            .as_ref()
+                                            .is_some_and(|old| !old.contains(&w.id())))
+                                });
+                                self.update_active_workspace(w.id()).unwrap_or(Task::none())
+                            })));
+                        }
+
+                        return Task::batch(tasks);
                     }
                     backend::Event::CloseToplevel(handle) => {
                         if let Some(idx) = self.toplevels.0.iter().position(|x| x.handle == handle)
@@ -821,11 +843,6 @@ impl Application for App {
                             DropTarget::WorkspaceSidebarEntry(workspace, output)
                             | DropTarget::OutputToplevels(workspace, output),
                         ) => {
-                            self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
-                                handle.clone(),
-                                workspace,
-                                output,
-                            ));
                             let mut w = None;
                             self.rects.retain(|id, _| {
                                 id.toplevel_id.as_ref().is_none_or(|t| {
@@ -836,6 +853,11 @@ impl Application for App {
                                     keep
                                 })
                             });
+                            self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
+                                handle.clone(),
+                                workspace,
+                                output,
+                            ));
                             if let Some(w) = w {
                                 return Task::batch(w.into_iter().map(|w| {
                                     self.update_active_workspace(w).unwrap_or(Task::none())

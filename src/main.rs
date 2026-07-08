@@ -448,41 +448,58 @@ impl App {
 
     fn update_active_workspace(
         &mut self,
-        workspace_handle: ExtWorkspaceHandleV1,
+        workspace_handle: ObjectId,
     ) -> Option<Task<cosmic::Action<Msg>>> {
         if let Some((cur_window, _)) = self.layer_surfaces.iter().find(|(_, layer_surface)| {
             self.workspaces
                 .for_output(&layer_surface.output)
-                .any(|w| *w.handle() == workspace_handle)
+                .any(|w| w.handle().id() == workspace_handle)
         }) {
-            self.rects.retain(|id, r| {
-                id.toplevel_id == None
-                    || (id.id == *cur_window
-                        && id
-                            .workspaces_id
-                            .as_ref()
-                            .is_some_and(|l| l.iter().any(|o| *o == workspace_handle.id())))
-            });
             let active = cosmic::theme::active();
             let rad = active
                 .cosmic()
                 .radius_s()
                 .map(|x| if x < 4.0 { x } else { x + 8.0 });
-            let strips: Vec<Rectangle> = self
+
+            let mut rects = Vec::new();
+            let mut strips: Vec<Rectangle> = self
                 .rects
                 .iter()
-                .map(|(id, rect)| {
-                    let rad = CornerRadius {
-                        top_left: rad[0] as u32,
-                        top_right: rad[1] as u32,
-                        bottom_left: rad[3] as u32,
-                        bottom_right: rad[2] as u32,
+                .filter_map(|(id, rect)| {
+                    if self.drag_surface.as_ref().is_some_and(|(s, _)| match s {
+                        DragSurface::Workspace(_) => false,
+                        DragSurface::Toplevel(ext_foreign_toplevel_handle_v1) => id
+                            .toplevel_id
+                            .as_ref()
+                            .is_some_and(|t| *t == ext_foreign_toplevel_handle_v1.id()),
+                    }) || id.id != *cur_window
+                        || id
+                            .workspaces_id
+                            .as_ref()
+                            .is_some_and(|l| !l.iter().any(|o| *o == workspace_handle))
+                    {
+                        return None;
+                    }
+
+                    let rad = if id.toplevel_id.is_none() {
+                        CornerRadius {
+                            top_left: rad[0] as u32,
+                            top_right: rad[1] as u32,
+                            bottom_left: rad[3] as u32,
+                            bottom_right: rad[2] as u32,
+                        }
+                    } else {
+                        rects.push(*rect);
+                        return None;
                     };
 
-                    cosmic::surface::corner_radius::rounded_rect_strips(*rect, rad)
+                    Some(cosmic::surface::corner_radius::rounded_rect_strips(
+                        *rect, rad,
+                    ))
                 })
                 .flatten()
                 .collect();
+            strips.append(&mut rects);
 
             return Some(
                 cosmic::iced::platform_specific::shell::commands::blur::blur(
@@ -531,9 +548,22 @@ impl Application for App {
                         .rects
                         .iter()
                         .filter_map(|(id, rect)| {
-                            if r.0.id != id.id {
+                            if self.drag_surface.as_ref().is_some_and(|(s, _)| match s {
+                                DragSurface::Workspace(_) => false,
+                                DragSurface::Toplevel(ext_foreign_toplevel_handle_v1) => id
+                                    .toplevel_id
+                                    .as_ref()
+                                    .is_some_and(|t| *t == ext_foreign_toplevel_handle_v1.id()),
+                            }) || r.0.id != id.id
+                                || r.0
+                                    .workspaces_id
+                                    .as_ref()
+                                    .zip(id.workspaces_id.as_ref())
+                                    .is_some_and(|(a, b)| !a.iter().any(|r_id| b.contains(r_id)))
+                            {
                                 return None;
                             }
+
                             let rad = if id.toplevel_id.is_none() {
                                 CornerRadius {
                                     top_left: rad[0] as u32,
@@ -664,7 +694,8 @@ impl Application for App {
                             if old_active.contains(&new) {
                                 Task::none()
                             } else {
-                                self.update_active_workspace(new).unwrap_or(Task::none())
+                                self.update_active_workspace(new.id())
+                                    .unwrap_or(Task::none())
                             }
                         }));
                     }
@@ -744,7 +775,7 @@ impl Application for App {
                 }
 
                 self.send_wayland_cmd(backend::Cmd::ActivateWorkspace(workspace_handle.clone()));
-                if let Some(value) = self.update_active_workspace(workspace_handle) {
+                if let Some(value) = self.update_active_workspace(workspace_handle.id()) {
                     return value;
                 }
             }
@@ -795,6 +826,21 @@ impl Application for App {
                                 workspace,
                                 output,
                             ));
+                            let mut w = None;
+                            self.rects.retain(|id, _| {
+                                id.toplevel_id.as_ref().is_none_or(|t| {
+                                    let keep = *t != handle.id();
+                                    if !keep {
+                                        w.clone_from(&id.workspaces_id);
+                                    }
+                                    keep
+                                })
+                            });
+                            if let Some(w) = w {
+                                return Task::batch(w.into_iter().map(|w| {
+                                    self.update_active_workspace(w).unwrap_or(Task::none())
+                                }));
+                            }
                         }
                         Some(
                             DropTarget::WorkspacesBar(_)

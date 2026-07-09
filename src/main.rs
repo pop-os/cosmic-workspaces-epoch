@@ -156,6 +156,7 @@ struct Toplevel {
     info: ToplevelInfo,
     img: Option<backend::CaptureImage>,
     icon: Option<PathBuf>,
+    pub pending_move: Option<ExtWorkspaceHandleV1>,
 }
 
 #[derive(Clone)]
@@ -210,6 +211,7 @@ struct App {
     action_on_typing_activated: bool,
     rectangle_tracker: Option<RectangleTracker<RectId>>,
     rects: HashMap<RectId, Rectangle>,
+    sub_ctr: u128,
 }
 
 #[derive(Debug, Default)]
@@ -614,6 +616,7 @@ impl Application for App {
                     if self.layer_surfaces.remove(&id).is_none() {
                         log::error!("removing non-existant layer shell id {}?", id);
                     }
+                    self.sub_ctr += 1;
                     self.rects.retain(|k, _| k.id != id);
                 }
                 _ => {}
@@ -668,6 +671,7 @@ impl Application for App {
                             handle,
                             info,
                             img: None,
+                            pending_move: None,
                         });
                         // Close workspaces view if a window spawns while open
                         #[cfg(not(feature = "mock-backend"))]
@@ -692,19 +696,30 @@ impl Application for App {
                             // XX must clean up rectangles after the window has moved
                             t_w = Some((handle.id(), info.workspace.clone()));
 
+                            if toplevel
+                                .pending_move
+                                .as_ref()
+                                .is_some_and(|w| info.workspace.contains(&w.id()))
+                            {
+                                toplevel.pending_move = None;
+                            }
                             toplevel.info = info;
 
                             tasks.push(task);
                         }
                         if let Some((t, w)) = t_w {
                             for w in w {
+                                let old_len = self.rects.len();
                                 self.rects.retain(|id, _| {
-                                    !(id.toplevel_id.as_ref().is_some_and(|old| *old == t)
-                                        && id
+                                    id.toplevel_id.as_ref().is_none_or(|old| *old != t)
+                                        || id
                                             .workspaces_id
                                             .as_ref()
-                                            .is_some_and(|old| !old.contains(&w.id())))
+                                            .is_some_and(|old| old.contains(&w.id()))
                                 });
+                                if old_len != self.rects.len() {
+                                    self.sub_ctr += 1;
+                                }
                             }
                         }
                         if self.visible {
@@ -803,7 +818,19 @@ impl Application for App {
                 self.send_wayland_cmd(backend::Cmd::CloseToplevel(toplevel_handle));
             }
             Msg::StartDrag(drag_surface) => {
+                // if let DragSurface::Toplevel(t) = &drag_surface {}
                 self.drag_surface = Some((drag_surface, Default::default()));
+                let to_update: Vec<_> = self
+                    .workspaces
+                    .0
+                    .iter()
+                    .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                    .collect();
+                return Task::batch(
+                    to_update
+                        .into_iter()
+                        .filter_map(|w| self.update_active_workspace(w)),
+                );
             }
             Msg::DndEnter(drop_target, _x, _y, _mimes) => {
                 self.drop_target = Some(drop_target);
@@ -814,6 +841,21 @@ impl Application for App {
                 if self.drop_target == Some(drop_target) {
                     self.drop_target = None;
                 }
+                self.sub_ctr += 1;
+
+                if self.visible {
+                    let to_update: Vec<_> = self
+                        .workspaces
+                        .0
+                        .iter()
+                        .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                        .collect();
+                    return Task::batch(
+                        to_update
+                            .into_iter()
+                            .filter_map(|w| self.update_active_workspace(w)),
+                    );
+                }
             }
             Msg::DndToplevelDrop(_toplevel) => {
                 if let Some((DragSurface::Toplevel(handle), _)) = &self.drag_surface {
@@ -822,26 +864,34 @@ impl Application for App {
                             DropTarget::WorkspaceSidebarEntry(workspace, output)
                             | DropTarget::OutputToplevels(workspace, output),
                         ) => {
-                            let mut w = None;
-                            self.rects.retain(|id, _| {
-                                id.toplevel_id.as_ref().is_none_or(|t| {
-                                    let keep = *t != handle.id();
-                                    if !keep {
-                                        w.clone_from(&id.workspaces_id);
-                                    }
-                                    keep
-                                })
-                            });
+                            if let Some(t) = self.toplevels.for_handle_mut(handle)
+                                && !t.info.workspace.contains(&workspace.id())
+                            {
+                                self.rects.retain(|r, _| {
+                                    r.toplevel_id.as_ref().is_none_or(|o| *o != handle.id())
+                                });
+                                self.sub_ctr += 1;
+
+                                t.pending_move = Some(workspace.clone());
+                            }
                             self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
                                 handle.clone(),
                                 workspace,
                                 output,
                             ));
-                            if let Some(w) = w {
-                                return Task::batch(w.into_iter().map(|w| {
-                                    self.update_active_workspace(w).unwrap_or(Task::none())
-                                }));
-                            }
+                            self.drag_surface = None;
+
+                            let to_update: Vec<_> = self
+                                .workspaces
+                                .0
+                                .iter()
+                                .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                                .collect();
+                            return Task::batch(
+                                to_update
+                                    .into_iter()
+                                    .filter_map(|w| self.update_active_workspace(w)),
+                            );
                         }
                         Some(
                             DropTarget::WorkspacesBar(_)
@@ -1068,7 +1118,7 @@ impl Application for App {
             config_subscription,
             comp_config_subscription,
             bg_subscription,
-            rectangle_tracker_subscription(0).map(|update| Msg::Rectangle(update.1)),
+            rectangle_tracker_subscription(self.sub_ctr).map(|update| Msg::Rectangle(update.1)),
         ];
         if let Some(conn) = self.conn.clone() {
             subscriptions.push(backend::subscription(conn).map(Msg::Wayland));

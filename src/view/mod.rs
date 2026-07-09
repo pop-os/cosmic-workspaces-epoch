@@ -1,4 +1,3 @@
-use cosmic::Apply;
 use cosmic::cctk::cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1;
 use cosmic::cctk::cosmic_protocols::workspace::v2::client::zcosmic_workspace_handle_v2;
 use cosmic::cctk::wayland_client::Proxy;
@@ -12,6 +11,7 @@ use cosmic::iced::platform_specific::shell::subsurface_widget::Subsurface;
 use cosmic::iced::widget::{column, row};
 use cosmic::iced::{self, Alignment, Border, Length};
 use cosmic::widget::{self, Widget, rectangle_tracker};
+use cosmic::{Apply, Element};
 use cosmic_comp_config::workspace::WorkspaceLayout;
 use std::collections::HashSet;
 
@@ -579,17 +579,22 @@ fn toplevel_preview(
     .spacing(8)
     .padding([0, 0, 2, 0])
     .align_y(Alignment::Center);
-
     let alpha = if is_being_dragged { 0.5 } else { 1.0 };
-    let preview = widget::button::custom(rectangle_track.container(
-        RectId {
-            id: window_id,
-            toplevel_id: Some(toplevel.handle.id()),
-            widget_id: None,
-            workspaces_id: Some(toplevel.info.workspace.iter().map(|h| h.id()).collect()),
-        },
-        capture_image(toplevel.img.as_ref(), alpha),
-    ))
+    let content = capture_image(toplevel.img.as_ref(), alpha);
+
+    let preview = widget::button::custom(if toplevel.pending_move.is_some() || is_being_dragged {
+        Element::from(content)
+    } else {
+        Element::from(rectangle_track.container(
+            RectId {
+                id: window_id,
+                toplevel_id: Some(toplevel.handle.id()),
+                widget_id: None,
+                workspaces_id: Some(toplevel.info.workspace.iter().map(|h| h.id()).collect()),
+            },
+            content,
+        ))
+    })
     .selected(
         toplevel
             .info

@@ -499,7 +499,6 @@ impl App {
                 })
                 .flatten()
                 .collect();
-
             strips.append(&mut rects);
 
             return Some(
@@ -539,57 +538,19 @@ impl Application for App {
             Msg::Rectangle(u) => match u {
                 RectangleUpdate::Rectangle(r) => {
                     self.rects.insert(r.0.clone(), r.1);
-                    let active = cosmic::theme::active();
-                    let rad = active
-                        .cosmic()
-                        .radius_s()
-                        .map(|x| if x < 4.0 { x } else { x + 8.0 });
-                    let mut rects = Vec::new();
-                    let mut strips: Vec<Rectangle> = self
-                        .rects
-                        .iter()
-                        .filter_map(|(id, rect)| {
-                            if self.drag_surface.as_ref().is_some_and(|(s, _)| match s {
-                                DragSurface::Workspace(_) => false,
-                                DragSurface::Toplevel(ext_foreign_toplevel_handle_v1) => id
-                                    .toplevel_id
-                                    .as_ref()
-                                    .is_some_and(|t| *t == ext_foreign_toplevel_handle_v1.id()),
-                            }) || r.0.id != id.id
-                                || r.0
-                                    .workspaces_id
-                                    .as_ref()
-                                    .zip(id.workspaces_id.as_ref())
-                                    .is_some_and(|(a, b)| !a.iter().any(|r_id| b.contains(r_id)))
-                            {
-                                return None;
-                            }
-
-                            let rad = if id.toplevel_id.is_none() {
-                                CornerRadius {
-                                    top_left: rad[0] as u32,
-                                    top_right: rad[1] as u32,
-                                    bottom_left: rad[3] as u32,
-                                    bottom_right: rad[2] as u32,
-                                }
-                            } else {
-                                rects.push(*rect);
-                                return None;
-                            };
-                            Some(cosmic::surface::corner_radius::rounded_rect_strips(
-                                *rect, rad,
-                            ))
-                        })
-                        .flatten()
-                        .collect();
-
-                    strips.append(&mut rects);
-
-                    return cosmic::iced::platform_specific::shell::commands::blur::blur(
-                        r.0.id,
-                        Some(strips),
-                    )
-                    .discard();
+                    if self.visible {
+                        let to_update: Vec<_> = self
+                            .workspaces
+                            .0
+                            .iter()
+                            .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                            .collect();
+                        return Task::batch(
+                            to_update
+                                .into_iter()
+                                .filter_map(|w| self.update_active_workspace(w)),
+                        );
+                    }
                 }
                 RectangleUpdate::Init(tracker) => {
                     self.rectangle_tracker = Some(tracker);
@@ -665,11 +626,6 @@ impl Application for App {
                     backend::Event::Workspaces(mut workspaces) => {
                         workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
                         let old_workspaces = mem::take(&mut self.workspaces);
-                        let old_active: HashSet<_> = old_workspaces
-                            .0
-                            .iter()
-                            .filter_map(|w| w.is_active().then(|| w.handle().clone()))
-                            .collect();
                         let mut new_active = Vec::new();
                         for (outputs, workspace) in workspaces {
                             // XXX efficiency
@@ -692,14 +648,12 @@ impl Application for App {
                             self.workspaces.0.push(w);
                         }
                         self.update_capture_filter();
-                        return Task::batch(new_active.into_iter().map(|new| {
-                            if old_active.contains(&new) {
-                                Task::none()
-                            } else {
+                        if self.visible {
+                            return Task::batch(new_active.into_iter().map(|new| {
                                 self.update_active_workspace(new.id())
                                     .unwrap_or(Task::none())
-                            }
-                        }));
+                            }));
+                        }
                     }
                     backend::Event::NewToplevel(handle, info) => {
                         log::debug!("New toplevel: {info:?}");
@@ -743,7 +697,7 @@ impl Application for App {
                             tasks.push(task);
                         }
                         if let Some((t, w)) = t_w {
-                            tasks.push(Task::batch(w.iter().map(|w| {
+                            for w in w {
                                 self.rects.retain(|id, _| {
                                     !(id.toplevel_id.as_ref().is_some_and(|old| *old == t)
                                         && id
@@ -751,8 +705,20 @@ impl Application for App {
                                             .as_ref()
                                             .is_some_and(|old| !old.contains(&w.id())))
                                 });
-                                self.update_active_workspace(w.id()).unwrap_or(Task::none())
-                            })));
+                            }
+                        }
+                        if self.visible {
+                            let to_update: Vec<_> = self
+                                .workspaces
+                                .0
+                                .iter()
+                                .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                                .collect();
+                            tasks.push(Task::batch(
+                                to_update
+                                    .into_iter()
+                                    .filter_map(|w| self.update_active_workspace(w)),
+                            ));
                         }
 
                         return Task::batch(tasks);
@@ -818,6 +784,19 @@ impl Application for App {
                     }
                 }
                 */
+                if self.visible {
+                    let to_update: Vec<_> = self
+                        .workspaces
+                        .0
+                        .iter()
+                        .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                        .collect();
+                    return Task::batch(
+                        to_update
+                            .into_iter()
+                            .filter_map(|w| self.update_active_workspace(w)),
+                    );
+                }
             }
             Msg::CloseToplevel(toplevel_handle) => {
                 // TODO confirmation?

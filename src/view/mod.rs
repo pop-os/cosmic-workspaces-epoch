@@ -92,12 +92,14 @@ pub(crate) fn layer_surface<'a>(
         .flat_map(|t| &t.info.workspace)
         .collect::<HashSet<_>>();
     let layout = app.conf.workspace_config.workspace_layout;
+    let grid_columns = app.conf.workspace_config.workspace_grid_columns.max(1) as usize;
     // track this rectangle
     let sidebar = workspaces_sidebar(
         app.workspaces.for_output(&surface.output),
         &workspaces_with_toplevels,
         &surface.output,
         layout,
+        grid_columns,
         app.drop_target.as_ref(),
         drag_workspace,
         window_id,
@@ -136,7 +138,8 @@ pub(crate) fn layer_surface<'a>(
         cosmic::Element::from(toplevels)
     };
     let container = match layout {
-        WorkspaceLayout::Vertical => widget::layer_container(
+        // Grid places the workspace sidebar on the left like Vertical.
+        WorkspaceLayout::Vertical | WorkspaceLayout::Grid => widget::layer_container(
             row![sidebar, toplevels]
                 .spacing(12)
                 .height(Length::Fill)
@@ -428,6 +431,7 @@ fn workspaces_sidebar<'a>(
     workspaces_with_toplevels: &HashSet<&backend::ExtWorkspaceHandleV1>,
     output: &'a wl_output::WlOutput,
     layout: WorkspaceLayout,
+    grid_columns: usize,
     drop_target: Option<&DropTarget>,
     drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
     window_id: window::Id,
@@ -484,12 +488,32 @@ fn workspaces_sidebar<'a>(
             drag_workspace.is_some(),
         ));
     }
-    let (axis, width, height) = match layout {
-        WorkspaceLayout::Vertical => (Axis::Vertical, Length::Shrink, Length::Fill),
-        WorkspaceLayout::Horizontal => (Axis::Horizontal, Length::Fill, Length::Shrink),
+    let (width, height) = match layout {
+        WorkspaceLayout::Vertical | WorkspaceLayout::Grid => (Length::Shrink, Length::Fill),
+        WorkspaceLayout::Horizontal => (Length::Fill, Length::Shrink),
     };
-    let sidebar_entries_container =
-        widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(8.0);
+    let sidebar_entries_container = match layout {
+        // Grid: chunk entries into rows of `grid_columns`, matching the
+        // compositor's 2D workspace arrangement.
+        WorkspaceLayout::Grid => {
+            let columns = grid_columns.max(1);
+            let mut grid = widget::grid().column_spacing(8).row_spacing(8);
+            for (i, entry) in sidebar_entries.into_iter().enumerate() {
+                if i > 0 && i % columns == 0 {
+                    grid = grid.insert_row();
+                }
+                grid = grid.push(entry);
+            }
+            widget::container(grid).padding(8.0)
+        }
+        WorkspaceLayout::Vertical | WorkspaceLayout::Horizontal => {
+            let axis = match layout {
+                WorkspaceLayout::Horizontal => Axis::Horizontal,
+                _ => Axis::Vertical,
+            };
+            widget::container(crate::widgets::workspace_bar(sidebar_entries, axis)).padding(8.0)
+        }
+    };
 
     widget::container(
         rectangle_track.container(
@@ -644,7 +668,10 @@ fn toplevel_previews<'a>(
     rectangle_track: &rectangle_tracker::RectangleTracker<RectId>,
 ) -> cosmic::Element<'a, Msg> {
     let (width, height) = match layout {
-        WorkspaceLayout::Vertical => (Length::FillPortion(4), Length::Fill),
+        // Grid places the workspace sidebar on the left like Vertical.
+        WorkspaceLayout::Vertical | WorkspaceLayout::Grid => {
+            (Length::FillPortion(4), Length::Fill)
+        }
         WorkspaceLayout::Horizontal => (Length::Fill, Length::FillPortion(4)),
     };
     let entries = toplevels

@@ -104,6 +104,7 @@ pub(crate) fn layer_surface<'a>(
         drag_workspace,
         window_id,
         rectangle_track,
+        app.renaming.as_ref(),
     );
     let toplevels = toplevel_previews(
         app.toplevels.0.iter().filter(|i| {
@@ -219,6 +220,24 @@ fn pin_button(workspace: &Workspace) -> cosmic::Element<'static, Msg> {
     .into()
 }
 
+fn rename_button(workspace: &Workspace) -> cosmic::Element<'static, Msg> {
+    crate::widgets::visibility_wrapper(
+        widget::button::custom(
+            widget::icon::from_name("edit-symbolic")
+                .symbolic(true)
+                .size(16),
+        )
+        .padding([4, 8])
+        .on_press(Msg::StartRename(workspace.handle().clone())),
+        workspace.has_cursor
+            && workspace
+                .info
+                .cosmic_capabilities
+                .contains(zcosmic_workspace_handle_v2::WorkspaceCapabilities::Rename),
+    )
+    .into()
+}
+
 fn workspace_item_appearance(
     theme: &cosmic::Theme,
     is_active: bool,
@@ -247,6 +266,7 @@ fn workspace_item(
     layout: WorkspaceLayout,
     is_drop_target: bool,
     has_workspace_drag: bool,
+    renaming: Option<String>,
 ) -> cosmic::Element<'static, Msg> {
     let (mut image, image_height, image_width) = if let Some(img) = workspace.img.as_ref() {
         let is_rotated = matches!(
@@ -288,14 +308,37 @@ fn workspace_item(
         )
     };
 
-    let workspace_footer = row![
-        widget::space::horizontal().width(Length::Fixed(32.0)),
+    let is_renaming = renaming.is_some();
+    let label: cosmic::Element<'static, Msg> = if let Some(buf) = renaming {
+        widget::text_input("", buf)
+            .on_input(Msg::RenameInputChanged)
+            .on_submit(|_| Msg::SubmitRename)
+            .width(Length::Fill)
+            .into()
+    } else {
         widget::text::body(fl!("workspace", number = workspace.info.name.as_str()))
             .ellipsize(Ellipsize::Middle(EllipsizeHeightLimit::Lines(1)))
             .apply(widget::container)
-            .center_x(Length::Fill),
-        pin_button(workspace),
-    ];
+            .center_x(Length::Fill)
+            .into()
+    };
+    let workspace_footer = row![
+        widget::space::horizontal().width(Length::Fixed(32.0)),
+        label,
+    ]
+    .push_maybe((!is_renaming).then(|| rename_button(workspace)))
+    .push(if is_renaming {
+        widget::button::custom(
+            widget::icon::from_name("window-close-symbolic")
+                .symbolic(true)
+                .size(16),
+        )
+        .padding([4, 8])
+        .on_press(Msg::CancelRename)
+        .into()
+    } else {
+        pin_button(workspace)
+    });
 
     // Needed to prevent footer content getting pushed out when scaling on Vertical layout
     if layout == WorkspaceLayout::Vertical {
@@ -360,7 +403,7 @@ fn workspace_drag_placeholder(
     })
     .padding(8);
     let placeholder = crate::widgets::match_size(
-        workspace_item(other_workspace, other_output, layout, true, true),
+        workspace_item(other_workspace, other_output, layout, true, true, None),
         placeholder,
     );
     dnd_destination_for_target(drop_target, placeholder.into(), Msg::DndWorkspaceDrop)
@@ -373,6 +416,7 @@ fn workspace_sidebar_entry<'a>(
     is_drop_target: bool,
     has_toplevels: bool,
     has_workspace_drag: bool,
+    renaming: Option<String>,
 ) -> cosmic::Element<'a, Msg> {
     /* XXX
     let mouse_interaction = if is_drop_target {
@@ -387,6 +431,7 @@ fn workspace_sidebar_entry<'a>(
         layout,
         is_drop_target,
         has_workspace_drag,
+        renaming,
     );
     let item = iced::widget::mouse_area(item)
         .on_enter(Msg::EnteredWorkspaceSidebarEntry(
@@ -418,7 +463,7 @@ fn workspace_sidebar_entry<'a>(
             DragSurface::Workspace(workspace.handle().clone()),
             Some(workspace.dnd_source_id.clone()),
             destination,
-            move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+            move || workspace_item(&workspace_clone, &output_clone, layout, false, true, None),
         )
     } else {
         destination
@@ -436,6 +481,7 @@ fn workspaces_sidebar<'a>(
     drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
     window_id: window::Id,
     rectangle_track: &rectangle_tracker::RectangleTracker<RectId>,
+    renaming: Option<&'a (backend::ExtWorkspaceHandleV1, String)>,
 ) -> cosmic::Element<'a, Msg> {
     let mut sidebar_entries = Vec::new();
     for workspace in workspaces {
@@ -451,7 +497,7 @@ fn workspaces_sidebar<'a>(
                     .width(Length::Shrink)
                     .height(Length::Shrink)
                     .into(),
-                move || workspace_item(&workspace_clone, &output_clone, layout, false, true),
+                move || workspace_item(&workspace_clone, &output_clone, layout, false, true, None),
             );
             sidebar_entries.push(source);
             continue;
@@ -479,6 +525,9 @@ fn workspaces_sidebar<'a>(
         {
             sidebar_entries.push(workspace_drag_placeholder(workspace, output, layout));
         }
+        let rename_buf = renaming
+            .filter(|(handle, _)| handle == workspace.handle())
+            .map(|(_, name)| name.clone());
         sidebar_entries.push(workspace_sidebar_entry(
             workspace,
             output,
@@ -486,6 +535,7 @@ fn workspaces_sidebar<'a>(
             drop_target_is_workspace && drag_workspace.is_none(),
             workspaces_with_toplevels.contains(workspace.handle()),
             drag_workspace.is_some(),
+            rename_buf,
         ));
     }
     let (width, height) = match layout {

@@ -112,6 +112,10 @@ enum Msg {
     UpdateToplevelIcon(String, Option<PathBuf>),
     OnScroll(wl_output::WlOutput, ScrollDelta),
     TogglePinned(ExtWorkspaceHandleV1),
+    StartRename(ExtWorkspaceHandleV1),
+    RenameInputChanged(String),
+    SubmitRename,
+    CancelRename,
     EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
     DbusInterface(zbus::Result<dbus::Interface>),
     DBus(dbus::Event),
@@ -212,6 +216,7 @@ struct App {
     rectangle_tracker: Option<RectangleTracker<RectId>>,
     rects: HashMap<RectId, Rectangle>,
     sub_ctr: u128,
+    renaming: Option<(ExtWorkspaceHandleV1, String)>,
 }
 
 #[derive(Debug, Default)]
@@ -627,7 +632,21 @@ impl Application for App {
                         self.wayland_cmd_sender = Some(sender);
                     }
                     backend::Event::Workspaces(mut workspaces) => {
-                        workspaces.sort_by(|(_, w1), (_, w2)| w1.coordinates.cmp(&w2.coordinates));
+                        // Coordinates are [x, y, ...] per the protocol convention.
+                        // Sort in natural reading order (row/y first, then
+                        // column/x) rather than plain lexicographic (which would
+                        // sort by column first, scrambling a 2D grid). For 1D
+                        // (linear) coordinates this is a no-op.
+                        fn reading_order_key(coords: &[u32]) -> (u32, u32) {
+                            (
+                                coords.get(1).copied().unwrap_or(0),
+                                coords.first().copied().unwrap_or(0),
+                            )
+                        }
+                        workspaces.sort_by(|(_, w1), (_, w2)| {
+                            reading_order_key(&w1.coordinates)
+                                .cmp(&reading_order_key(&w2.coordinates))
+                        });
                         let old_workspaces = mem::take(&mut self.workspaces);
                         let mut new_active = Vec::new();
                         for (outputs, workspace) in workspaces {
@@ -768,6 +787,9 @@ impl Application for App {
                 }
             }
             Msg::Close => {
+                if self.renaming.take().is_some() {
+                    return Task::none();
+                }
                 return self.hide();
             }
             Msg::ActivateWorkspace(workspace_handle) => {
@@ -983,6 +1005,26 @@ impl Application for App {
                         !workspace.is_pinned(),
                     ));
                 }
+            }
+            Msg::StartRename(workspace_handle) => {
+                if let Some(workspace) = self.workspaces.for_handle(&workspace_handle) {
+                    self.renaming = Some((workspace_handle, workspace.info.name.clone()));
+                }
+            }
+            Msg::RenameInputChanged(name) => {
+                if let Some((_, buf)) = &mut self.renaming {
+                    *buf = name;
+                }
+            }
+            Msg::SubmitRename => {
+                if let Some((workspace_handle, name)) = self.renaming.take()
+                    && !name.trim().is_empty()
+                {
+                    self.send_wayland_cmd(backend::Cmd::RenameWorkspace(workspace_handle, name));
+                }
+            }
+            Msg::CancelRename => {
+                self.renaming = None;
             }
             Msg::EnteredWorkspaceSidebarEntry(workspace_handle, entered) => {
                 if let Some(workspace) = self.workspaces.for_handle_mut(&workspace_handle) {

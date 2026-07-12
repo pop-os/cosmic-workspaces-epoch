@@ -173,6 +173,18 @@ impl AppData {
                     workspace_manager.commit();
                 }
             }
+            Cmd::RenameWorkspace(workspace_handle, name) => {
+                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get()
+                    && let Some(cosmic_workspace) = self
+                        .workspace_state
+                        .workspaces()
+                        .find(|w| w.handle == workspace_handle)
+                        .and_then(|w| w.cosmic_handle.as_ref())
+                {
+                    cosmic_workspace.rename(name);
+                    workspace_manager.commit();
+                }
+            }
         }
     }
 

@@ -887,12 +887,12 @@ impl Application for App {
                                 self.sub_ctr += 1;
 
                                 t.pending_move = Some(workspace.clone());
+                                self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
+                                    handle.clone(),
+                                    workspace,
+                                    output,
+                                ));
                             }
-                            self.send_wayland_cmd(backend::Cmd::MoveToplevelToWorkspace(
-                                handle.clone(),
-                                workspace,
-                                output,
-                            ));
                             self.drag_surface = None;
 
                             let to_update: Vec<_> = self

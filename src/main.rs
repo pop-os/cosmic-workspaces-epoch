@@ -743,6 +743,20 @@ impl Application for App {
                         {
                             self.toplevels.0.remove(idx);
                         }
+                        if let Some(k) = self
+                            .rects
+                            .keys()
+                            .find(|k| k.toplevel_id.as_ref().is_some_and(|t| handle.id() == *t))
+                            .cloned()
+                        {
+                            self.rects.remove(&k);
+                            if let Some(w) = k.workspaces_id {
+                                return Task::batch(
+                                    w.into_iter()
+                                        .filter_map(|w| self.update_active_workspace(w)),
+                                );
+                            }
+                        }
                     }
                     backend::Event::WorkspaceCapture(handle, image) => {
                         //println!("Workspace capture");

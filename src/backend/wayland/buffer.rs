@@ -91,12 +91,8 @@ impl AppData {
         if let Some(vulkan) = &mut self.vulkan
             && let Ok(Some(name)) = vulkan.device_name(drm_dev)
         {
-            // TODO Workaround: force shm on Meteor/Arrow/Lunar/Tiger Lake
-            if name.contains("TGL")
-                || name.contains("MTL")
-                || name.contains("ARL")
-                || name.contains("LNL")
-            {
+            // TODO Workaround: force shm on Meteor/Lunar/Tiger Lake
+            if name.contains("TGL") || name.contains("MTL") || name.contains("LNL") {
                 return Ok(None);
             }
         }

@@ -1,2 +1,2 @@
-workspace = Qadanda xebatê { $number }
+workspace = Qada xebatê { $number }
 new-workspace = Qada xebatê nû

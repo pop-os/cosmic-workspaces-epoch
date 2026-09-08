@@ -19,6 +19,16 @@ use crate::backend::{self, CaptureImage};
 use crate::dnd::{Drag, DragSurface, DragToplevel, DragWorkspace, DropTarget};
 use crate::{App, LayerSurface, Msg, RectId, Toplevel, Workspace};
 
+struct WorkspacesSidebarContext<'a, 'b> {
+    workspaces_with_toplevels: &'b HashSet<&'b backend::ExtWorkspaceHandleV1>,
+    output: &'a wl_output::WlOutput,
+    layout: WorkspaceLayout,
+    drop_target: Option<&'b DropTarget>,
+    drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
+    window_id: window::Id,
+    rectangle_track: &'b rectangle_tracker::RectangleTracker<RectId>,
+}
+
 fn dnd_source_with_drag_surface<D: AsMimeTypes + Send + Clone + 'static>(
     drag_content: D,
     drag_surface: DragSurface,
@@ -95,13 +105,15 @@ pub(crate) fn layer_surface<'a>(
     // track this rectangle
     let sidebar = workspaces_sidebar(
         app.workspaces.for_output(&surface.output),
-        &workspaces_with_toplevels,
-        &surface.output,
-        layout,
-        app.drop_target.as_ref(),
-        drag_workspace,
-        window_id,
-        rectangle_track,
+        WorkspacesSidebarContext {
+            workspaces_with_toplevels: &workspaces_with_toplevels,
+            output: &surface.output,
+            layout,
+            drop_target: app.drop_target.as_ref(),
+            drag_workspace,
+            window_id,
+            rectangle_track,
+        },
     );
     let toplevels = toplevel_previews(
         app.toplevels.0.iter().filter(|i| {
@@ -425,14 +437,17 @@ fn workspace_sidebar_entry<'a>(
 #[allow(clippy::mutable_key_type)]
 fn workspaces_sidebar<'a>(
     workspaces: impl Iterator<Item = &'a Workspace>,
-    workspaces_with_toplevels: &HashSet<&backend::ExtWorkspaceHandleV1>,
-    output: &'a wl_output::WlOutput,
-    layout: WorkspaceLayout,
-    drop_target: Option<&DropTarget>,
-    drag_workspace: Option<&'a backend::ExtWorkspaceHandleV1>,
-    window_id: window::Id,
-    rectangle_track: &rectangle_tracker::RectangleTracker<RectId>,
+    context: WorkspacesSidebarContext<'a, '_>,
 ) -> cosmic::Element<'a, Msg> {
+    let WorkspacesSidebarContext {
+        workspaces_with_toplevels,
+        output,
+        layout,
+        drop_target,
+        drag_workspace,
+        window_id,
+        rectangle_track,
+    } = context;
     let mut sidebar_entries = Vec::new();
     for workspace in workspaces {
         // XXX Need dnd source with same id for drag to work; but give it 0x0 size

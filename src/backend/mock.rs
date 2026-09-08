@@ -187,9 +187,7 @@ impl AppData {
                 println!("Activate {:?}", workspace_handle);
             }
             // TODO
-            Cmd::MoveWorkspaceBefore(_, _)
-            | Cmd::MoveWorkspaceAfter(_, _)
-            | Cmd::SetWorkspacePinned(_, _) => {}
+            Cmd::MoveWorkspaceBefore(_, _) | Cmd::SetWorkspacePinned(_, _) => {}
         }
     }
 }

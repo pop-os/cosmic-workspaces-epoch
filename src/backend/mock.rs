@@ -189,7 +189,8 @@ impl AppData {
             // TODO
             Cmd::MoveWorkspaceBefore(_, _)
             | Cmd::MoveWorkspaceAfter(_, _)
-            | Cmd::SetWorkspacePinned(_, _) => {}
+            | Cmd::SetWorkspacePinned(_, _)
+            | Cmd::RenameWorkspace(_, _) => {}
         }
     }
 }

@@ -135,20 +135,6 @@ impl AppData {
                     workspace_manager.commit();
                 }
             }
-            Cmd::MoveWorkspaceAfter(workspace_handle, other_workspace_handle) => {
-                if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get()
-                    && let Some(cosmic_workspace) = self
-                        .workspace_state
-                        .workspaces()
-                        .find(|w| w.handle == workspace_handle)
-                        .and_then(|w| w.cosmic_handle.as_ref())
-                    && cosmic_workspace.version()
-                        >= zcosmic_workspace_handle_v2::REQ_MOVE_AFTER_SINCE
-                {
-                    cosmic_workspace.move_after(&other_workspace_handle, 0);
-                    workspace_manager.commit();
-                }
-            }
             Cmd::ActivateWorkspace(workspace_handle) => {
                 if let Ok(workspace_manager) = self.workspace_state.workspace_manager().get() {
                     workspace_handle.activate();

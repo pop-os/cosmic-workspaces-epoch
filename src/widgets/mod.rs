@@ -4,12 +4,10 @@ use cosmic::iced::event::Event;
 use cosmic::iced::{Length, Rectangle, Size, Vector};
 use std::marker::PhantomData;
 
-mod image_bg;
 mod workspace_bar;
 pub use workspace_bar::workspace_bar;
 mod size_cross_nth;
 pub use size_cross_nth::size_cross_nth;
-mod mouse_interaction_wrapper;
 mod toplevels;
 pub use toplevels::toplevels;
 mod visibility_wrapper;

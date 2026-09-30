@@ -354,12 +354,20 @@ impl App {
 
         self.visible = false;
         self.update_capture_filter();
-        self.drag_surface = None;
+
+        let end_dnd_task = if self.drag_surface.take().is_some() {
+            cosmic::iced::runtime::dnd::end_dnd()
+        } else {
+            Task::none()
+        };
+
         Task::batch(
-            self.layer_surfaces
-                .keys()
-                .copied()
-                .map(destroy_layer_surface),
+            std::iter::once(end_dnd_task).chain(
+                self.layer_surfaces
+                    .keys()
+                    .copied()
+                    .map(destroy_layer_surface),
+            ),
         )
     }
 

@@ -5,32 +5,30 @@ prefix := '/usr'
 profile := 'release'
 cargo-target-dir := env('CARGO_TARGET_DIR', 'target')
 
+mod cargo 'cargo.just'
+
 base-dir := absolute_path(clean(rootdir / prefix))
 bin-dst := base-dir / 'bin' / name
 desktop-dst := base-dir / 'share/applications' / (APPID + '.desktop')
 icon-dst := base-dir / 'share/icons/hicolor/scalable/apps' / (APPID + '.svg')
 
 # Compile with release profile by default
-[private]
 default: build-release
 
 # Compile with debug profile
-build-debug *args:
-    cargo build --bin {{ name }} {{ args }}
+build-debug *args: (cargo::build-debug args)
 
 # Compile with release profile
-build-release *args: (build-debug '--release' args)
+build-release *args: (cargo::build-release args)
 
 # Compile with a vendored tarball
-build-vendored *args: vendor-extract (build-release '--frozen --offline' args)
+build-vendored *args: (cargo::build-vendored args)
 
 # Remove Cargo build artifacts
-clean:
-    cargo clean
+clean: cargo::clean
 
 # Also remove .cargo and vendored dependencies
-clean-dist: clean
-    rm -rf .cargo vendor vendor.tar
+clean-dist: cargo::clean-dist
 
 # Install the binary, desktop entry, and icon (use profile=debug for debug builds)
 install:
@@ -39,16 +37,7 @@ install:
     install -Dm0644 'data/{{ APPID }}.svg' '{{ icon-dst }}'
 
 # Vendor Cargo dependencies locally
-vendor:
-    #!/usr/bin/env sh
-    set -eu
-    mkdir -p .cargo
-    cargo vendor --locked > .cargo/config.toml
-    tar pcf vendor.tar vendor
-    rm -rf vendor
+vendor: cargo::vendor
 
 # Extract vendored dependencies
-[private]
-vendor-extract:
-    rm -rf vendor
-    tar pxf vendor.tar
+vendor-extract: cargo::vendor-extract

@@ -414,6 +414,7 @@ impl App {
                     Some((output.width as u32, output.height as u32)),
                     None,
                     Some(config.get_effective_anchor_gap()),
+                    config.padding_override.unwrap_or(0),
                 );
                 let size =
                     config.size.get_applet_icon_size_with_padding(true) + u32::from(config.margin);

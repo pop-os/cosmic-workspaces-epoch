@@ -88,7 +88,7 @@ impl CosmicFlags for Args {
 #[derive(Clone, Debug)]
 enum Msg {
     WaylandEvent(WaylandEvent),
-    Wayland(backend::Event),
+    Wayland(Box<backend::Event>),
     Close,
     ActivateWorkspace(ExtWorkspaceHandleV1),
     #[allow(dead_code)]
@@ -479,7 +479,7 @@ impl App {
                         || id
                             .workspaces_id
                             .as_ref()
-                            .is_some_and(|l| !l.iter().any(|o| *o == workspace_handle))
+                            .is_some_and(|l| !l.contains(&workspace_handle))
                     {
                         return None;
                     }
@@ -546,7 +546,8 @@ impl Application for App {
                             .workspaces
                             .0
                             .iter()
-                            .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                            .filter(|w| w.is_active())
+                            .map(|w| w.handle().id())
                             .collect();
                         return Task::batch(
                             to_update
@@ -623,7 +624,7 @@ impl Application for App {
                 _ => {}
             },
             Msg::Wayland(evt) => {
-                match evt {
+                match *evt {
                     backend::Event::CmdSender(sender) => {
                         self.wayland_cmd_sender = Some(sender);
                     }
@@ -728,7 +729,8 @@ impl Application for App {
                                 .workspaces
                                 .0
                                 .iter()
-                                .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                                .filter(|w| w.is_active())
+                                .map(|w| w.handle().id())
                                 .collect();
                             tasks.push(Task::batch(
                                 to_update
@@ -819,7 +821,8 @@ impl Application for App {
                         .workspaces
                         .0
                         .iter()
-                        .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                        .filter(|w| w.is_active())
+                        .map(|w| w.handle().id())
                         .collect();
                     return Task::batch(
                         to_update
@@ -839,7 +842,8 @@ impl Application for App {
                     .workspaces
                     .0
                     .iter()
-                    .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                    .filter(|w| w.is_active())
+                    .map(|w| w.handle().id())
                     .collect();
                 return Task::batch(
                     to_update
@@ -863,7 +867,8 @@ impl Application for App {
                         .workspaces
                         .0
                         .iter()
-                        .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                        .filter(|w| w.is_active())
+                        .map(|w| w.handle().id())
                         .collect();
                     return Task::batch(
                         to_update
@@ -900,7 +905,8 @@ impl Application for App {
                                 .workspaces
                                 .0
                                 .iter()
-                                .filter_map(|w| w.is_active().then(|| w.handle().id()))
+                                .filter(|w| w.is_active())
+                                .map(|w| w.handle().id())
                                 .collect();
                             return Task::batch(
                                 to_update
@@ -1136,7 +1142,8 @@ impl Application for App {
             rectangle_tracker_subscription(self.sub_ctr).map(|update| Msg::Rectangle(update.1)),
         ];
         if let Some(conn) = self.conn.clone() {
-            subscriptions.push(backend::subscription(conn).map(Msg::Wayland));
+            subscriptions
+                .push(backend::subscription(conn).map(|event| Msg::Wayland(Box::new(event))));
         }
         if let Some(interface) = &self.dbus_interface {
             subscriptions.push(interface.subscription().map(Msg::DBus));
